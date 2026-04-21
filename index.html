@@ -1,0 +1,1216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Copilot Chat Bingo Challenge</title>
+<style>
+:root{
+  --lilac:#c084fc;--lilac2:#a855f7;--lilac3:#7c3aed;--lilac4:#4c1d95;
+  --neon:#e879f9;--neon2:#f0abfc;--dark:#0f0a1e;--dark2:#1a1030;
+  --dark3:#251840;--card:#1e1340;--glass:rgba(192,132,252,0.08);
+  --border:rgba(192,132,252,0.25);--text:#f3e8ff;--muted:#c4b5fd;
+  --success:#4ade80;--error:#f87171;--warn:#fbbf24;
+  --radius:14px;--shadow:0 0 24px rgba(168,85,247,0.3);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--dark);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(139,92,246,0.35) 0%,transparent 70%),radial-gradient(ellipse 50% 40% at 90% 90%,rgba(232,121,249,0.15) 0%,transparent 60%);pointer-events:none;z-index:0;}
+
+/* TOP BAR */
+#topbar{position:sticky;top:0;z-index:100;background:linear-gradient(90deg,var(--dark4,#0d0820) 0%,var(--dark2) 100%);border-bottom:1px solid var(--border);padding:0 20px;height:48px;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(12px);}
+#topbar .brand{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--lilac);opacity:.85;}
+#topbar .brand span{color:var(--neon);}
+#topbar .title{font-size:15px;font-weight:800;background:linear-gradient(90deg,var(--lilac),var(--neon));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+#topbar .hud{display:flex;gap:14px;font-size:11px;color:var(--muted);}
+#topbar .hud b{color:var(--neon);}
+
+/* TABS */
+#tabs{display:flex;gap:4px;padding:16px 20px 0;position:relative;z-index:1;}
+.tab-btn{padding:8px 20px;border-radius:999px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:13px;font-weight:600;transition:.2s;}
+.tab-btn.active{background:linear-gradient(135deg,var(--lilac3),var(--lilac2));color:#fff;border-color:var(--lilac2);box-shadow:0 0 16px rgba(168,85,247,.5);}
+.tab-btn:hover:not(.active){border-color:var(--lilac);color:var(--lilac);}
+
+/* PANELS */
+.tab-panel{display:none;padding:20px;position:relative;z-index:1;}
+.tab-panel.active{display:block;}
+
+/* SETUP CARD */
+.setup-card{background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);padding:24px;max-width:560px;margin:0 auto;backdrop-filter:blur(8px);}
+.setup-card h2{font-size:22px;font-weight:900;background:linear-gradient(90deg,var(--lilac),var(--neon));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px;}
+.setup-card p{font-size:13px;color:var(--muted);margin-bottom:18px;}
+label{display:block;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+input,select{width:100%;padding:10px 14px;background:var(--dark3);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;outline:none;transition:.2s;}
+input:focus,select:focus{border-color:var(--lilac2);box-shadow:0 0 0 3px rgba(168,85,247,.2);}
+.input-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 24px;border-radius:999px;border:none;cursor:pointer;font-size:14px;font-weight:700;transition:.2s;}
+.btn-primary{background:linear-gradient(135deg,var(--lilac3),var(--lilac2),var(--neon));color:#fff;box-shadow:0 0 20px rgba(168,85,247,.5);}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 0 30px rgba(232,121,249,.6);}
+.btn-ghost{background:transparent;border:1.5px solid var(--border);color:var(--muted);}
+.btn-ghost:hover{border-color:var(--lilac);color:var(--lilac);}
+.btn-sm{padding:7px 16px;font-size:12px;}
+.btn-xs{padding:5px 12px;font-size:11px;}
+
+/* PACK PICKER */
+#pack-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:8px;max-height:220px;overflow-y:auto;margin:10px 0;padding:4px;}
+#pack-grid::-webkit-scrollbar{width:5px;}
+#pack-grid::-webkit-scrollbar-thumb{background:var(--lilac3);border-radius:4px;}
+.pack-cell{padding:8px 4px;text-align:center;border-radius:10px;border:1.5px solid var(--border);cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);transition:.15s;}
+.pack-cell:hover{border-color:var(--lilac);color:var(--lilac);}
+.pack-cell.selected{background:linear-gradient(135deg,var(--lilac3),var(--lilac2));color:#fff;border-color:var(--lilac2);box-shadow:0 0 12px rgba(168,85,247,.4);}
+#pack-search{margin-bottom:8px;}
+
+/* BOARD */
+#board-wrap{max-width:680px;margin:0 auto;}
+.board-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.board-header h2{font-size:18px;font-weight:900;background:linear-gradient(90deg,var(--lilac),var(--neon));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.board-meta{font-size:12px;color:var(--muted);}
+#bingo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;}
+.tile{background:var(--card);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 12px;cursor:pointer;transition:.2s;min-height:120px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden;}
+.tile::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(192,132,252,.06),transparent);opacity:0;}
+.tile:hover{border-color:var(--lilac2);box-shadow:0 0 18px rgba(168,85,247,.3);transform:translateY(-2px);}
+.tile.cleared{background:linear-gradient(135deg,rgba(124,58,237,.35),rgba(168,85,247,.2));border-color:var(--lilac2);box-shadow:0 0 20px rgba(168,85,247,.4);}
+.tile.cleared::after{content:'✓';position:absolute;top:8px;right:10px;font-size:18px;color:var(--success);font-weight:900;}
+.tile.win-glow{animation:winPulse 1s ease-out;}
+@keyframes winPulse{0%{box-shadow:0 0 0 rgba(232,121,249,0);}50%{box-shadow:0 0 40px rgba(232,121,249,.9);}100%{box-shadow:0 0 20px rgba(168,85,247,.4);}}
+.tile-num{font-size:10px;font-weight:800;letter-spacing:1px;color:var(--lilac);text-transform:uppercase;}
+.tile-title{font-size:13px;font-weight:700;color:var(--text);line-height:1.4;}
+.tile-tag{font-size:10px;color:var(--muted);margin-top:auto;}
+
+/* PROGRESS HUD */
+#hud-bar{background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;display:flex;gap:20px;flex-wrap:wrap;backdrop-filter:blur(8px);}
+.hud-item{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.hud-val{font-size:22px;font-weight:900;background:linear-gradient(135deg,var(--lilac),var(--neon));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.hud-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.progress-bar-wrap{flex:1;min-width:160px;display:flex;flex-direction:column;gap:4px;justify-content:center;}
+.progress-bar-track{background:var(--dark3);border-radius:999px;height:8px;overflow:hidden;}
+.progress-bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--lilac3),var(--neon));transition:width .5s ease;}
+
+/* TILE PANEL (modal) */
+#tile-modal{display:none;position:fixed;inset:0;z-index:200;background:rgba(10,5,25,.85);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:16px;}
+#tile-modal.open{display:flex;}
+.modal-box{background:var(--dark2);border:1.5px solid var(--lilac2);border-radius:20px;max-width:600px;width:100%;max-height:90vh;overflow-y:auto;padding:28px;box-shadow:0 0 60px rgba(168,85,247,.5);position:relative;}
+.modal-box::-webkit-scrollbar{width:5px;}
+.modal-box::-webkit-scrollbar-thumb{background:var(--lilac3);border-radius:4px;}
+.modal-close{position:absolute;top:14px;right:14px;background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;}
+.modal-close:hover{color:var(--neon);}
+.modal-task{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--lilac);margin-bottom:6px;}
+.modal-title{font-size:20px;font-weight:900;margin-bottom:12px;background:linear-gradient(90deg,var(--lilac),var(--neon));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.prompt-box{background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:13px;line-height:1.7;color:var(--text);white-space:pre-wrap;margin-bottom:12px;position:relative;}
+.copilot-launch{background:linear-gradient(135deg,rgba(124,58,237,.2),rgba(168,85,247,.1));border:1px solid var(--lilac3);border-radius:12px;padding:14px;margin-bottom:14px;}
+.copilot-launch h4{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--lilac);margin-bottom:8px;}
+.launch-steps{display:flex;flex-direction:column;gap:8px;}
+.launch-step{display:flex;align-items:flex-start;gap:10px;font-size:13px;}
+.step-badge{background:var(--lilac3);color:#fff;border-radius:999px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;margin-top:1px;}
+.hint-box{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--warn);margin-top:8px;line-height:1.6;}
+.proof-section label{margin-top:12px;}
+textarea{width:100%;padding:10px 14px;background:var(--dark3);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;resize:vertical;min-height:90px;outline:none;transition:.2s;font-family:inherit;}
+textarea:focus{border-color:var(--lilac2);box-shadow:0 0 0 3px rgba(168,85,247,.2);}
+.verify-result{margin-top:10px;padding:10px 14px;border-radius:10px;font-size:13px;display:none;}
+.verify-result.ok{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.3);color:var(--success);display:block;}
+.verify-result.fail{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:var(--error);display:block;}
+
+/* KEYWORDS PANEL */
+#kw-list{display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;}
+.kw-item{background:var(--glass);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:12px;}
+.kw-code{font-family:monospace;font-weight:700;color:var(--neon);font-size:13px;flex:1;}
+.kw-meta{color:var(--muted);font-size:11px;}
+
+/* TOAST */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:500;display:none;}
+#toast.show{display:flex;}
+.toast-inner{background:linear-gradient(135deg,var(--lilac3),var(--dark2));border:1.5px solid var(--lilac2);border-radius:16px;padding:14px 22px;display:flex;align-items:center;gap:12px;box-shadow:0 0 40px rgba(168,85,247,.6);max-width:480px;}
+.toast-icon{font-size:22px;}
+.toast-body{flex:1;}
+.toast-title{font-size:14px;font-weight:800;color:var(--neon);margin-bottom:3px;}
+.toast-sub{font-size:12px;color:var(--muted);}
+.toast-kw{font-family:monospace;font-size:13px;font-weight:700;color:#fff;background:var(--dark3);padding:3px 8px;border-radius:6px;margin-top:5px;display:inline-block;}
+
+/* WIN MODAL */
+#win-modal{display:none;position:fixed;inset:0;z-index:300;background:rgba(10,5,25,.9);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:16px;}
+#win-modal.open{display:flex;}
+.win-box{background:var(--dark2);border:2px solid var(--neon);border-radius:24px;max-width:480px;width:100%;padding:36px;text-align:center;box-shadow:0 0 80px rgba(232,121,249,.6);}
+.win-emoji{font-size:56px;margin-bottom:12px;display:block;}
+.win-title{font-size:28px;font-weight:900;background:linear-gradient(90deg,var(--lilac),var(--neon));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;}
+.win-sub{font-size:14px;color:var(--muted);margin-bottom:18px;}
+.win-kw{font-family:monospace;font-size:16px;font-weight:800;color:#fff;background:var(--dark3);border:1.5px solid var(--lilac2);border-radius:10px;padding:10px 18px;margin:0 auto 18px;display:inline-block;letter-spacing:2px;}
+.confetti-wrap{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+.conf{position:absolute;width:8px;height:8px;border-radius:2px;animation:fall linear forwards;}
+@keyframes fall{0%{transform:translateY(-20px) rotate(0deg);opacity:1;}100%{transform:translateY(100vh) rotate(720deg);opacity:0;}}
+
+/* SUBMISSION PANEL */
+.sub-card{background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);padding:22px;max-width:560px;margin:0 auto 20px;backdrop-filter:blur(8px);}
+.sub-card h3{font-size:16px;font-weight:800;color:var(--lilac);margin-bottom:14px;}
+.field-row{margin-bottom:12px;}
+.detected-org{font-size:11px;color:var(--success);margin-top:4px;display:none;}
+.detected-org.show{display:block;}
+.kw-format-hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.6;}
+.sub-result{margin-top:10px;padding:10px 14px;border-radius:10px;font-size:13px;display:none;}
+.sub-result.ok{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.3);color:var(--success);display:block;}
+.sub-result.fail{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:var(--error);display:block;}
+
+/* LEADERBOARD */
+.lb-table{width:100%;border-collapse:collapse;margin-top:10px;}
+.lb-table th{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);}
+.lb-table td{padding:10px 12px;font-size:13px;border-bottom:1px solid rgba(192,132,252,.08);}
+.lb-table tr:hover td{background:rgba(192,132,252,.05);}
+.rank-badge{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:999px;font-weight:800;font-size:12px;}
+.rank-1{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;}
+.rank-2{background:linear-gradient(135deg,#d1d5db,#9ca3af);color:#000;}
+.rank-3{background:linear-gradient(135deg,#d97706,#b45309);color:#fff;}
+.rank-n{background:var(--dark3);color:var(--muted);}
+
+/* CHALLENGE PROGRESS */
+.challenge-bar{background:var(--glass);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:16px;}
+.challenge-bar h4{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--lilac);margin-bottom:10px;}
+.week-dots{display:flex;gap:8px;margin-bottom:8px;}
+.wdot{width:32px;height:32px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;border:2px solid var(--border);color:var(--muted);transition:.3s;}
+.wdot.done{background:linear-gradient(135deg,var(--lilac3),var(--lilac2));border-color:var(--lilac2);color:#fff;box-shadow:0 0 10px rgba(168,85,247,.5);}
+.wdot.current{border-color:var(--neon);color:var(--neon);}
+
+/* ADMIN */
+.admin-section{background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.2);border-radius:var(--radius);padding:18px;margin-top:20px;max-width:480px;}
+.admin-section h4{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--error);margin-bottom:10px;}
+
+/* SECTION DIVIDER */
+.section-title{font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin:22px 0 10px;display:flex;align-items:center;gap:8px;}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* RESPONSIVE */
+@media(max-width:540px){.input-row{grid-template-columns:1fr;}#bingo-grid{gap:8px;}.tile{min-height:90px;padding:10px;}}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="brand">Powered by <span>Microsoft Student Ambassador</span></div>
+  <div class="title">⚡ Copilot Chat Bingo</div>
+  <div class="hud" id="hud-mini">
+    <span>Tiles: <b id="hm-tiles">0/9</b></span>
+    <span>Lines: <b id="hm-lines">0/8</b></span>
+    <span>Keys: <b id="hm-keys">0</b></span>
+  </div>
+</div>
+
+<!-- TABS -->
+<div id="tabs">
+  <button class="tab-btn active" onclick="switchTab('game')">🎮 Game Board</button>
+  <button class="tab-btn" onclick="switchTab('keywords')">🔑 My Keywords</button>
+  <button class="tab-btn" onclick="switchTab('submit')">📬 Submit & Leaderboard</button>
+  <button class="tab-btn" onclick="switchTab('help')">❓ Help</button>
+</div>
+
+<!-- ═══════════════ TAB: GAME ═══════════════ -->
+<div id="tab-game" class="tab-panel active">
+
+  <!-- SETUP (shown when no active board) -->
+  <div id="setup-section">
+    <div class="setup-card">
+      <h2>Start Your Board</h2>
+      <p>Choose a pack (001–999) or enter a Lucky Number to generate your personalised Bingo board.</p>
+      <div class="input-row">
+        <div>
+          <label>Your Name</label>
+          <input type="text" id="player-name" placeholder="e.g. Alex" maxlength="40"/>
+        </div>
+        <div>
+          <label>Lucky Number (Pack)</label>
+          <input type="number" id="lucky-num" min="1" max="999" placeholder="1–999"/>
+        </div>
+      </div>
+      <label>Browse Packs</label>
+      <input type="text" id="pack-search" placeholder="Search pack number…" oninput="filterPacks(this.value)"/>
+      <div id="pack-grid"></div>
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="startBoard()">🚀 Launch Board</button>
+        <button class="btn btn-ghost btn-sm" onclick="quickPick()">🎲 Quick Pick</button>
+      </div>
+      <p id="setup-err" style="color:var(--error);font-size:12px;margin-top:8px;"></p>
+    </div>
+  </div>
+
+  <!-- BOARD (shown after launch) -->
+  <div id="board-section" style="display:none;">
+    <div id="board-wrap">
+
+      <!-- CHALLENGE PROGRESS -->
+      <div class="challenge-bar" id="challenge-bar" style="display:none;">
+        <h4>7-Week Challenge Progress</h4>
+        <div class="week-dots" id="week-dots"></div>
+        <div class="progress-bar-wrap">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px;">
+            <span id="challenge-text">Completed: 0/7 • 7 weeks left</span>
+            <span id="week-label">Week 1</span>
+          </div>
+          <div class="progress-bar-track"><div class="progress-bar-fill" id="challenge-fill" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- HUD -->
+      <div id="hud-bar">
+        <div class="hud-item"><div class="hud-val" id="hud-tiles">0</div><div class="hud-lbl">Tiles Cleared</div></div>
+        <div class="hud-item"><div class="hud-val" id="hud-lines">0</div><div class="hud-lbl">Lines Won</div></div>
+        <div class="hud-item"><div class="hud-val" id="hud-keys">0</div><div class="hud-lbl">Keywords</div></div>
+        <div class="progress-bar-wrap">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px;">
+            <span>Board Progress</span><span id="hud-pct">0%</span>
+          </div>
+          <div class="progress-bar-track"><div class="progress-bar-fill" id="hud-prog" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <div class="board-header">
+        <div>
+          <h2 id="board-title">Pack #001</h2>
+          <div class="board-meta" id="board-meta"></div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="resetBoard()">↩ New Board</button>
+      </div>
+
+      <div id="bingo-grid"></div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ TAB: KEYWORDS ═══════════════ -->
+<div id="tab-keywords" class="tab-panel">
+  <div style="max-width:660px;margin:0 auto;">
+    <div class="section-title">My Earned Keywords</div>
+    <div id="kw-list"><p style="color:var(--muted);font-size:13px;">No keywords yet — complete a Bingo line to earn one!</p></div>
+  </div>
+</div>
+
+<!-- ═══════════════ TAB: SUBMIT & LEADERBOARD ═══════════════ -->
+<div id="tab-submit" class="tab-panel">
+  <div style="max-width:680px;margin:0 auto;">
+
+    <!-- SUBMISSION FORM -->
+    <div class="sub-card">
+      <h3>📬 Submit a Keyword</h3>
+      <div class="field-row">
+        <label>Organization</label>
+        <input type="text" id="sub-org" placeholder="e.g. NUS, SMU, NTU…"/>
+      </div>
+      <div class="field-row">
+        <label>First Name</label>
+        <input type="text" id="sub-name" placeholder="Your first name"/>
+      </div>
+      <div class="field-row">
+        <label>Work / School Email</label>
+        <input type="email" id="sub-email" placeholder="you@university.edu.sg" oninput="detectOrg(this.value)"/>
+        <div class="detected-org" id="detected-org-hint"></div>
+      </div>
+      <div class="field-row">
+        <label>Keyword</label>
+        <input type="text" id="sub-kw" placeholder="CO-APR26-001-R1-XXXXXXXX or CO-APR26-W1-001-XXXXXXXX" style="font-family:monospace;font-size:13px;" oninput="this.value=this.value.toUpperCase().trim()"/>
+        <div class="kw-format-hint">
+          Line keyword: <code>CO-{CampaignId}-{PackId}-{LineId}-{Token}</code><br/>
+          Weekly Clear: <code>CO-{CampaignId}-W{weekNo}-{PackId}-{Token}</code><br/>
+          Uppercase letters, digits, hyphens only.
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="submitKeyword()">Submit Keyword</button>
+      <div class="sub-result" id="sub-result"></div>
+    </div>
+
+    <!-- LEADERBOARD -->
+    <div class="sub-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <h3 style="margin:0;">🏆 Organization Leaderboard</h3>
+        <button class="btn btn-ghost btn-xs" onclick="renderLeaderboard()">↻ Refresh</button>
+      </div>
+      <div id="lb-wrap">
+        <p style="color:var(--muted);font-size:13px;">No submissions yet. Be the first!</p>
+      </div>
+    </div>
+
+    <!-- ADMIN -->
+    <div class="admin-section">
+      <h4>⚠️ Admin — Clear Local Data</h4>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Type <strong>RESET-BINGO</strong> to wipe all local data (game state, submissions, profiles). This cannot be undone.</p>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="admin-phrase" placeholder="RESET-BINGO" style="max-width:200px;"/>
+        <button class="btn btn-sm" style="background:var(--error);color:#fff;border:none;border-radius:999px;padding:7px 16px;cursor:pointer;font-weight:700;" onclick="adminClear()">Clear All Data</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ TAB: HELP ═══════════════ -->
+<div id="tab-help" class="tab-panel">
+  <div style="max-width:640px;margin:0 auto;">
+    <div class="setup-card">
+      <h2>How to Play</h2>
+      <p style="margin-bottom:14px;">Complete Copilot Chat tasks on your 3×3 board, verify your answers, and earn keywords when you complete a Bingo line.</p>
+      <ol style="font-size:13px;line-height:2;color:var(--muted);padding-left:18px;">
+        <li>Pick a pack (1–999) and enter your name → Launch your board.</li>
+        <li>Click any tile to open the task panel.</li>
+        <li>Copy the prompt → Open Copilot Chat → Paste and run it.</li>
+        <li>Paste your proof into the text box → Verify &amp; Claim.</li>
+        <li>Complete a row, column, or diagonal → earn a keyword!</li>
+        <li>Submit keywords on the Submit tab to score for your org.</li>
+      </ol>
+      <div class="hint-box" style="margin-top:14px;">
+        <strong>⚠️ Browser Security Note:</strong> Due to standard browser security restrictions, this game <em>cannot</em> automatically fill or send your prompt into Copilot Chat (m365.cloud.microsoft/chat) via URL parameters. The supported flow is: <strong>(1) Copy prompt to clipboard → (2) Open Copilot Chat → (3) Paste manually</strong>. This is by design.
+      </div>
+      <div class="hint-box" style="margin-top:10px;border-color:rgba(192,132,252,.3);background:rgba(192,132,252,.06);color:var(--muted);">
+        <strong>🔒 Keyword Security Note (Prototype):</strong> Keywords are generated client-side using a session nonce for per-user uniqueness. This is a prototype and is <em>not tamper-proof</em>. In production, keywords should be generated and validated server-side (e.g., Azure Functions) against a registry, and client-side storage should not be trusted.
+      </div>
+      <div style="margin-top:16px;">
+        <div class="section-title">Copilot Chat URL</div>
+        <p style="font-size:12px;color:var(--muted);">Default: <code style="color:var(--lilac);">https://m365.cloud.microsoft/chat</code><br/>This is configured in one place in the source (COPILOT_URL constant). Update it if your org uses a different entry point.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TILE MODAL -->
+<div id="tile-modal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeTileModal()">✕</button>
+    <div class="modal-task" id="m-task-label"></div>
+    <div class="modal-title" id="m-title"></div>
+    <div class="prompt-box" id="m-prompt"></div>
+
+    <div class="copilot-launch">
+      <h4>🚀 Launch Copilot Chat</h4>
+      <div class="launch-steps">
+        <div class="launch-step">
+          <div class="step-badge">1</div>
+          <div><strong>Copy the prompt above</strong> to your clipboard.<br/><button class="btn btn-primary btn-sm" style="margin-top:6px;" onclick="copyPrompt()">📋 Copy Prompt</button> <span id="copy-hint" style="font-size:11px;color:var(--success);display:none;">✓ Copied!</span></div>
+        </div>
+        <div class="launch-step">
+          <div class="step-badge">2</div>
+          <div><strong>Open Copilot Chat</strong> and paste your prompt.<br/><button class="btn btn-ghost btn-sm" style="margin-top:6px;border-color:var(--lilac2);color:var(--lilac);" onclick="openCopilot()">🌐 Open Copilot Chat ↗</button></div>
+        </div>
+      </div>
+      <div class="hint-box">💡 Prompt copied — paste into Copilot Chat and run it, then paste your output below as proof.</div>
+    </div>
+
+    <div class="proof-section">
+      <label>Your Proof (paste Copilot output here)</label>
+      <textarea id="proof-input" placeholder="Paste the full Copilot response here…"></textarea>
+      <button class="btn btn-primary" style="margin-top:10px;width:100%;" onclick="verifyClaim()">✅ Verify &amp; Claim</button>
+      <div class="verify-result" id="verify-result"></div>
+    </div>
+  </div>
+</div>
+
+<!-- WIN MODAL -->
+<div id="win-modal">
+  <div class="win-box" style="position:relative;">
+    <div class="confetti-wrap" id="confetti-wrap"></div>
+    <span class="win-emoji">🎉</span>
+    <div class="win-title" id="win-title">BINGO!</div>
+    <div class="win-sub" id="win-sub">You completed a line!</div>
+    <div class="win-kw" id="win-kw"></div>
+    <button class="btn btn-ghost btn-sm" style="margin-bottom:10px;" onclick="copyWinKw()">📋 Copy Keyword</button>
+    <br/>
+    <button class="btn btn-primary btn-sm" onclick="closeWinModal()">Keep Playing →</button>
+    <p style="font-size:11px;color:var(--muted);margin-top:12px;">⚠️ Prototype: keyword generated client-side with session nonce. Not tamper-proof.</p>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast">
+  <div class="toast-inner">
+    <div class="toast-icon" id="toast-icon">⚡</div>
+    <div class="toast-body">
+      <div class="toast-title" id="toast-title"></div>
+      <div class="toast-sub" id="toast-sub"></div>
+      <div class="toast-kw" id="toast-kw" style="display:none;"></div>
+    </div>
+    <button onclick="document.getElementById('toast').classList.remove('show')" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:16px;margin-left:8px;">✕</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  CONFIGURATION
+// ══════════════════════════════════════════════
+const COPILOT_URL = 'https://m365.cloud.microsoft/chat'; // Change this for org-specific entry point
+const CAMPAIGN_ID = 'APR26';
+const TOTAL_PACKS  = 999;
+const TOTAL_WEEKS  = 7;
+const MS_PER_WEEK  = 7 * 24 * 60 * 60 * 1000;
+
+// ══════════════════════════════════════════════
+//  EMAIL → ORG MAPPING
+// ══════════════════════════════════════════════
+const ORG_MAP = {
+  'smu.edu.sg':'SMU','ntu.edu.sg':'NTU','nie.edu.sg':'NIE','nus.edu.sg':'NUS',
+  'sim.edu.sg':'SIM','singaporetech.edu.sg':'SIT','sutd.edu.sg':'SUTD','suss.edu.sg':'SUSS',
+  'sp.edu.sg':'SP','rp.edu.sg':'RP','ite.edu.sg':'ITE','np.edu.sg':'NP',
+  'nyp.edu.sg':'NYP','tp.edu.sg':'TP','schools.gov.sg':'MOE','students.edu.sg':'MOE'
+};
+
+// ══════════════════════════════════════════════
+//  SEEDED RNG (mulberry32)
+// ══════════════════════════════════════════════
+function mulberry32(seed){
+  return function(){
+    seed|=0; seed=seed+0x6D2B79F5|0;
+    let t=Math.imul(seed^seed>>>15,1|seed);
+    t=t+Math.imul(t^t>>>7,61|t)^t;
+    return ((t^t>>>14)>>>0)/4294967296;
+  };
+}
+function hashStr(s){let h=0;for(let i=0;i<s.length;i++){h=Math.imul(31,h)+s.charCodeAt(i)|0;}return Math.abs(h);}
+function seededShuffle(arr,rng){let a=[...arr];for(let i=a.length-1;i>0;i--){let j=Math.floor(rng()*( i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+// ══════════════════════════════════════════════
+//  TASK BANK  (24 Copilot-Chat-only tasks)
+// ══════════════════════════════════════════════
+const TASK_BANK = [
+  {
+    title:'Email Summariser',tag:'Productivity',
+    prompt:`You are a professional email summariser. Please respond to this prompt with the following structure — include the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE at the very start of your reply, then produce EXACTLY 3 bullet points summarising an imaginary unread work email about a Q3 budget review, followed by a one-sentence recommended action. Format:\nVERIFY-MARKER\n• Summary point 1\n• Summary point 2\n• Summary point 3\nAction: [your recommended action]`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,bullets:3,action:true})
+  },
+  {
+    title:'Meeting Agenda Maker',tag:'Productivity',
+    prompt:`You are a meeting planner. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then generate a meeting agenda for a 30-minute team stand-up with EXACTLY 4 numbered items (1. 2. 3. 4.), each item having a short description. Format:\nVERIFY-MARKER\n1. Item: description\n2. Item: description\n3. Item: description\n4. Item: description`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,numberedItems:4})
+  },
+  {
+    title:'SWOT Analyser',tag:'Strategy',
+    prompt:`You are a business analyst. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then produce a SWOT analysis of a fictional coffee shop using EXACTLY 4 headings: ## Strengths, ## Weaknesses, ## Opportunities, ## Threats — each heading followed by at least 2 bullet points.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,headings:['Strengths','Weaknesses','Opportunities','Threats']})
+  },
+  {
+    title:'Study Plan Generator',tag:'Learning',
+    prompt:`You are a study coach. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then create a 5-day study plan for learning Python basics. Present it as a table with EXACTLY 3 columns: Day | Topic | Activity. Include EXACTLY 5 data rows.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,tableRows:5,tableCols:3})
+  },
+  {
+    title:'Cover Letter Draft',tag:'Career',
+    prompt:`You are a career coach. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then write a short cover letter for a Data Analyst internship. It must have EXACTLY 3 paragraphs (each separated by a blank line) and end with "Yours sincerely,".\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,paragraphs:3,endsWith:'Yours sincerely,'})
+  },
+  {
+    title:'Pro-Con Table',tag:'Decision Making',
+    prompt:`You are a decision analyst. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then create a pros-and-cons table for remote work. Use a markdown table with EXACTLY 2 columns: Pro | Con, and EXACTLY 5 data rows.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,tableRows:5,tableCols:2})
+  },
+  {
+    title:'Concept Explainer',tag:'Learning',
+    prompt:`You are a teacher. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then explain "machine learning" in plain English using EXACTLY 3 short paragraphs (each separated by a blank line). Each paragraph must start with a bold key term like **Term**.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,paragraphs:3,boldTerms:true})
+  },
+  {
+    title:'FAQ Creator',tag:'Communication',
+    prompt:`You are a content writer. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then write an FAQ section for a fictional university app with EXACTLY 5 Q&A pairs. Format each as:\nQ: [question]\nA: [answer]\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,qaCount:5})
+  },
+  {
+    title:'Action Plan Writer',tag:'Productivity',
+    prompt:`You are a project manager. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then write a 5-step action plan to improve team communication. Number steps 1. to 5. Each step must have a sub-bullet starting with → explaining HOW.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,numberedItems:5,subBullets:true})
+  },
+  {
+    title:'Feedback Rewriter',tag:'Communication',
+    prompt:`You are an executive coach. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then rewrite this blunt feedback in a constructive tone — "Your report was late and full of errors" — as EXACTLY 3 bullet points, each starting with "•".\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,bullets:3})
+  },
+  {
+    title:'Data Insight Narrator',tag:'Analytics',
+    prompt:`You are a data storyteller. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then narrate 3 fictional data insights from a student survey using EXACTLY 3 headings: ## Insight 1, ## Insight 2, ## Insight 3 — each with one sentence of analysis.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,headings:['Insight 1','Insight 2','Insight 3']})
+  },
+  {
+    title:'Social Post Drafter',tag:'Marketing',
+    prompt:`You are a social media manager. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then draft a LinkedIn post announcing a new AI workshop. The post must include: EXACTLY 3 bullet points with benefits (each starting with •), 1 call-to-action sentence, and end with EXACTLY 3 relevant hashtags on the last line.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,bullets:3,hashtags:3})
+  },
+  {
+    title:'JSON Profile Builder',tag:'Technical',
+    prompt:`You are a developer. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then produce a JSON object for a fictional student profile. It must include EXACTLY these keys: "name", "university", "course", "year", "skills" (an array of EXACTLY 3 strings). Format as valid JSON inside a code block.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,jsonKeys:['name','university','course','year','skills']})
+  },
+  {
+    title:'Risk Register Row',tag:'Project Mgmt',
+    prompt:`You are a risk manager. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then fill in a risk register row as a markdown table with EXACTLY 5 columns: Risk | Likelihood | Impact | Mitigation | Owner. Provide EXACTLY 3 data rows.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,tableRows:3,tableCols:5})
+  },
+  {
+    title:'OKR Drafter',tag:'Strategy',
+    prompt:`You are a strategy consultant. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then draft one OKR for a student club's semester. Format as:\nObjective: [one sentence]\nKey Results:\n1. [KR1]\n2. [KR2]\n3. [KR3]\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,numberedItems:3,hasObjective:true})
+  },
+  {
+    title:'Icebreaker Generator',tag:'Team Building',
+    prompt:`You are a facilitator. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then generate EXACTLY 5 icebreaker questions for a new student orientation. Number them 1. to 5. Each question must end with a "?".\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,numberedItems:5,endWithQ:true})
+  },
+  {
+    title:'Press Release Opener',tag:'Communication',
+    prompt:`You are a PR specialist. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then write the opening paragraph of a press release for a fictional AI conference. It must start with a city/date dateline like "SINGAPORE, [Month] [Year] —" and be followed by EXACTLY 2 more paragraphs.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,paragraphs:3,dateline:true})
+  },
+  {
+    title:'Lesson Plan Outline',tag:'Education',
+    prompt:`You are a curriculum designer. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then outline a 60-minute lesson on "Responsible AI". Use EXACTLY 3 sections with headings: ## Introduction (15 min), ## Main Activity (35 min), ## Wrap-Up (10 min), each with 2 bullet points.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,headings:['Introduction','Main Activity','Wrap-Up']})
+  },
+  {
+    title:'Elevator Pitch',tag:'Career',
+    prompt:`You are a pitch coach. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then write a 30-second elevator pitch for a student presenting their final-year project on AI ethics. The pitch must be EXACTLY 3 sentences. Each sentence must start with a capital letter and end with a full stop.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,sentences:3})
+  },
+  {
+    title:'Stakeholder Email',tag:'Communication',
+    prompt:`You are a business communicator. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then draft a brief stakeholder update email about a delayed project milestone. The email must have: Subject: line, a greeting, EXACTLY 2 bullet points on impact, a next-steps sentence, and a sign-off.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,bullets:2,hasSubject:true})
+  },
+  {
+    title:'Competitive Analysis',tag:'Strategy',
+    prompt:`You are a market analyst. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then compare two fictional AI tools (Tool A vs Tool B) using a markdown table with EXACTLY 4 columns: Feature | Tool A | Tool B | Winner, and EXACTLY 5 data rows.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,tableRows:5,tableCols:4})
+  },
+  {
+    title:'Workshop Agenda',tag:'Events',
+    prompt:`You are an event planner. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then create a half-day workshop agenda for a "Digital Skills Bootcamp". Use a table with EXACTLY 3 columns: Time | Session | Facilitator, and EXACTLY 6 data rows.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,tableRows:6,tableCols:3})
+  },
+  {
+    title:'Brainstorm List',tag:'Creativity',
+    prompt:`You are a creative consultant. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then brainstorm EXACTLY 8 ideas for a student hackathon theme related to sustainability. Number them 1. to 8.\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,numberedItems:8})
+  },
+  {
+    title:'Reflection Prompt',tag:'Learning',
+    prompt:`You are a learning coach. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then write a structured reflection on using AI tools in studies using EXACTLY 3 headings: ## What Went Well, ## What I Learned, ## What I'll Do Differently — each with EXACTLY 2 bullet points starting with "-".\nVERIFY-MARKER`,
+    verify:(proof,pid,ti)=>verifyStructure(proof,pid,ti,{marker:true,headings:['What Went Well','What I Learned','What I\'ll Do Differently']})
+  }
+];
+
+// ══════════════════════════════════════════════
+//  BINGO LINES
+// ══════════════════════════════════════════════
+const LINES=[
+  {id:'R1',cells:[0,1,2],label:'Row 1'},
+  {id:'R2',cells:[3,4,5],label:'Row 2'},
+  {id:'R3',cells:[6,7,8],label:'Row 3'},
+  {id:'C1',cells:[0,3,6],label:'Col 1'},
+  {id:'C2',cells:[1,4,7],label:'Col 2'},
+  {id:'C3',cells:[2,5,8],label:'Col 3'},
+  {id:'D1',cells:[0,4,8],label:'Diagonal ↘'},
+  {id:'D2',cells:[2,4,6],label:'Diagonal ↙'},
+];
+
+// ══════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════
+let state={
+  sessionId:'',playerName:'',packId:0,tiles:[],cleared:[],
+  wonLines:[],keywords:[],challengeProfile:null,
+  boardActive:false
+};
+
+function loadState(){
+  try{
+    const s=JSON.parse(localStorage.getItem('copilot_bingo_state')||'{}');
+    if(s.sessionId) Object.assign(state,s);
+    if(!state.sessionId) state.sessionId=genId(16);
+    saveState();
+  }catch(e){state.sessionId=genId(16);saveState();}
+}
+function saveState(){localStorage.setItem('copilot_bingo_state',JSON.stringify(state));}
+
+function genId(n=16){
+  const c='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let r='';for(let i=0;i<n;i++)r+=c[Math.floor(Math.random()*c.length)];return r;
+}
+
+// ══════════════════════════════════════════════
+//  PACK GENERATION
+// ══════════════════════════════════════════════
+function getPack(packId){
+  const rng=mulberry32(hashStr(CAMPAIGN_ID+packId));
+  const shuffled=seededShuffle(TASK_BANK,rng);
+  return shuffled.slice(0,9).map((t,i)=>({...t,tileIndex:i,packId}));
+}
+
+// ══════════════════════════════════════════════
+//  KEYWORD GENERATION (session-unique, prototype)
+// ══════════════════════════════════════════════
+function mintKeyword(lineId,packId){
+  // HMAC-like: hash of campaignId|packId|lineId|sessionId
+  const raw=`${CAMPAIGN_ID}|${packId}|${lineId}|${state.sessionId}`;
+  const h=hashStr(raw);
+  // 8-char alphanumeric token
+  const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let token='';
+  let seed=Math.abs(h);
+  for(let i=0;i<8;i++){token+=chars[seed%chars.length];seed=Math.floor(seed/36)+hashStr(token+i);}
+  return `CO-${CAMPAIGN_ID}-${String(packId).padStart(3,'0')}-${lineId}-${token}`;
+}
+function mintWeeklyKeyword(weekNo,packId){
+  const raw=`${CAMPAIGN_ID}|W${weekNo}|${packId}|${state.sessionId}`;
+  const h=hashStr(raw);
+  const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let token='';let seed=Math.abs(h);
+  for(let i=0;i<8;i++){token+=chars[seed%chars.length];seed=Math.floor(seed/36)+hashStr(token+i);}
+  return `CO-${CAMPAIGN_ID}-W${weekNo}-${String(packId).padStart(3,'0')}-${token}`;
+}
+
+// ══════════════════════════════════════════════
+//  VERIFICATION ENGINE
+// ══════════════════════════════════════════════
+function buildPromptFull(task,packId,tileIndex){
+  return task.prompt
+    .replace(/VERIFY-[A-Z0-9]+-PACK-TILE/g,`VERIFY-${CAMPAIGN_ID}-${String(packId).padStart(3,'0')}-${tileIndex}`);
+}
+
+function verifyStructure(proof,packId,tileIndex,rules){
+  const errors=[];
+  const marker=`VERIFY-${CAMPAIGN_ID}-${String(packId).padStart(3,'0')}-${tileIndex}`;
+
+  if(rules.marker){
+    if(!proof.includes(marker))
+      errors.push(`Missing verification marker: ${marker}`);
+  }
+  if(rules.bullets){
+    const bulletMatches=(proof.match(/^•/gm)||[]).length;
+    if(bulletMatches<rules.bullets)
+      errors.push(`Need EXACTLY ${rules.bullets} bullet points starting with "•" (found ${bulletMatches})`);
+  }
+  if(rules.numberedItems){
+    const nums=[];
+    for(let i=1;i<=rules.numberedItems;i++){
+      if(new RegExp(`^${i}\\.`,'m').test(proof)) nums.push(i);
+    }
+    if(nums.length<rules.numberedItems)
+      errors.push(`Need EXACTLY ${rules.numberedItems} numbered items (1. to ${rules.numberedItems}.)`);
+  }
+  if(rules.headings){
+    rules.headings.forEach(h=>{
+      if(!new RegExp(`##\\s*${h}`,'i').test(proof))
+        errors.push(`Missing heading: ## ${h}`);
+    });
+  }
+  if(rules.tableRows){
+    const rows=(proof.match(/\|.*\|/g)||[]).filter(r=>!/^[\s|:-]+$/.test(r));
+    if(rows.length<rules.tableRows)
+      errors.push(`Table needs at least ${rules.tableRows} data rows (found ${rows.length})`);
+  }
+  if(rules.tableCols){
+    const rows=(proof.match(/\|.*\|/g)||[]).filter(r=>!/^[\s|:-]+$/.test(r));
+    if(rows.length>0){
+      const cols=(rows[0].match(/\|/g)||[]).length-1;
+      if(cols<rules.tableCols)
+        errors.push(`Table needs EXACTLY ${rules.tableCols} columns (found ~${cols})`);
+    }
+  }
+  if(rules.paragraphs){
+    const paras=proof.split(/\n\n+/).filter(p=>p.trim().length>0);
+    if(paras.length<rules.paragraphs)
+      errors.push(`Need EXACTLY ${rules.paragraphs} paragraphs separated by blank lines (found ${paras.length})`);
+  }
+  if(rules.endsWith){
+    if(!proof.includes(rules.endsWith))
+      errors.push(`Response must end with "${rules.endsWith}"`);
+  }
+  if(rules.jsonKeys){
+    rules.jsonKeys.forEach(k=>{
+      if(!proof.includes(`"${k}"`))
+        errors.push(`JSON must include key: "${k}"`);
+    });
+  }
+  if(rules.qaCount){
+    const qs=(proof.match(/^Q:/gm)||[]).length;
+    if(qs<rules.qaCount)
+      errors.push(`Need EXACTLY ${rules.qaCount} Q&A pairs (Q: lines found: ${qs})`);
+  }
+  if(rules.hashtags){
+    const tags=(proof.match(/#\w+/g)||[]).length;
+    if(tags<rules.hashtags)
+      errors.push(`Need EXACTLY ${rules.hashtags} hashtags (found ${tags})`);
+  }
+  if(rules.hasObjective){
+    if(!/Objective:/i.test(proof))
+      errors.push('Missing "Objective:" line');
+  }
+  if(rules.hasSubject){
+    if(!/Subject:/i.test(proof))
+      errors.push('Missing "Subject:" line');
+  }
+  if(rules.boldTerms){
+    if(!(proof.match(/\*\*[^*]+\*\*/g)||[]).length)
+      errors.push('Each paragraph must start with a **bold term**');
+  }
+  if(rules.dateline){
+    if(!/^[A-Z]+,\s+\w+\s+\d{4}\s+—/m.test(proof))
+      errors.push('Missing dateline like "SINGAPORE, April 2025 —" at start');
+  }
+  if(rules.sentences){
+    const sents=(proof.match(/[A-Z][^.!?]*[.!?]/g)||[]);
+    if(sents.length<rules.sentences)
+      errors.push(`Need EXACTLY ${rules.sentences} sentences (found ${sents.length})`);
+  }
+  if(rules.subBullets){
+    if(!(proof.match(/^→/gm)||[]).length)
+      errors.push('Each numbered step needs a sub-bullet starting with "→"');
+  }
+  if(rules.endWithQ){
+    const lines=proof.split('\n').filter(l=>/^\d+\./.test(l.trim()));
+    const nonQ=lines.filter(l=>!l.trim().endsWith('?'));
+    if(nonQ.length>0)
+      errors.push('All numbered items must end with "?"');
+  }
+  return errors;
+}
+
+// ══════════════════════════════════════════════
+//  UI STATE
+// ══════════════════════════════════════════════
+let activeTileIdx=null;
+let activePackTiles=[];
+
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>{
+    b.classList.toggle('active',['game','keywords','submit','help'][i]===name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='keywords') renderKeywords();
+  if(name==='submit') renderLeaderboard();
+}
+
+// ══════════════════════════════════════════════
+//  PACK GRID
+// ══════════════════════════════════════════════
+function buildPackGrid(){
+  const grid=document.getElementById('pack-grid');
+  grid.innerHTML='';
+  for(let i=1;i<=TOTAL_PACKS;i++){
+    const d=document.createElement('div');
+    d.className='pack-cell';d.textContent=String(i).padStart(3,'0');
+    d.dataset.pack=i;
+    d.onclick=()=>{
+      document.querySelectorAll('.pack-cell').forEach(c=>c.classList.remove('selected'));
+      d.classList.add('selected');
+      document.getElementById('lucky-num').value=i;
+    };
+    grid.appendChild(d);
+  }
+}
+function filterPacks(q){
+  document.querySelectorAll('.pack-cell').forEach(c=>{
+    c.style.display=q&&!c.textContent.includes(q)?'none':'';
+  });
+}
+function quickPick(){
+  const n=Math.floor(Math.random()*TOTAL_PACKS)+1;
+  document.getElementById('lucky-num').value=n;
+  document.querySelectorAll('.pack-cell').forEach(c=>{
+    c.classList.toggle('selected',parseInt(c.dataset.pack)===n);
+    if(parseInt(c.dataset.pack)===n) c.scrollIntoView({block:'nearest'});
+  });
+}
+
+// ══════════════════════════════════════════════
+//  START BOARD
+// ══════════════════════════════════════════════
+function startBoard(){
+  const name=document.getElementById('player-name').value.trim();
+  const num=parseInt(document.getElementById('lucky-num').value);
+  if(!name){showErr('Please enter your name.');return;}
+  if(!num||num<1||num>999){showErr('Please choose a pack between 1 and 999.');return;}
+
+  state.playerName=name;
+  state.packId=num;
+  state.tiles=getPack(num);
+  state.cleared=new Array(9).fill(false);
+  state.wonLines=state.wonLines||[];
+  state.keywords=state.keywords||[];
+  state.boardActive=true;
+
+  // Challenge profile
+  if(!state.challengeProfile){
+    state.challengeProfile={
+      challengeStartAt:Date.now(),
+      currentWeek:1,
+      weeksCompleted:0,
+      weeklySubmissions:[]
+    };
+  }
+  localStorage.setItem('copilot_bingo_player_name',name);
+  localStorage.setItem('copilot_bingo_last_pack',num);
+  saveState();
+  renderBoard();
+}
+
+function resetBoard(){
+  if(!confirm('Start a new board? Your current board progress will be cleared.')) return;
+  state.boardActive=false;state.tiles=[];state.cleared=[];
+  document.getElementById('setup-section').style.display='';
+  document.getElementById('board-section').style.display='none';
+  saveState();
+}
+
+// ══════════════════════════════════════════════
+//  RENDER BOARD
+// ══════════════════════════════════════════════
+function renderBoard(){
+  document.getElementById('setup-section').style.display='none';
+  document.getElementById('board-section').style.display='';
+  activePackTiles=state.tiles;
+
+  document.getElementById('board-title').textContent=`Pack #${String(state.packId).padStart(3,'0')}`;
+  document.getElementById('board-meta').textContent=`Player: ${state.playerName} · Session: ${state.sessionId.slice(0,8)}…`;
+
+  const grid=document.getElementById('bingo-grid');
+  grid.innerHTML='';
+  state.tiles.forEach((t,i)=>{
+    const el=document.createElement('div');
+    el.className='tile'+(state.cleared[i]?' cleared':'');
+    el.innerHTML=`<div class="tile-num">Task ${i+1}</div><div class="tile-title">${t.title}</div><div class="tile-tag">${t.tag}</div>`;
+    el.onclick=()=>openTileModal(i);
+    grid.appendChild(el);
+  });
+
+  updateHUD();
+  renderChallengeBar();
+}
+
+function updateHUD(){
+  const cleared=state.cleared.filter(Boolean).length;
+  const lines=state.wonLines.length;
+  const keys=state.keywords.length;
+  const pct=Math.round(cleared/9*100);
+  document.getElementById('hud-tiles').textContent=cleared;
+  document.getElementById('hud-lines').textContent=lines;
+  document.getElementById('hud-keys').textContent=keys;
+  document.getElementById('hud-prog').style.width=pct+'%';
+  document.getElementById('hud-pct').textContent=pct+'%';
+  document.getElementById('hm-tiles').textContent=cleared+'/9';
+  document.getElementById('hm-lines').textContent=lines+'/8';
+  document.getElementById('hm-keys').textContent=keys;
+}
+
+function renderChallengeBar(){
+  if(!state.challengeProfile) return;
+  const cp=state.challengeProfile;
+  const bar=document.getElementById('challenge-bar');
+  bar.style.display='';
+  const done=cp.weeksCompleted;
+  const left=TOTAL_WEEKS-done;
+  document.getElementById('challenge-text').textContent=`Completed: ${done}/${TOTAL_WEEKS} • ${left} week${left!==1?'s':''} left`;
+  document.getElementById('week-label').textContent=`Week ${cp.currentWeek}`;
+  document.getElementById('challenge-fill').style.width=Math.round(done/TOTAL_WEEKS*100)+'%';
+  const dots=document.getElementById('week-dots');
+  dots.innerHTML='';
+  for(let w=1;w<=TOTAL_WEEKS;w++){
+    const d=document.createElement('div');
+    d.className='wdot'+(w<=done?' done':w===cp.currentWeek?' current':'');
+    d.textContent='W'+w;dots.appendChild(d);
+  }
+}
+
+// ══════════════════════════════════════════════
+//  TILE MODAL
+// ══════════════════════════════════════════════
+function openTileModal(idx){
+  activeTileIdx=idx;
+  const t=state.tiles[idx];
+  const prompt=buildPromptFull(t,state.packId,idx);
+  document.getElementById('m-task-label').textContent=`Task ${idx+1} · ${t.tag}`;
+  document.getElementById('m-title').textContent=t.title;
+  document.getElementById('m-prompt').textContent=prompt;
+  document.getElementById('proof-input').value='';
+  document.getElementById('verify-result').className='verify-result';
+  document.getElementById('verify-result').textContent='';
+  document.getElementById('copy-hint').style.display='none';
+  document.getElementById('tile-modal').classList.add('open');
+}
+function closeTileModal(){document.getElementById('tile-modal').classList.remove('open');}
+
+function copyPrompt(){
+  const txt=document.getElementById('m-prompt').textContent;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const h=document.getElementById('copy-hint');h.style.display='';
+    setTimeout(()=>h.style.display='none',2500);
+  }).catch(()=>alert('Copy failed — please select and copy the prompt manually.'));
+}
+function openCopilot(){window.open(COPILOT_URL,'_blank','noopener,noreferrer');}
+
+// ══════════════════════════════════════════════
+//  VERIFY & CLAIM
+// ══════════════════════════════════════════════
+function verifyClaim(){
+  const proof=document.getElementById('proof-input').value.trim();
+  if(!proof){showVerifyResult(false,['Please paste your Copilot output first.']);return;}
+  const t=state.tiles[activeTileIdx];
+  const errors=t.verify(proof,state.packId,activeTileIdx);
+  if(errors.length>0){
+    showVerifyResult(false,errors);return;
+  }
+  // Mark cleared
+  state.cleared[activeTileIdx]=true;
+  saveState();
+  closeTileModal();
+
+  // Animate tile
+  const tiles=document.querySelectorAll('.tile');
+  if(tiles[activeTileIdx]){
+    tiles[activeTileIdx].classList.add('cleared');
+    tiles[activeTileIdx].classList.add('win-glow');
+    setTimeout(()=>tiles[activeTileIdx].classList.remove('win-glow'),1200);
+  }
+
+  updateHUD();
+  showToast('✅','Tile Cleared!',`"${state.tiles[activeTileIdx].title}" verified!`);
+  checkBingo();
+}
+
+function showVerifyResult(ok,msgs){
+  const el=document.getElementById('verify-result');
+  el.className='verify-result '+(ok?'ok':'fail');
+  el.innerHTML=ok?'✅ Verified!':msgs.map(m=>`❌ ${m}`).join('<br/>');
+}
+
+// ══════════════════════════════════════════════
+//  BINGO CHECK
+// ══════════════════════════════════════════════
+function checkBingo(){
+  LINES.forEach(line=>{
+    if(state.wonLines.includes(line.id)) return;
+    if(line.cells.every(c=>state.cleared[c])){
+      state.wonLines.push(line.id);
+      const kw=mintKeyword(line.id,state.packId);
+      if(!state.keywords.find(k=>k.code===kw)){
+        state.keywords.push({code:kw,packId:state.packId,lineId:line.id,ts:Date.now()});
+      }
+      // Weekly clear check
+      tryWeeklyClear();
+      saveState();
+      updateHUD();
+      showWinModal(line,kw);
+    }
+  });
+}
+
+function tryWeeklyClear(){
+  if(!state.challengeProfile) return;
+  const cp=state.challengeProfile;
+  const weekIdx=cp.currentWeek-1;
+  if((cp.weeklySubmissions||[]).includes(cp.currentWeek)) return;
+  // Grant weekly clear keyword
+  const wkw=mintWeeklyKeyword(cp.currentWeek,state.packId);
+  if(!state.keywords.find(k=>k.code===wkw)){
+    state.keywords.push({code:wkw,packId:state.packId,lineId:`W${cp.currentWeek}`,ts:Date.now()});
+    cp.weeklySubmissions=cp.weeklySubmissions||[];
+    cp.weeklySubmissions.push(cp.currentWeek);
+    cp.weeksCompleted=Math.min(cp.weeklySubmissions.length,TOTAL_WEEKS);
+    // Advance week if possible
+    const elapsed=Date.now()-cp.challengeStartAt;
+    const maxWeek=Math.min(Math.floor(elapsed/MS_PER_WEEK)+1,TOTAL_WEEKS);
+    cp.currentWeek=Math.min(cp.currentWeek+1,maxWeek,TOTAL_WEEKS);
+    renderChallengeBar();
+    showToast('🗓️',`Week ${weekIdx+1} Clear!`,wkw,wkw);
+  }
+}
+
+// ══════════════════════════════════════════════
+//  WIN MODAL
+// ══════════════════════════════════════════════
+function showWinModal(line,kw){
+  document.getElementById('win-title').textContent='BINGO! '+line.label;
+  document.getElementById('win-sub').textContent='You completed '+line.label+'! Here is your keyword:';
+  document.getElementById('win-kw').textContent=kw;
+  spawnConfetti();
+  document.getElementById('win-modal').classList.add('open');
+}
+function closeWinModal(){document.getElementById('win-modal').classList.remove('open');}
+function copyWinKw(){
+  const kw=document.getElementById('win-kw').textContent;
+  navigator.clipboard.writeText(kw).catch(()=>{});
+  showToast('📋','Copied!',kw);
+}
+
+function spawnConfetti(){
+  const wrap=document.getElementById('confetti-wrap');wrap.innerHTML='';
+  const colors=['#c084fc','#e879f9','#7c3aed','#a855f7','#f0abfc','#fbbf24','#4ade80'];
+  for(let i=0;i<40;i++){
+    const d=document.createElement('div');d.className='conf';
+    d.style.cssText=`left:${Math.random()*100}%;background:${colors[i%colors.length]};animation-duration:${0.8+Math.random()*1.2}s;animation-delay:${Math.random()*0.4}s;`;
+    wrap.appendChild(d);
+  }
+}
+
+// ══════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════
+let toastTimer;
+function showToast(icon,title,sub,kw){
+  clearTimeout(toastTimer);
+  document.getElementById('toast-icon').textContent=icon;
+  document.getElementById('toast-title').textContent=title;
+  document.getElementById('toast-sub').textContent=sub||'';
+  const kwEl=document.getElementById('toast-kw');
+  if(kw){kwEl.textContent=kw;kwEl.style.display='';}else kwEl.style.display='none';
+  document.getElementById('toast').classList.add('show');
+  toastTimer=setTimeout(()=>document.getElementById('toast').classList.remove('show'),5000);
+}
+
+// ══════════════════════════════════════════════
+//  RENDER KEYWORDS
+// ══════════════════════════════════════════════
+function renderKeywords(){
+  const list=document.getElementById('kw-list');
+  if(!state.keywords||!state.keywords.length){
+    list.innerHTML='<p style="color:var(--muted);font-size:13px;">No keywords yet — complete a Bingo line to earn one!</p>';return;
+  }
+  list.innerHTML=state.keywords.map(k=>`
+    <div class="kw-item">
+      <div class="kw-code">${k.code}</div>
+      <div class="kw-meta">Pack ${String(k.packId).padStart(3,'0')} · ${k.lineId} · ${new Date(k.ts).toLocaleString()}</div>
+      <button class="btn btn-ghost btn-xs" onclick="navigator.clipboard.writeText('${k.code}')">📋</button>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+//  ORG DETECTION
+// ══════════════════════════════════════════════
+function detectOrg(email){
+  const domain=(email.split('@')[1]||'').toLowerCase().trim();
+  const org=ORG_MAP[domain];
+  const hint=document.getElementById('detected-org-hint');
+  const orgInput=document.getElementById('sub-org');
+  if(org){
+    orgInput.value=org;orgInput.readOnly=true;
+    hint.textContent=`✓ Detected org: ${org}`;hint.classList.add('show');
+  }else{
+    orgInput.readOnly=false;
+    if(domain){hint.textContent='Domain not recognised — please type your organisation.';hint.classList.add('show');}
+    else hint.classList.remove('show');
+  }
+}
+
+// ══════════════════════════════════════════════
+//  SUBMISSION & LEADERBOARD
+// ══════════════════════════════════════════════
+function getSubmissions(){
+  try{return JSON.parse(localStorage.getItem('copilot_bingo_subs')||'[]');}catch(e){return[];}
+}
+function saveSubmissions(subs){localStorage.setItem('copilot_bingo_subs',JSON.stringify(subs));}
+
+function validateKeywordFormat(kw){
+  // Line keyword: CO-{CampaignId}-{PackId}-{LineId}-{Token}
+  // Weekly: CO-{CampaignId}-W{weekNo}-{PackId}-{Token}
+  const lineRe=/^CO-[A-Z0-9]+-\d{3}-(R[1-3]|C[1-3]|D[12]|FB)-[A-Z0-9]+$/;
+  const weekRe=/^CO-[A-Z0-9]+-W[1-7]-\d{3}-[A-Z0-9]+$/;
+  return lineRe.test(kw)||weekRe.test(kw);
+}
+
+function submitKeyword(){
+  const org=document.getElementById('sub-org').value.trim();
+  const name=document.getElementById('sub-name').value.trim();
+  const email=document.getElementById('sub-email').value.trim().toLowerCase();
+  const kw=document.getElementById('sub-kw').value.trim().toUpperCase();
+  const res=document.getElementById('sub-result');
+
+  if(!org||!name||!email||!kw){
+    res.className='sub-result fail';res.textContent='❌ All fields are required.';return;
+  }
+  if(!email.includes('@')){res.className='sub-result fail';res.textContent='❌ Invalid email.';return;}
+  if(!validateKeywordFormat(kw)){
+    res.className='sub-result fail';
+    res.textContent='❌ Invalid keyword format. Expected: CO-{CampaignId}-{PackId}-{LineId}-{Token} or CO-{CampaignId}-W{weekNo}-{PackId}-{Token}. Uppercase, digits, hyphens only.';return;
+  }
+
+  const subs=getSubmissions();
+  // Dedupe: same keyword + same email
+  if(subs.find(s=>s.kw===kw&&s.email===email)){
+    res.className='sub-result fail';res.textContent='❌ You have already submitted this keyword.';return;
+  }
+  // Dedupe: same keyword + same org (don't double-count for org)
+  const orgDupe=subs.find(s=>s.kw===kw&&s.org===org);
+
+  subs.push({org,name,email,kw,ts:Date.now(),orgDupe:!!orgDupe});
+  saveSubmissions(subs);
+  res.className='sub-result ok';
+  res.textContent=orgDupe
+    ?`✅ Submitted! Note: this keyword was already counted for ${org}, so org score won't increase.`
+    :`✅ Keyword accepted for ${org}! Leaderboard updated.`;
+  renderLeaderboard();
+  showToast('🎉','Keyword Submitted!',`Scored for ${org}`);
+}
+
+function renderLeaderboard(){
+  const subs=getSubmissions();
+  const orgMap={};
+  const seen=new Set();
+  subs.forEach(s=>{
+    const key=s.org+'||'+s.kw;
+    if(seen.has(key)) return; // dedupe keyword per org
+    seen.add(key);
+    if(!orgMap[s.org]) orgMap[s.org]={org:s.org,count:0,contributors:new Set(),lastTs:0};
+    orgMap[s.org].count++;
+    orgMap[s.org].contributors.add(s.email);
+    if(s.ts>orgMap[s.org].lastTs) orgMap[s.org].lastTs=s.ts;
+  });
+  const rows=Object.values(orgMap).sort((a,b)=>b.count-a.count||(a.org>b.org?1:-1));
+  const wrap=document.getElementById('lb-wrap');
+  if(!rows.length){wrap.innerHTML='<p style="color:var(--muted);font-size:13px;">No submissions yet. Be the first!</p>';return;}
+  wrap.innerHTML=`<table class="lb-table">
+    <thead><tr><th>Rank</th><th>Organization</th><th># Contributors</th><th>Last Submission</th></tr></thead>
+    <tbody>${rows.map((r,i)=>`
+      <tr>
+        <td><span class="rank-badge rank-${i<3?i+1:'n'}">${i+1}</span></td>
+        <td><strong>${r.org}</strong></td>
+        <td>${r.contributors.size}</td>
+        <td>${new Date(r.lastTs).toLocaleString()}</td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+
+// ══════════════════════════════════════════════
+//  ADMIN
+// ══════════════════════════════════════════════
+function adminClear(){
+  const phrase=document.getElementById('admin-phrase').value.trim();
+  if(phrase!=='RESET-BINGO'){alert('Incorrect phrase. Type RESET-BINGO to confirm.');return;}
+  if(!confirm('This will delete ALL local data (game state, submissions, profiles). Are you sure?')) return;
+  localStorage.removeItem('copilot_bingo_state');
+  localStorage.removeItem('copilot_bingo_subs');
+  localStorage.removeItem('copilot_bingo_player_name');
+  localStorage.removeItem('copilot_bingo_last_pack');
+  location.reload();
+}
+
+// ══════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════
+function showErr(msg){document.getElementById('setup-err').textContent=msg;}
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+(function init(){
+  loadState();
+  buildPackGrid();
+
+  // Restore last name / pack
+  const savedName=localStorage.getItem('copilot_bingo_player_name');
+  const savedPack=localStorage.getItem('copilot_bingo_last_pack');
+  if(savedName) document.getElementById('player-name').value=savedName;
+  if(savedPack){
+    document.getElementById('lucky-num').value=savedPack;
+    const cell=document.querySelector(`.pack-cell[data-pack="${savedPack}"]`);
+    if(cell){cell.classList.add('selected');setTimeout(()=>cell.scrollIntoView({block:'nearest'}),100);}
+  }
+
+  // Resume active board
+  if(state.boardActive&&state.tiles&&state.tiles.length===9){
+    renderBoard();
+  }
+
+  renderLeaderboard();
+})();
+</script>
+</body>
+</html>
