@@ -1,0 +1,35 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+
+context: |
+  Backend:    Azure Functions v4 (TypeScript, Node.js runtime)
+  Frontend:   Vue 3 with Tailwind CSS
+  Database:   Azure SQL Database
+  Cache:      Redis (Azure Managed Redis in production, access key auth)
+  Auth:       JWT (access + refresh tokens, httpOnly cookies)
+  API:        RESTful, JSON responses
+  Testing:    Vitest for unit tests, Playwright for e2e
+  Style:      ESLint with Prettier, strict TypeScript
+
+rules:
+  proposal:
+    - Include rollback plan
+    - Identify affected teams
+  specs:
+    - Use Given/When/Then format for scenarios
+  design:
+    - Include sequence diagrams for complex flows
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
