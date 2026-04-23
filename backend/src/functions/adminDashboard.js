@@ -3,11 +3,7 @@ import sql from 'mssql';
 import { getPool } from '../lib/db.js';
 import { verifyAdminKey } from '../lib/adminAuth.js';
 
-app.http('adminDashboard', {
-  methods: ['GET'],
-  authLevel: 'anonymous',
-  route: 'admin/dashboard',
-  handler: async (request, context) => {
+export const handler = async (request, context) => {
     const auth = verifyAdminKey(request);
     if (!auth.ok) return auth.response;
 
@@ -82,5 +78,11 @@ app.http('adminDashboard', {
         submissions: submissions.recordset,
       },
     };
-  },
+};
+
+app.http('adminDashboard', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'admin/dashboard',
+  handler,
 });
