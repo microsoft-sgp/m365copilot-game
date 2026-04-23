@@ -1,0 +1,19 @@
+{
+  "name": "m365copilot-bingo-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Azure Functions API backend for the Copilot Chat Bingo game.",
+  "main": "src/functions/*.js",
+  "scripts": {
+    "start": "func start",
+    "test": "echo \"No tests configured yet\" && exit 0"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.0.0",
+    "mssql": "^11.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

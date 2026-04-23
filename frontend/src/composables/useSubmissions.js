@@ -1,17 +1,37 @@
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { STORAGE_KEYS } from '../data/constants.js';
 import { ORG_MAP } from '../data/orgMap.js';
 import { loadJson, saveJson } from '../lib/storage.js';
 import { validateKeywordFormat } from '../lib/verification.js';
+import { apiSubmitKeyword, apiGetLeaderboard } from '../lib/api.js';
 
 const submissions = ref(loadJson(STORAGE_KEYS.submissions, []));
+const serverLeaderboard = ref([]);
 
 function persist() {
   saveJson(STORAGE_KEYS.submissions, submissions.value);
 }
 
+// Fetch the shared leaderboard from the server
+async function refreshLeaderboard() {
+  const res = await apiGetLeaderboard();
+  if (res.ok && res.data && res.data.leaderboard) {
+    serverLeaderboard.value = res.data.leaderboard;
+  }
+}
+
 export function useSubmissions() {
+  // Prefer server leaderboard; fall back to local computation if empty
   const leaderboard = computed(() => {
+    if (serverLeaderboard.value.length > 0) {
+      return serverLeaderboard.value.map((r) => ({
+        org: r.org,
+        count: r.score,
+        contributorCount: r.contributors,
+        lastTs: r.lastSubmission,
+      }));
+    }
+    // Fallback: local computation from localStorage
     const orgMap = {};
     const seen = new Set();
     submissions.value.forEach((s) => {
@@ -46,7 +66,7 @@ export function useSubmissions() {
   }
 
   // Returns { ok, message, orgDupe }
-  function submit({ org, name, email, kw }) {
+  async function submit({ org, name, email, kw }) {
     const trimmedOrg = (org || '').trim();
     const trimmedName = (name || '').trim();
     const trimmedEmail = (email || '').trim().toLowerCase();
@@ -66,6 +86,49 @@ export function useSubmissions() {
       };
     }
 
+    // Try server submission first
+    const serverRes = await apiSubmitKeyword({
+      org: trimmedOrg,
+      name: trimmedName,
+      email: trimmedEmail,
+      keyword: upperKw,
+    });
+
+    if (serverRes.ok && serverRes.data) {
+      // Also save locally as cache
+      submissions.value.push({
+        org: trimmedOrg,
+        name: trimmedName,
+        email: trimmedEmail,
+        kw: upperKw,
+        ts: Date.now(),
+        orgDupe: serverRes.data.orgDupe,
+      });
+      persist();
+
+      // Immediately refresh leaderboard
+      await refreshLeaderboard();
+
+      return {
+        ok: serverRes.data.ok,
+        orgDupe: serverRes.data.orgDupe,
+        message: serverRes.data.ok
+          ? (serverRes.data.orgDupe
+              ? `✅ Submitted! Note: this keyword was already counted for ${trimmedOrg}, so org score won't increase.`
+              : `✅ Keyword accepted for ${trimmedOrg}! Leaderboard updated.`)
+          : `❌ ${serverRes.data.message}`,
+      };
+    }
+
+    if (serverRes.status === 409 && serverRes.data) {
+      return { ok: false, message: `❌ ${serverRes.data.message}` };
+    }
+
+    if (serverRes.status === 400 && serverRes.data) {
+      return { ok: false, message: `❌ ${serverRes.data.message}` };
+    }
+
+    // Server unavailable — fall back to localStorage only
     const dupSelf = submissions.value.find(
       (s) => s.kw === upperKw && s.email === trimmedEmail,
     );
@@ -93,9 +156,24 @@ export function useSubmissions() {
       ok: true,
       orgDupe,
       message: orgDupe
-        ? `✅ Submitted! Note: this keyword was already counted for ${trimmedOrg}, so org score won't increase.`
-        : `✅ Keyword accepted for ${trimmedOrg}! Leaderboard updated.`,
+        ? `✅ Submitted locally! Note: this keyword was already counted for ${trimmedOrg}, so org score won't increase. (Server unavailable — saved locally)`
+        : `✅ Keyword saved locally for ${trimmedOrg}! (Server unavailable — leaderboard may not reflect this yet)`,
     };
+  }
+
+  // Polling: 30-second interval, controlled by start/stop
+  let pollTimer = null;
+
+  function startPolling() {
+    refreshLeaderboard();
+    pollTimer = setInterval(refreshLeaderboard, 30000);
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
   }
 
   return {
@@ -103,5 +181,8 @@ export function useSubmissions() {
     leaderboard,
     detectOrg,
     submit,
+    refreshLeaderboard,
+    startPolling,
+    stopPolling,
   };
 }

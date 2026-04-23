@@ -1,11 +1,11 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useSubmissions } from '../composables/useSubmissions.js';
 import { useToast } from '../composables/useToast.js';
 import { clearAllGameData } from '../lib/storage.js';
 import LeaderboardTable from './LeaderboardTable.vue';
 
-const { detectOrg, submit } = useSubmissions();
+const { detectOrg, submit, startPolling, stopPolling } = useSubmissions();
 const { show: showToast } = useToast();
 
 const org = ref('');
@@ -13,9 +13,13 @@ const name = ref('');
 const email = ref('');
 const kw = ref('');
 const result = ref({ kind: '', message: '' });
+const submitting = ref(false);
 
 const detection = computed(() => detectOrg(email.value));
 const orgReadOnly = computed(() => !!detection.value.org);
+
+onMounted(() => startPolling());
+onUnmounted(() => stopPolling());
 
 function onEmailInput() {
   if (detection.value.org) {
@@ -27,13 +31,15 @@ function onKwInput(e) {
   kw.value = e.target.value.toUpperCase().trim();
 }
 
-function onSubmit() {
-  const r = submit({
+async function onSubmit() {
+  submitting.value = true;
+  const r = await submit({
     org: org.value,
     name: name.value,
     email: email.value,
     kw: kw.value,
   });
+  submitting.value = false;
   result.value = { kind: r.ok ? 'ok' : 'fail', message: r.message };
   if (r.ok) {
     showToast({

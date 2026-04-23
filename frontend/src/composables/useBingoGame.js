@@ -13,12 +13,14 @@ import {
   mintLineKeyword,
   mintWeeklyKeyword,
 } from '../lib/keywordMinting.js';
+import { apiCreateSession, apiRecordEvent, apiUpdateSession } from '../lib/api.js';
 
 function freshState() {
   return {
     sessionId: '',
     playerName: '',
     packId: 0,
+    gameSessionId: null,
     tiles: [],
     cleared: [],
     wonLines: [],
@@ -35,6 +37,7 @@ function persist() {
     sessionId: state.sessionId,
     playerName: state.playerName,
     packId: state.packId,
+    gameSessionId: state.gameSessionId,
     // Persist tile metadata WITHOUT the verify function (functions cannot be
     // serialized). We re-hydrate by regenerating the pack on load.
     tiles: state.tiles.map((t) => ({
@@ -105,6 +108,15 @@ export function useBingoGame() {
 
     saveString(STORAGE_KEYS.playerName, name);
     saveString(STORAGE_KEYS.lastPack, String(packId));
+
+    // Fire-and-forget: register session server-side
+    apiCreateSession(state.sessionId, name, packId)
+      .then((res) => {
+        if (res.ok && res.data && res.data.gameSessionId) {
+          state.gameSessionId = res.data.gameSessionId;
+        }
+      })
+      .catch(() => { /* API unavailable — continue normally */ });
   }
 
   function resetBoard() {
@@ -122,6 +134,15 @@ export function useBingoGame() {
 
     state.cleared[tileIndex] = true;
 
+    // Fire-and-forget: record tile clear event
+    if (state.gameSessionId) {
+      apiRecordEvent({
+        gameSessionId: state.gameSessionId,
+        tileIndex,
+        eventType: 'cleared',
+      }).catch(() => {});
+    }
+
     let lineResult = null;
     let weeklyKw = null;
 
@@ -138,9 +159,30 @@ export function useBingoGame() {
             ts: Date.now(),
           });
         }
+
+        // Fire-and-forget: record line win event
+        if (state.gameSessionId) {
+          apiRecordEvent({
+            gameSessionId: state.gameSessionId,
+            tileIndex,
+            eventType: 'line_won',
+            keyword: kw,
+            lineId: line.id,
+          }).catch(() => {});
+        }
+
         weeklyKw = tryWeeklyClear() || weeklyKw;
         lineResult = { line, kw };
       }
+    }
+
+    // Fire-and-forget: update session progress counts
+    if (state.gameSessionId) {
+      apiUpdateSession(state.gameSessionId, {
+        tilesCleared: state.cleared.filter(Boolean).length,
+        linesWon: state.wonLines.length,
+        keywordsEarned: state.keywords.length,
+      }).catch(() => {});
     }
 
     return { ok: true, errors: [], lineWon: lineResult, weeklyKw };

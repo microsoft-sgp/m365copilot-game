@@ -1,307 +1,643 @@
-# Deployment Guide
+# Deploying Copilot Chat Bingo to Azure
 
-This guide covers building the Copilot Chat Bingo frontend and deploying it to a static host. The app is fully client-side, so any static file host with HTTPS will work.
+This guide walks you through deploying the entire Copilot Chat Bingo application to Azure — from zero to a working public URL. No prior Azure experience is assumed.
 
 ## Contents
 
-- [Build the production bundle](#build-the-production-bundle)
-- [What to deploy](#what-to-deploy)
-- [Option 1 — GitHub Pages](#option-1--github-pages)
-- [Option 2 — Azure Static Web Apps](#option-2--azure-static-web-apps)
-- [Option 3 — Azure Blob Storage static website](#option-3--azure-blob-storage-static-website)
-- [Option 4 — Generic static host (Netlify, Vercel, S3, Nginx)](#option-4--generic-static-host-netlify-vercel-s3-nginx)
-- [Post-deploy verification](#post-deploy-verification)
-- [Rolling back to the legacy build](#rolling-back-to-the-legacy-build)
+- [What you will create](#what-you-will-create)
+- [Prerequisites](#prerequisites)
+- [Step 1 — Install the tools](#step-1--install-the-tools)
+- [Step 2 — Log in to Azure](#step-2--log-in-to-azure)
+- [Step 3 — Create a Resource Group](#step-3--create-a-resource-group)
+- [Step 4 — Create the Azure SQL Database](#step-4--create-the-azure-sql-database)
+- [Step 5 — Run the database migrations](#step-5--run-the-database-migrations)
+- [Step 6 — Create a Storage Account for the Function App](#step-6--create-a-storage-account-for-the-function-app)
+- [Step 7 — Deploy the Azure Functions API](#step-7--deploy-the-azure-functions-api)
+- [Step 8 — Deploy the frontend to Azure Static Web Apps](#step-8--deploy-the-frontend-to-azure-static-web-apps)
+- [Step 9 — Connect frontend to backend (CORS)](#step-9--connect-frontend-to-backend-cors)
+- [Step 10 — Verify everything works](#step-10--verify-everything-works)
+- [Optional — Custom domain](#optional--custom-domain)
+- [Optional — GitHub Actions CI/CD](#optional--github-actions-cicd)
+- [Cost estimate](#cost-estimate)
 - [Troubleshooting](#troubleshooting)
+- [Tearing it down](#tearing-it-down)
 
 ---
 
-## Build the production bundle
+## What you will create
 
-Prerequisites: Node.js 20.x and npm 10.x.
+| Azure resource | Purpose | Pricing tier |
+|---|---|---|
+| **Resource Group** | Container that holds all your resources | Free |
+| **Azure SQL Server + Database** | Stores players, sessions, submissions, leaderboard | Basic (5 DTU) — ~$5/mo |
+| **Storage Account** | Required by Azure Functions for internal state | Standard LRS — pennies/mo |
+| **Azure Functions App** | Hosts the Node.js API (7 endpoints) | Consumption plan — free tier covers most usage |
+| **Azure Static Web App** | Hosts the Vue 3 frontend with global CDN and free TLS | Free tier |
+
+Total estimated cost: **~$5–7/month** (the SQL database is the only paid component; everything else fits in free tiers for typical event usage).
+
+---
+
+## Prerequisites
+
+You need:
+
+1. An **Azure subscription** — [create a free account](https://azure.microsoft.com/free/) if you don't have one (includes $200 credit).
+2. A computer with **Node.js 20.x** installed — [download Node.js](https://nodejs.org/).
+3. A **terminal** — Terminal.app (macOS), Windows Terminal, or any shell.
+
+---
+
+## Step 1 — Install the tools
+
+You need two command-line tools: the **Azure CLI** and **Azure Functions Core Tools**.
+
+### macOS
 
 ```bash
-cd frontend
-npm ci          # reproducible install from package-lock.json (use `npm install` if no lockfile)
-npm run build
+# Install Azure CLI
+brew install azure-cli
+
+# Install Azure Functions Core Tools v4
+brew tap azure/functions
+brew install azure-functions-core-tools@4
 ```
 
-The compiled site is written to [frontend/dist/](frontend/dist/). Only that directory needs to be deployed.
+### Windows
 
-To smoke-test the production bundle locally before publishing:
+```powershell
+# Install Azure CLI
+winget install Microsoft.AzureCLI
+
+# Install Azure Functions Core Tools v4
+winget install Microsoft.Azure.FunctionsCoreTools
+```
+
+### Linux (Ubuntu/Debian)
 
 ```bash
-npm run preview
+# Azure CLI
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+# Azure Functions Core Tools v4
+sudo apt-get update
+sudo apt-get install azure-functions-core-tools-4
 ```
 
-### Configuring a non-root base path
-
-If the site will be served from a subpath (e.g. `https://example.com/bingo/`), set Vite's `base` option before building:
+### Verify installation
 
 ```bash
-# one-off
-npm run build -- --base=/bingo/
+az --version       # should show 2.x
+func --version     # should show 4.x
+node --version     # should show v20.x or later
 ```
 
-Or update [frontend/vite.config.js](frontend/vite.config.js):
-
-```js
-export default defineConfig({
-  base: '/bingo/',
-  plugins: [vue(), tailwindcss()],
-});
-```
-
-Skip this step for root-domain deployments (`base` defaults to `/`).
-
 ---
 
-## What to deploy
-
-- Upload everything inside `frontend/dist/` to the host's web root (or chosen subpath).
-- Ensure `index.html` is served as the default document.
-- Serve over **HTTPS**. The app uses `localStorage`, which browsers partition per-origin; switching protocols or domains will appear to "lose" player progress.
-- No server-side runtime, environment variables, or secrets are required.
-
----
-
-## Option 1 — GitHub Pages
-
-Recommended when the repository already lives on GitHub.
-
-1. Decide the URL. For `https://<user>.github.io/m365copilot-game/`, set `base: '/m365copilot-game/'` in [frontend/vite.config.js](frontend/vite.config.js).
-2. Add a workflow at `.github/workflows/deploy.yml`:
-
-   ```yaml
-   name: Deploy frontend to GitHub Pages
-
-   on:
-     push:
-       branches: [main]
-     workflow_dispatch:
-
-   permissions:
-     contents: read
-     pages: write
-     id-token: write
-
-   concurrency:
-     group: pages
-     cancel-in-progress: true
-
-   jobs:
-     build:
-       runs-on: ubuntu-latest
-       steps:
-         - uses: actions/checkout@v4
-         - uses: actions/setup-node@v4
-           with:
-             node-version: '20'
-             cache: npm
-             cache-dependency-path: frontend/package-lock.json
-         - run: npm ci
-           working-directory: frontend
-         - run: npm run build
-           working-directory: frontend
-         - uses: actions/upload-pages-artifact@v3
-           with:
-             path: frontend/dist
-
-     deploy:
-       needs: build
-       runs-on: ubuntu-latest
-       environment:
-         name: github-pages
-         url: ${{ steps.deployment.outputs.page_url }}
-       steps:
-         - id: deployment
-           uses: actions/deploy-pages@v4
-   ```
-
-3. In **Settings → Pages**, set **Source** to **GitHub Actions**.
-4. Push to `main`. The deployed URL appears in the workflow's `deploy` job output.
-
----
-
-## Option 2 — Azure Static Web Apps
-
-Recommended for production hosting on Azure with a global CDN, free TLS, and PR preview environments.
-
-### One-time setup
-
-1. Create the resource (Azure CLI shown; portal works equivalently):
-
-   ```bash
-   az group create --name rg-bingo --location eastus2
-   az staticwebapp create \
-     --name swa-bingo \
-     --resource-group rg-bingo \
-     --location eastus2 \
-     --sku Free \
-     --source https://github.com/<owner>/m365copilot-game \
-     --branch main \
-     --app-location "frontend" \
-     --output-location "dist" \
-     --login-with-github
-   ```
-
-   The CLI provisions the resource and commits a workflow file under `.github/workflows/azure-static-web-apps-*.yml`.
-
-2. If you prefer to manage the workflow yourself, set:
-   - `app_location: "frontend"`
-   - `output_location: "dist"`
-   - `api_location: ""` (no backend)
-
-3. Add a SPA fallback so deep links work. Create `frontend/public/staticwebapp.config.json`:
-
-   ```json
-   {
-     "navigationFallback": {
-       "rewrite": "/index.html",
-       "exclude": ["/assets/*", "*.{css,js,svg,png,jpg,ico,woff,woff2}"]
-     },
-     "globalHeaders": {
-       "Cache-Control": "no-cache"
-     }
-   }
-   ```
-
-   Files in `frontend/public/` are copied verbatim to `dist/` by Vite.
-
-4. Push to `main`. The workflow builds `frontend/` and publishes `frontend/dist/` to the SWA endpoint shown in the Azure portal.
-
-### Custom domain
-
-In the Azure portal: **Custom domains → Add → Custom domain on other DNS** and follow the CNAME / TXT validation steps. TLS is provisioned automatically.
-
----
-
-## Option 3 — Azure Blob Storage static website
-
-Lower cost than SWA when previews and per-PR environments are not needed.
+## Step 2 — Log in to Azure
 
 ```bash
-# create storage and enable static website hosting
+az login
+```
+
+A browser window opens. Sign in with your Azure account. Once logged in, the terminal shows your subscription details.
+
+If you have multiple subscriptions, pick the one you want to use:
+
+```bash
+# List subscriptions
+az account list --output table
+
+# Set the active subscription
+az account set --subscription "<subscription-name-or-id>"
+```
+
+---
+
+## Step 3 — Create a Resource Group
+
+A Resource Group is a folder that holds all related Azure resources. It makes cleanup easy — deleting the group deletes everything inside it.
+
+```bash
 az group create --name rg-bingo --location eastus2
+```
+
+> **Tip:** You can use any [Azure region](https://azure.microsoft.com/explore/global-infrastructure/geographies/). Pick one close to your players for lower latency. Common choices: `eastus2`, `westus2`, `southeastasia`, `westeurope`.
+
+---
+
+## Step 4 — Create the Azure SQL Database
+
+### 4a. Create the SQL server
+
+```bash
+az sql server create \
+  --name sql-bingo-server \
+  --resource-group rg-bingo \
+  --location eastus2 \
+  --admin-user bingoadmin \
+  --admin-password '<YourStrongPassword123!>'
+```
+
+> **Important:** Replace `<YourStrongPassword123!>` with a strong password. It must be at least 8 characters and include uppercase, lowercase, numbers, and special characters. **Save this password** — you will need it later.
+
+> **Note:** The server name must be globally unique. If `sql-bingo-server` is taken, try something like `sql-bingo-yourname`.
+
+### 4b. Allow Azure services to connect
+
+```bash
+az sql server firewall-rule create \
+  --resource-group rg-bingo \
+  --server sql-bingo-server \
+  --name AllowAzureServices \
+  --start-ip-address 0.0.0.0 \
+  --end-ip-address 0.0.0.0
+```
+
+### 4c. (Optional) Allow your local machine to connect
+
+If you want to run the SQL migration scripts from your local machine:
+
+```bash
+# Get your public IP
+MY_IP=$(curl -s https://api.ipify.org)
+
+az sql server firewall-rule create \
+  --resource-group rg-bingo \
+  --server sql-bingo-server \
+  --name AllowMyIP \
+  --start-ip-address "$MY_IP" \
+  --end-ip-address "$MY_IP"
+```
+
+### 4d. Create the database
+
+```bash
+az sql db create \
+  --resource-group rg-bingo \
+  --server sql-bingo-server \
+  --name bingodb \
+  --edition Basic \
+  --capacity 5
+```
+
+### 4e. Note your connection string
+
+You will need this for the Function App configuration. Your connection string is:
+
+```
+Server=tcp:sql-bingo-server.database.windows.net,1433;Initial Catalog=bingodb;User ID=bingoadmin;Password=<YourStrongPassword123!>;Encrypt=true;TrustServerCertificate=false;
+```
+
+Replace `sql-bingo-server` with your actual server name and the password with the one you chose.
+
+---
+
+## Step 5 — Run the database migrations
+
+The database needs two SQL scripts to create the tables and seed the organization data.
+
+### Option A — Azure Portal Query Editor (easiest, no extra tools)
+
+1. Go to [portal.azure.com](https://portal.azure.com).
+2. Navigate to **Resource groups → rg-bingo → bingodb** (the database, not the server).
+3. In the left menu, click **Query editor (preview)**.
+4. Log in with the SQL admin username (`bingoadmin`) and password.
+5. Paste the contents of `database/001-create-tables.sql` into the editor and click **Run**.
+6. Paste the contents of `database/002-seed-organizations.sql` into the editor and click **Run**.
+
+### Option B — sqlcmd (command line)
+
+```bash
+# Install sqlcmd if not already available
+# macOS: brew install sqlcmd
+# Windows: included with SQL Server tools
+# Linux: https://learn.microsoft.com/sql/linux/sql-server-linux-setup-tools
+
+# Run the migration scripts
+sqlcmd -S sql-bingo-server.database.windows.net \
+       -d bingodb \
+       -U bingoadmin \
+       -P '<YourStrongPassword123!>' \
+       -i database/001-create-tables.sql
+
+sqlcmd -S sql-bingo-server.database.windows.net \
+       -d bingodb \
+       -U bingoadmin \
+       -P '<YourStrongPassword123!>' \
+       -i database/002-seed-organizations.sql
+```
+
+### Option C — Azure Data Studio (GUI)
+
+1. Download [Azure Data Studio](https://learn.microsoft.com/azure-data-studio/download-azure-data-studio).
+2. Connect to `sql-bingo-server.database.windows.net` with the admin credentials.
+3. Open and execute each SQL file in order.
+
+---
+
+## Step 6 — Create a Storage Account for the Function App
+
+Azure Functions needs a Storage Account to manage its internal state (triggers, logging, etc.). This is **not** where the frontend is hosted.
+
+```bash
 az storage account create \
-  --name stbingo$RANDOM \
+  --name stbingofunc \
   --resource-group rg-bingo \
   --location eastus2 \
   --sku Standard_LRS \
-  --kind StorageV2 \
-  --allow-blob-public-access true
-
-ACCOUNT=<the-name-you-just-created>
-az storage blob service-properties update \
-  --account-name "$ACCOUNT" \
-  --static-website \
-  --index-document index.html \
-  --404-document index.html   # SPA fallback
-
-# build and upload
-cd frontend
-npm ci && npm run build
-az storage blob upload-batch \
-  --account-name "$ACCOUNT" \
-  --source dist \
-  --destination '$web' \
-  --overwrite
+  --kind StorageV2
 ```
 
-Get the public URL with:
-
-```bash
-az storage account show \
-  --name "$ACCOUNT" \
-  --resource-group rg-bingo \
-  --query "primaryEndpoints.web" -o tsv
-```
-
-For a custom domain and HTTPS, front the storage account with **Azure Front Door** or **Azure CDN**.
+> **Note:** Storage account names must be globally unique, 3–24 characters, lowercase letters and numbers only. If `stbingofunc` is taken, try `stbingofunc123` or similar.
 
 ---
 
-## Option 4 — Generic static host (Netlify, Vercel, S3, Nginx)
+## Step 7 — Deploy the Azure Functions API
 
-Any static host works. Common settings:
+### 7a. Create the Function App
 
-| Setting | Value |
-| --- | --- |
-| Build command | `npm ci && npm run build` |
-| Build directory | `frontend` |
-| Publish / output directory | `frontend/dist` |
-| Node version | `20` |
-| SPA fallback | rewrite all unknown paths to `/index.html` |
+```bash
+az functionapp create \
+  --name func-bingo-api \
+  --resource-group rg-bingo \
+  --storage-account stbingofunc \
+  --consumption-plan-location eastus2 \
+  --runtime node \
+  --runtime-version 20 \
+  --functions-version 4 \
+  --os-type Linux
+```
 
-### Nginx example
+> **Note:** The function app name must be globally unique (it becomes part of the URL). If `func-bingo-api` is taken, try `func-bingo-api-yourname`.
 
-```nginx
-server {
-  listen 443 ssl http2;
-  server_name bingo.example.com;
+### 7b. Configure app settings
 
-  root /var/www/bingo;
-  index index.html;
+Set the SQL connection string and admin key:
 
-  # cache hashed assets aggressively
-  location /assets/ {
-    expires 1y;
-    add_header Cache-Control "public, immutable";
-  }
+```bash
+az functionapp config appsettings set \
+  --name func-bingo-api \
+  --resource-group rg-bingo \
+  --settings \
+    "SQL_CONNECTION_STRING=Server=tcp:sql-bingo-server.database.windows.net,1433;Initial Catalog=bingodb;User ID=bingoadmin;Password=<YourStrongPassword123!>;Encrypt=true;TrustServerCertificate=false;" \
+    "ADMIN_KEY=<pick-a-strong-secret-for-admin-access>"
+```
 
-  # never cache the entry document
-  location = /index.html {
-    add_header Cache-Control "no-cache";
-  }
+> **Important:** Replace the password and choose a strong `ADMIN_KEY`. The admin key is used to access the admin dashboard and CSV export endpoints. Keep it secret.
 
-  # SPA fallback
-  location / {
-    try_files $uri $uri/ /index.html;
+### 7c. Deploy the backend code
+
+```bash
+cd backend
+npm ci
+func azure functionapp publish func-bingo-api
+```
+
+This packages your backend code and uploads it to Azure. It takes about a minute. When done, you will see output listing all the deployed function endpoints.
+
+### 7d. Verify the API is running
+
+```bash
+curl https://func-bingo-api.azurewebsites.net/api/leaderboard?campaign=APR26
+```
+
+You should get an empty JSON array `[]` (no submissions yet). If you get an error, see [Troubleshooting](#troubleshooting).
+
+---
+
+## Step 8 — Deploy the frontend to Azure Static Web Apps
+
+Azure Static Web Apps gives you a global CDN, free TLS certificate, and PR preview environments — all for free.
+
+### 8a. Create the Static Web App resource
+
+```bash
+az staticwebapp create \
+  --name swa-bingo \
+  --resource-group rg-bingo \
+  --location eastus2 \
+  --sku Free
+```
+
+### 8b. Build the frontend
+
+Point the frontend at your Function App URL:
+
+```bash
+cd frontend
+npm ci
+VITE_API_BASE=https://func-bingo-api.azurewebsites.net/api npm run build
+```
+
+> **Important:** Replace `func-bingo-api` with your actual Function App name from Step 7a.
+
+### 8c. Create the SPA fallback config
+
+Create a file at `frontend/public/staticwebapp.config.json` so that page refreshes don't return 404 (Vite copies everything in `public/` into `dist/` on every build):
+
+```json
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/assets/*", "*.{css,js,svg,png,jpg,ico,woff,woff2}"]
+  },
+  "globalHeaders": {
+    "Cache-Control": "no-cache"
   }
 }
 ```
 
-Copy `frontend/dist/*` to `/var/www/bingo/` after each build.
+If you already built before adding this file, rebuild or manually copy it into `frontend/dist/`.
+
+### 8d. Deploy with the SWA CLI
+
+```bash
+# Install the Static Web Apps CLI globally
+npm install -g @azure/static-web-apps-cli
+
+# Get the deployment token
+SWA_TOKEN=$(az staticwebapp secrets list \
+  --name swa-bingo \
+  --resource-group rg-bingo \
+  --query 'properties.apiKey' -o tsv)
+
+# Deploy the built frontend
+swa deploy frontend/dist --deployment-token "$SWA_TOKEN"
+```
+
+### 8e. Get your site URL
+
+```bash
+az staticwebapp show \
+  --name swa-bingo \
+  --resource-group rg-bingo \
+  --query "defaultHostname" -o tsv
+```
+
+Your site is live at `https://<generated-name>.azurestaticapps.net`.
 
 ---
 
-## Post-deploy verification
+## Step 9 — Connect frontend to backend (CORS)
 
-After publishing, check the following on the live URL:
+The Function App needs to allow requests from the Static Web App domain. Get your SWA URL from the previous step and configure CORS:
 
-1. The app shell loads with **Game**, **Keywords**, **Submit**, and **Help** tabs visible.
-2. Entering a name and a pack number (e.g. `42`) starts a 3×3 board.
-3. **Quick Pick** picks a pack within `1`–`999` and starts a board.
-4. Reloading the page restores the active board, cleared tiles, and earned keywords.
-5. Submitting a valid keyword updates the local leaderboard; resubmitting the same email + keyword is rejected.
-6. Browser DevTools → **Console** shows no errors and no failed network requests other than the initial static assets.
-7. Browser DevTools → **Application → Local Storage** shows the keys defined in [frontend/src/data/constants.js](frontend/src/data/constants.js).
+```bash
+az functionapp cors add \
+  --name func-bingo-api \
+  --resource-group rg-bingo \
+  --allowed-origins "https://<your-swa-name>.azurestaticapps.net"
+```
+
+> Replace `<your-swa-name>.azurestaticapps.net` with the actual URL from Step 8e.
 
 ---
 
-## Rolling back to the legacy build
+## Step 10 — Verify everything works
 
-The legacy single-file build at [index.html](index.html) is intentionally preserved as a rollback target.
+Open your Static Web App URL in a browser and check:
 
-To roll back, deploy only the repo-root `index.html` (and any sibling assets it references) to the same origin. Because the legacy file uses the same `localStorage` keys, existing players' progress remains intact across the rollback.
+| # | What to check | Expected result |
+|---|---|---|
+| 1 | App loads | You see the **Game**, **Keywords**, **Submit**, and **Help** tabs |
+| 2 | Start a game | Enter a name, pick a pack (e.g. `42`), the 3×3 board appears |
+| 3 | Quick Pick | Generates a random pack between 1–999 |
+| 4 | Page reload | Board, cleared tiles, and keywords are restored |
+| 5 | Submit keyword | The submission goes through (check browser DevTools Network tab — you should see a `POST` to `/api/submissions`) |
+| 6 | Leaderboard | Visit the Submit tab — leaderboard shows your submission |
+| 7 | No console errors | Browser DevTools → Console shows no errors |
+| 8 | Admin dashboard | `curl -H "X-Admin-Key: <your-key>" https://func-bingo-api.azurewebsites.net/api/admin/dashboard?campaign=APR26` returns engagement data |
 
-The legacy file shows a banner pointing back to the migrated frontend so players are not confused if they reach it via an old bookmark.
+---
+
+## Optional — Custom domain
+
+### For the Static Web App (frontend)
+
+1. Go to [portal.azure.com](https://portal.azure.com) → your Static Web App → **Custom domains**.
+2. Click **Add** and follow the CNAME or TXT validation steps.
+3. TLS is provisioned automatically (no certificate to upload).
+
+### For the Function App (API)
+
+1. Go to your Function App → **Custom domains** → **Add custom domain**.
+2. Follow the DNS validation steps.
+3. Add a TLS binding (Azure provides free managed certificates for Function Apps).
+
+If you add a custom domain to the Function App, rebuild the frontend with the new API URL:
+
+```bash
+VITE_API_BASE=https://api.yourdomain.com/api npm run build
+```
+
+And redeploy the frontend.
+
+---
+
+## Optional — GitHub Actions CI/CD
+
+Automate deployments so every push to `main` builds and deploys both frontend and backend.
+
+Create `.github/workflows/deploy.yml`:
+
+```yaml
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AZURE_FUNCTIONAPP_NAME: func-bingo-api
+  SWA_NAME: swa-bingo
+  RESOURCE_GROUP: rg-bingo
+  NODE_VERSION: '20'
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          package: backend
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+        env:
+          VITE_API_BASE: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api
+      - uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
+          action: upload
+          app_location: frontend/dist
+          skip_app_build: true
+```
+
+### Set up the secrets
+
+1. **`AZURE_FUNCTIONAPP_PUBLISH_PROFILE`**: In the Azure Portal, go to your Function App → **Overview** → **Get publish profile**. Copy the XML content and add it as a GitHub secret.
+
+2. **`SWA_DEPLOYMENT_TOKEN`**: Run this command and add the output as a GitHub secret:
+   ```bash
+   az staticwebapp secrets list \
+     --name swa-bingo \
+     --resource-group rg-bingo \
+     --query 'properties.apiKey' -o tsv
+   ```
+
+---
+
+## Cost estimate
+
+For a typical event (hundreds of players over a few days):
+
+| Resource | Tier | Estimated monthly cost |
+|---|---|---|
+| Azure SQL Database | Basic (5 DTU) | ~$5 |
+| Azure Functions | Consumption (pay-per-execution) | Free (1M executions/mo included) |
+| Storage Account | Standard LRS | < $0.10 |
+| Azure Static Web Apps | Free | $0 |
+| **Total** | | **~$5/month** |
+
+> After the event, you can [tear down](#tearing-it-down) the resources to stop all charges immediately.
 
 ---
 
 ## Troubleshooting
 
-**Blank page after deploy, 404s for `/assets/*.js`**
-The build was published under a subpath but `base` is still `/`. Set `base` in [frontend/vite.config.js](frontend/vite.config.js) (or pass `--base=/subpath/` to `npm run build`) and redeploy.
+### "az: command not found"
 
-**Deep links return 404**
-The host is not configured for SPA fallback. Add the `staticwebapp.config.json` (Azure SWA), `--404-document index.html` (Azure Storage), or `try_files ... /index.html` (Nginx) shown above.
+The Azure CLI is not installed. Follow the [install steps](#step-1--install-the-tools) for your OS.
 
-**Player progress disappears after deploy**
-`localStorage` is partitioned by origin and protocol. Confirm the site is served from the same scheme + host as before. Switching from `http://` to `https://`, or moving from a `*.azurestaticapps.net` subdomain to a custom domain, will appear as data loss.
+### "func: command not found"
 
-**Stale UI after a new release**
-The hashed asset filenames change every build, but the entry `index.html` should not be cached. Verify the host returns `Cache-Control: no-cache` (or similar) on `/index.html`. The Azure SWA and Nginx examples above already do this.
+Azure Functions Core Tools is not installed. Follow the [install steps](#step-1--install-the-tools) for your OS.
 
-**Tailwind classes missing in production**
-Confirm `frontend/src/styles/tailwind.css` is imported from `frontend/src/main.js` and that `@tailwindcss/vite` is listed under `devDependencies`. Re-run `npm ci` to ensure a clean install.
+### API returns 500 Internal Server Error
+
+The most common cause is a bad SQL connection string. Check:
+
+```bash
+# View the current app settings
+az functionapp config appsettings list \
+  --name func-bingo-api \
+  --resource-group rg-bingo \
+  --output table
+```
+
+Verify `SQL_CONNECTION_STRING` has the correct server name, database name, username, and password. Also confirm the firewall rule from Step 4b was created.
+
+### API returns 404 for all routes
+
+Make sure you deployed from the `backend/` directory and that `host.json` includes `"routePrefix": "api"`. Redeploy:
+
+```bash
+cd backend
+func azure functionapp publish func-bingo-api
+```
+
+### Frontend loads but API calls fail (CORS errors)
+
+Check the browser DevTools Console for `Access-Control-Allow-Origin` errors. You need to add the frontend URL to the Function App's CORS list:
+
+```bash
+az functionapp cors add \
+  --name func-bingo-api \
+  --resource-group rg-bingo \
+  --allowed-origins "https://<your-swa-name>.azurestaticapps.net"
+```
+
+### Blank page after deploy
+
+The frontend was built with the wrong `base` path. If your SWA serves from the root domain, the default `base: '/'` is correct. If served from a subpath, set `base` in `frontend/vite.config.js`:
+
+```js
+export default defineConfig({
+  base: '/your-subpath/',
+  plugins: [vue(), tailwindcss()],
+});
+```
+
+Rebuild and redeploy.
+
+### Page refresh returns 404
+
+The SPA fallback is not configured. Make sure `staticwebapp.config.json` is in the deployed output. See [Step 8c](#8c-create-the-spa-fallback-config).
+
+### Player progress disappears after deploy
+
+`localStorage` is partitioned by origin (scheme + host). Switching from `http://` to `https://`, or changing the domain, will appear as data loss. Ensure the site is served from the same origin as before.
+
+### Database migration fails with "firewall" error
+
+Your local IP is not allowed. Add it:
+
+```bash
+MY_IP=$(curl -s https://api.ipify.org)
+az sql server firewall-rule create \
+  --resource-group rg-bingo \
+  --server sql-bingo-server \
+  --name AllowMyIP \
+  --start-ip-address "$MY_IP" \
+  --end-ip-address "$MY_IP"
+```
+
+### Resource name already taken
+
+Azure resource names must be globally unique. Append a random suffix:
+- SQL Server: `sql-bingo-server-abc123`
+- Function App: `func-bingo-api-abc123`
+- Storage Account: `stbingofunc123`
+
+Update all subsequent commands with the name you chose.
+
+---
+
+## Tearing it down
+
+When you no longer need the deployment, delete the entire resource group to remove all resources and stop all charges:
+
+```bash
+az group delete --name rg-bingo --yes --no-wait
+```
+
+This deletes the SQL server, database, function app, storage account, and static web app — everything created in this guide. The `--no-wait` flag returns immediately; deletion happens in the background and takes a few minutes.
+
+---
+
+## Quick reference — All resource names
+
+| Resource | Default name | Customizable? |
+|---|---|---|
+| Resource Group | `rg-bingo` | Yes |
+| SQL Server | `sql-bingo-server` | Yes (globally unique) |
+| SQL Database | `bingodb` | Yes |
+| Storage Account | `stbingofunc` | Yes (globally unique, lowercase, no hyphens) |
+| Function App | `func-bingo-api` | Yes (globally unique) |
+| Static Web App | `swa-bingo` | Yes |
+
+If you change any name, update it consistently in all subsequent commands.
