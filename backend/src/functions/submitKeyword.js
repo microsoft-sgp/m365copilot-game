@@ -3,11 +3,7 @@ import sql from 'mssql';
 import { getPool } from '../lib/db.js';
 import { validateKeywordFormat } from '../lib/validation.js';
 
-app.http('submitKeyword', {
-  methods: ['POST'],
-  authLevel: 'anonymous',
-  route: 'submissions',
-  handler: async (request, context) => {
+export const handler = async (request, context) => {
     const body = await request.json();
     const org = (body.org || '').trim();
     const name = (body.name || '').trim();
@@ -144,5 +140,11 @@ app.http('submitKeyword', {
           : `Keyword accepted for ${resolvedOrg}! Leaderboard updated.`,
       },
     };
-  },
+};
+
+app.http('submitKeyword', {
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  route: 'submissions',
+  handler,
 });
