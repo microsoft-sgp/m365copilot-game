@@ -18,6 +18,13 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+local.settings.json
+
+# Azure
+.azure/
+__azurite_*
+__blobstorage__/
+__queuestorage__/
 
 # Editor / IDE
 .vscode/*
