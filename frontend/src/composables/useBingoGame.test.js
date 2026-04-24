@@ -107,7 +107,7 @@ describe('useBingoGame.startBoard', () => {
     startBoard({ name: 'Ada', packId: 1 });
     await Promise.resolve();
     await Promise.resolve();
-    expect(apiCreateSession).toHaveBeenCalledWith('test-session', 'Ada', 1);
+    expect(apiCreateSession).toHaveBeenCalledWith('test-session', 'Ada', 1, '');
     expect(state.gameSessionId).toBe(789);
   });
 
@@ -216,7 +216,8 @@ describe('useBingoGame.verifyTile', () => {
     expect(apiUpdateSession).toHaveBeenCalled();
     const [id, counts] = apiUpdateSession.mock.calls.at(-1);
     expect(id).toBe(42);
-    expect(counts).toEqual({ tilesCleared: 1, linesWon: 0, keywordsEarned: 0 });
+    expect(counts).toMatchObject({ tilesCleared: 1, linesWon: 0, keywordsEarned: 0 });
+    expect(counts.boardState).toBeDefined();
   });
 
   it('advances currentWeek after a weekly mint when elapsed time permits', () => {

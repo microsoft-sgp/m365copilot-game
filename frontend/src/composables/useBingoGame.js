@@ -19,6 +19,7 @@ function freshState() {
   return {
     sessionId: '',
     playerName: '',
+    email: '',
     packId: 0,
     gameSessionId: null,
     tiles: [],
@@ -88,9 +89,10 @@ export function useBingoGame() {
     Math.round((clearedCount.value / 9) * 100),
   );
 
-  function startBoard({ name, packId }) {
+  function startBoard({ name, packId, email }) {
     state.playerName = name;
     state.packId = packId;
+    if (email) state.email = email;
     state.tiles = getPack(packId);
     state.cleared = new Array(9).fill(false);
     state.wonLines = state.wonLines || [];
@@ -110,7 +112,7 @@ export function useBingoGame() {
     saveString(STORAGE_KEYS.lastPack, String(packId));
 
     // Fire-and-forget: register session server-side
-    apiCreateSession(state.sessionId, name, packId)
+    apiCreateSession(state.sessionId, name, packId, state.email)
       .then((res) => {
         if (res.ok && res.data && res.data.gameSessionId) {
           state.gameSessionId = res.data.gameSessionId;
@@ -125,7 +127,7 @@ export function useBingoGame() {
     state.cleared = [];
   }
 
-  // Returns { ok, errors, lineWon: { line, kw } | null, weeklyKw: string | null }
+  // Returns { ok, errors, linesWon: [{ line, kw }], weeklyKw: string | null }
   function verifyTile(tileIndex, proof) {
     const tile = state.tiles[tileIndex];
     if (!tile) return { ok: false, errors: ['No active tile.'] };
@@ -143,7 +145,7 @@ export function useBingoGame() {
       }).catch(() => {});
     }
 
-    let lineResult = null;
+    const newLinesWon = [];
     let weeklyKw = null;
 
     for (const line of LINES) {
@@ -172,20 +174,33 @@ export function useBingoGame() {
         }
 
         weeklyKw = tryWeeklyClear() || weeklyKw;
-        lineResult = { line, kw };
+        newLinesWon.push({ line, kw });
       }
     }
 
-    // Fire-and-forget: update session progress counts
+    // Fire-and-forget: update session progress counts and board state
     if (state.gameSessionId) {
       apiUpdateSession(state.gameSessionId, {
         tilesCleared: state.cleared.filter(Boolean).length,
         linesWon: state.wonLines.length,
         keywordsEarned: state.keywords.length,
+        boardState: {
+          cleared: state.cleared,
+          wonLines: state.wonLines,
+          keywords: state.keywords,
+          challengeProfile: state.challengeProfile,
+        },
       }).catch(() => {});
     }
 
-    return { ok: true, errors: [], lineWon: lineResult, weeklyKw };
+    // Backward compat: lineWon returns last line (or null)
+    return {
+      ok: true,
+      errors: [],
+      lineWon: newLinesWon.length > 0 ? newLinesWon[newLinesWon.length - 1] : null,
+      linesWon: newLinesWon,
+      weeklyKw,
+    };
   }
 
   function tryWeeklyClear() {
@@ -212,6 +227,30 @@ export function useBingoGame() {
     return wkw;
   }
 
+  function hydrateFromServer(serverState) {
+    if (!serverState || !serverState.activeSession) return;
+    const session = serverState.activeSession;
+    state.playerName = serverState.playerName || state.playerName;
+    state.gameSessionId = session.gameSessionId;
+    state.packId = session.packId;
+
+    if (session.boardState) {
+      state.cleared = session.boardState.cleared || [];
+      state.wonLines = session.boardState.wonLines || [];
+      state.keywords = session.boardState.keywords || [];
+      state.challengeProfile = session.boardState.challengeProfile || state.challengeProfile;
+    }
+
+    if (state.packId) {
+      state.tiles = getPack(state.packId);
+      state.boardActive = true;
+    }
+  }
+
+  function setEmail(email) {
+    state.email = email;
+  }
+
   return {
     state,
     clearedCount,
@@ -221,6 +260,8 @@ export function useBingoGame() {
     startBoard,
     resetBoard,
     verifyTile,
+    hydrateFromServer,
+    setEmail,
     campaignId: CAMPAIGN_ID,
   };
 }

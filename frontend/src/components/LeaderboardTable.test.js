@@ -61,4 +61,30 @@ describe('LeaderboardTable', () => {
     await w.vm.$nextTick();
     expect(w.text()).toContain('4');
   });
+
+  it('highlights the player org row when playerOrg prop is passed', async () => {
+    await seedServerLeaderboard([
+      { org: 'NUS', score: 5, contributors: 3, lastSubmission: 1_700_000_000_000 },
+      { org: 'SMU', score: 3, contributors: 2, lastSubmission: 1_700_000_100_000 },
+    ]);
+    const w = mount(LeaderboardTable, { props: { playerOrg: 'NUS' } });
+    await w.vm.$nextTick();
+    const rows = w.findAll('tbody tr');
+    expect(rows[0].classes()).toContain('bg-lilac/10');
+    expect(rows[0].text()).toContain('★ You');
+    expect(rows[1].classes()).not.toContain('bg-lilac/10');
+  });
+
+  it('hides Last Submission column on compact via CSS class', async () => {
+    await seedServerLeaderboard([
+      { org: 'NUS', score: 5, contributors: 3, lastSubmission: 1_700_000_000_000 },
+    ]);
+    const w = mount(LeaderboardTable);
+    await w.vm.$nextTick();
+    // The Last Submission th should have 'hidden' and 'sm:table-cell' classes
+    const headers = w.findAll('th');
+    const lastHeader = headers[headers.length - 1];
+    expect(lastHeader.classes()).toContain('hidden');
+    expect(lastHeader.classes()).toContain('sm:table-cell');
+  });
 });

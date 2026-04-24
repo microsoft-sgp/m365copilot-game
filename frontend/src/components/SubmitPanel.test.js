@@ -101,15 +101,9 @@ describe('SubmitPanel', () => {
     expect(w.text()).toContain('already submitted');
   });
 
-  it('admin clear requires typing RESET-BINGO', async () => {
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+  it('does not show admin clear data section', () => {
     const w = mount(SubmitPanel);
-    const adminInput = w.findAll('input').find((i) =>
-      i.attributes('placeholder') === 'RESET-BINGO',
-    );
-    await adminInput.setValue('wrong-phrase');
-    await w.findAll('button').find((b) => b.text().includes('Clear All Data')).trigger('click');
-    expect(alertSpy).toHaveBeenCalled();
-    alertSpy.mockRestore();
+    expect(w.text()).not.toContain('Clear Local Data');
+    expect(w.text()).not.toContain('RESET-BINGO');
   });
 });

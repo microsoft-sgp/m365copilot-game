@@ -10,14 +10,16 @@ describe('HelpPanel', () => {
     expect(w.findAll('ol li')).toHaveLength(6);
   });
 
-  it('surfaces the configured Copilot URL', () => {
+  it('provides a link to open Copilot Chat', () => {
     const w = mount(HelpPanel);
-    expect(w.text()).toContain(COPILOT_URL);
+    const link = w.find('a[href]');
+    expect(link.exists()).toBe(true);
+    expect(link.attributes('href')).toBe(COPILOT_URL);
   });
 
-  it('shows the browser and keyword security notes', () => {
+  it('does not show developer-facing notes', () => {
     const w = mount(HelpPanel);
-    expect(w.text()).toContain('Browser Security Note');
-    expect(w.text()).toContain('Keyword Security Note');
+    expect(w.text()).not.toContain('Browser Security Note');
+    expect(w.text()).not.toContain('Keyword Security Note');
   });
 });

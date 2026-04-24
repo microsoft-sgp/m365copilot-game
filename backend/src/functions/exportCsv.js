@@ -1,10 +1,10 @@
 import { app } from '@azure/functions';
 import sql from 'mssql';
 import { getPool } from '../lib/db.js';
-import { verifyAdminKey } from '../lib/adminAuth.js';
+import { verifyAdmin } from '../lib/adminAuth.js';
 
 export const handler = async (request, context) => {
-  const auth = verifyAdminKey(request);
+  const auth = verifyAdmin(request);
   if (!auth.ok) return auth.response;
 
   const campaign = request.query.get('campaign') || 'APR26';

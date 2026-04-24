@@ -3,10 +3,23 @@ import { STORAGE_KEYS } from '../data/constants.js';
 import { ORG_MAP } from '../data/orgMap.js';
 import { loadJson, saveJson } from '../lib/storage.js';
 import { validateKeywordFormat } from '../lib/verification.js';
-import { apiSubmitKeyword, apiGetLeaderboard } from '../lib/api.js';
+import { apiSubmitKeyword, apiGetLeaderboard, apiGetOrgDomains } from '../lib/api.js';
 
 const submissions = ref(loadJson(STORAGE_KEYS.submissions, []));
 const serverLeaderboard = ref([]);
+const orgDomainMap = ref({ ...ORG_MAP });
+
+// Fetch org domain map from API (with hardcoded fallback)
+async function refreshOrgMap() {
+  try {
+    const res = await apiGetOrgDomains();
+    if (res.ok && res.data && res.data.domains) {
+      orgDomainMap.value = res.data.domains;
+    }
+  } catch {
+    // Use hardcoded fallback
+  }
+}
 
 function persist() {
   saveJson(STORAGE_KEYS.submissions, submissions.value);
@@ -62,7 +75,7 @@ export function useSubmissions() {
 
   function detectOrg(email) {
     const domain = (email.split('@')[1] || '').toLowerCase().trim();
-    return { domain, org: ORG_MAP[domain] || null };
+    return { domain, org: orgDomainMap.value[domain] || null };
   }
 
   // Returns { ok, message, orgDupe }
@@ -166,6 +179,7 @@ export function useSubmissions() {
 
   function startPolling() {
     refreshLeaderboard();
+    refreshOrgMap();
     pollTimer = setInterval(refreshLeaderboard, 30000);
   }
 

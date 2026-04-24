@@ -281,10 +281,13 @@ az functionapp config appsettings set \
   --resource-group rg-bingo \
   --settings \
     "SQL_CONNECTION_STRING=Server=tcp:sql-bingo-server.database.windows.net,1433;Initial Catalog=bingodb;User ID=bingoadmin;Password=<YourStrongPassword123!>;Encrypt=true;TrustServerCertificate=false;" \
-    "ADMIN_KEY=<pick-a-strong-secret-for-admin-access>"
+    "ADMIN_KEY=<pick-a-strong-secret-for-admin-access>" \
+    "JWT_SECRET=<random-64-character-string-for-jwt-signing>" \
+    "ADMIN_EMAILS=admin1@example.com,admin2@example.com" \
+    "SMTP_CONNECTION=<your-smtp-or-acs-connection-string>"
 ```
 
-> **Important:** Replace the password and choose a strong `ADMIN_KEY`. The admin key is used to access the admin dashboard and CSV export endpoints. Keep it secret.
+> **Important:** Replace the password and choose strong values for `ADMIN_KEY` and `JWT_SECRET`. The admin key is used for CLI/API access to admin endpoints. `JWT_SECRET` signs admin portal session tokens. `ADMIN_EMAILS` is a comma-separated list of emails allowed to log into the admin portal via OTP. `SMTP_CONNECTION` configures the email service for sending OTP codes (Azure Communication Services or SMTP). Keep all secrets confidential.
 
 ### 7c. Deploy the backend code
 

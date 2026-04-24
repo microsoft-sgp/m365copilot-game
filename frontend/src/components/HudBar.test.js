@@ -37,4 +37,25 @@ describe('HudBar', () => {
     expect(fill.attributes('style')).toContain('width: 56%');
     expect(w.text()).toContain('56%');
   });
+
+  it('displays motivational message at 0% progress', () => {
+    const w = mount(HudBar);
+    expect(w.text()).toContain("Let's get started!");
+  });
+
+  it('displays motivational message at mid progress', async () => {
+    const { state } = useBingoGame();
+    state.cleared = [true, true, true, true, true, false, false, false, false];
+    const w = mount(HudBar);
+    await w.vm.$nextTick();
+    expect(w.text()).toContain('On fire!');
+  });
+
+  it('displays completion message at 100%', async () => {
+    const { state } = useBingoGame();
+    state.cleared = new Array(9).fill(true);
+    const w = mount(HudBar);
+    await w.vm.$nextTick();
+    expect(w.text()).toContain('Board complete!');
+  });
 });

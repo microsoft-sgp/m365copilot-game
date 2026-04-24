@@ -49,4 +49,11 @@ describe('BingoGrid', () => {
     await w.findAll('.tile')[3].trigger('click');
     expect(w.emitted('open-tile')).toEqual([[3]]);
   });
+
+  it('uses responsive grid columns (2-col compact, 3-col expanded)', () => {
+    const w = mount(BingoGrid);
+    const grid = w.find('div');
+    expect(grid.classes()).toContain('grid-cols-2');
+    expect(grid.classes()).toContain('sm:grid-cols-3');
+  });
 });

@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useSubmissions } from '../composables/useSubmissions.js';
 import { useToast } from '../composables/useToast.js';
-import { clearAllGameData } from '../lib/storage.js';
 import LeaderboardTable from './LeaderboardTable.vue';
 
 const { detectOrg, submit, startPolling, stopPolling } = useSubmissions();
@@ -50,25 +49,19 @@ async function onSubmit() {
   }
 }
 
-const adminPhrase = ref('');
-function adminClear() {
-  if (adminPhrase.value.trim() !== 'RESET-BINGO') {
-    alert('Incorrect phrase. Type RESET-BINGO to confirm.');
-    return;
-  }
-  if (
-    !confirm(
-      'This will delete ALL local data (game state, submissions, profiles). Are you sure?',
-    )
-  )
-    return;
-  clearAllGameData();
-  location.reload();
-}
 </script>
 
 <template>
   <div class="mx-auto max-w-[680px]">
+    <div class="glass mb-5 rounded-[14px] p-[22px]">
+      <div class="mb-3.5 flex items-center justify-between">
+        <h3 class="m-0 text-base font-extrabold text-lilac">
+          🏆 Organization Leaderboard
+        </h3>
+      </div>
+      <LeaderboardTable :player-org="detection.org" />
+    </div>
+
     <div class="glass mb-5 rounded-[14px] p-[22px]">
       <h3 class="mb-3.5 text-base font-extrabold text-lilac">
         📬 Submit a Keyword
@@ -139,38 +132,6 @@ function adminClear() {
         :class="result.kind"
       >
         {{ result.message }}
-      </div>
-    </div>
-
-    <div class="glass mb-5 rounded-[14px] p-[22px]">
-      <div class="mb-3.5 flex items-center justify-between">
-        <h3 class="m-0 text-base font-extrabold text-lilac">
-          🏆 Organization Leaderboard
-        </h3>
-      </div>
-      <LeaderboardTable />
-    </div>
-
-    <div
-      class="mt-5 max-w-[480px] rounded-[14px] border border-error/20 bg-error/5 p-[18px]"
-    >
-      <h4
-        class="mb-2.5 text-xs font-bold uppercase tracking-[1px] text-error"
-      >
-        ⚠️ Admin — Clear Local Data
-      </h4>
-      <p class="mb-2.5 text-xs text-muted">
-        Type <strong>RESET-BINGO</strong> to wipe all local data (game state,
-        submissions, profiles). This cannot be undone.
-      </p>
-      <div class="flex gap-2">
-        <input
-          v-model="adminPhrase"
-          class="field-input max-w-[200px]"
-          type="text"
-          placeholder="RESET-BINGO"
-        />
-        <button class="btn-danger" @click="adminClear">Clear All Data</button>
       </div>
     </div>
   </div>

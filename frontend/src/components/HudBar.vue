@@ -1,7 +1,17 @@
 <script setup>
+import { computed } from 'vue';
 import { useBingoGame } from '../composables/useBingoGame.js';
 const { clearedCount, linesWon, keywordCount, boardProgress } =
   useBingoGame();
+
+const motivation = computed(() => {
+  const p = boardProgress.value;
+  if (p === 0) return "Let's get started! Pick a tile. 🎯";
+  if (p <= 33) return 'Nice start! Keep going! 💪';
+  if (p <= 66) return 'On fire! 🔥';
+  if (p < 100) return 'Almost there! 🚀';
+  return 'Board complete! 🎉';
+});
 </script>
 
 <template>
@@ -13,14 +23,14 @@ const { clearedCount, linesWon, keywordCount, boardProgress } =
         {{ clearedCount }}
       </div>
       <div
-        class="text-[10px] uppercase tracking-[1px] text-muted"
+        class="text-[10px] uppercase tracking-[0.5px] text-muted"
       >
         Tiles Cleared
       </div>
     </div>
     <div class="flex flex-col items-center gap-0.5">
       <div class="text-gradient text-[22px] font-black">{{ linesWon }}</div>
-      <div class="text-[10px] uppercase tracking-[1px] text-muted">
+      <div class="text-[10px] uppercase tracking-[0.5px] text-muted">
         Lines Won
       </div>
     </div>
@@ -28,7 +38,7 @@ const { clearedCount, linesWon, keywordCount, boardProgress } =
       <div class="text-gradient text-[22px] font-black">
         {{ keywordCount }}
       </div>
-      <div class="text-[10px] uppercase tracking-[1px] text-muted">
+      <div class="text-[10px] uppercase tracking-[0.5px] text-muted">
         Keywords
       </div>
     </div>
@@ -39,6 +49,9 @@ const { clearedCount, linesWon, keywordCount, boardProgress } =
       </div>
       <div class="progress-track">
         <div class="progress-fill" :style="{ width: boardProgress + '%' }"></div>
+      </div>
+      <div class="mt-0.5 text-[11px] text-muted/80">
+        {{ motivation }}
       </div>
     </div>
   </div>

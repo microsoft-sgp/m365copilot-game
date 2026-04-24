@@ -47,6 +47,7 @@ describe('PATCH /sessions/{id} (updateSession)', () => {
       tilesCleared: 5,
       linesWon: 2,
       keywordsEarned: 3,
+      boardState: null,
     });
   });
 
@@ -60,6 +61,7 @@ describe('PATCH /sessions/{id} (updateSession)', () => {
       tilesCleared: 0,
       linesWon: 0,
       keywordsEarned: 0,
+      boardState: null,
     });
   });
 });

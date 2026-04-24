@@ -4,7 +4,7 @@ import { getPool } from '../lib/db.js';
 
 export const handler = async (request, context) => {
   const body = await request.json();
-  const { sessionId, playerName, packId } = body;
+  const { sessionId, playerName, packId, email } = body;
 
   if (!sessionId || !playerName || packId == null) {
     return {
@@ -14,22 +14,42 @@ export const handler = async (request, context) => {
   }
 
   const pool = await getPool();
+  const trimmedEmail = email ? email.trim().toLowerCase() : null;
 
-  // Upsert player by sessionId
-  const playerResult = await pool
-    .request()
-    .input('sessionId', sql.NVarChar(50), sessionId)
-    .input('playerName', sql.NVarChar(200), playerName)
-    .query(`
-      MERGE players AS target
-      USING (SELECT @sessionId AS session_id) AS source
-      ON target.session_id = source.session_id
-      WHEN MATCHED THEN
-        UPDATE SET player_name = @playerName
-      WHEN NOT MATCHED THEN
-        INSERT (session_id, player_name) VALUES (@sessionId, @playerName)
-      OUTPUT inserted.id;
-    `);
+  // Upsert player: prefer email as identity, fall back to sessionId
+  let playerResult;
+  if (trimmedEmail) {
+    playerResult = await pool
+      .request()
+      .input('sessionId', sql.NVarChar(50), sessionId)
+      .input('playerName', sql.NVarChar(200), playerName)
+      .input('email', sql.NVarChar(320), trimmedEmail)
+      .query(`
+        MERGE players AS target
+        USING (SELECT @email AS email) AS source
+        ON target.email = source.email
+        WHEN MATCHED THEN
+          UPDATE SET player_name = @playerName, session_id = @sessionId
+        WHEN NOT MATCHED THEN
+          INSERT (session_id, player_name, email) VALUES (@sessionId, @playerName, @email)
+        OUTPUT inserted.id;
+      `);
+  } else {
+    playerResult = await pool
+      .request()
+      .input('sessionId', sql.NVarChar(50), sessionId)
+      .input('playerName', sql.NVarChar(200), playerName)
+      .query(`
+        MERGE players AS target
+        USING (SELECT @sessionId AS session_id) AS source
+        ON target.session_id = source.session_id
+        WHEN MATCHED THEN
+          UPDATE SET player_name = @playerName
+        WHEN NOT MATCHED THEN
+          INSERT (session_id, player_name) VALUES (@sessionId, @playerName)
+        OUTPUT inserted.id;
+      `);
+  }
   const playerId = playerResult.recordset[0].id;
 
   // Create game session (or return existing for same player+pack+campaign)

@@ -18,12 +18,20 @@ beforeEach(() => {
 });
 
 describe('TopBar', () => {
-  it('renders the brand and counters at zero by default', () => {
+  it('renders the game title and counters at zero by default', () => {
     const w = mount(TopBar);
-    expect(w.text()).toContain('Copilot Chat Bingo');
-    expect(w.text()).toMatch(/Tiles:\s*0\/9/);
-    expect(w.text()).toMatch(/Lines:\s*0\/8/);
-    expect(w.text()).toMatch(/Keys:\s*0/);
+    expect(w.text()).toContain('Copilot Bingo');
+    // Compact emoji+number format
+    expect(w.text()).toContain('🔥');
+    expect(w.text()).toContain('⭐');
+    expect(w.text()).toContain('🔑');
+    expect(w.text()).toContain('0');
+  });
+
+  it('does not contain branding text', () => {
+    const w = mount(TopBar);
+    expect(w.text()).not.toContain('Powered by');
+    expect(w.text()).not.toContain('Student Ambassador');
   });
 
   it('reflects state changes reactively', async () => {
@@ -33,8 +41,7 @@ describe('TopBar', () => {
     state.wonLines = ['R1'];
     state.keywords = [{ code: 'a' }];
     await w.vm.$nextTick();
-    expect(w.text()).toMatch(/Tiles:\s*2\/9/);
-    expect(w.text()).toMatch(/Lines:\s*1\/8/);
-    expect(w.text()).toMatch(/Keys:\s*1/);
+    expect(w.text()).toContain('2');
+    expect(w.text()).toContain('1');
   });
 });

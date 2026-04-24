@@ -12,20 +12,23 @@ export const handler = async (request, context) => {
   }
 
   const body = await request.json();
-  const { tilesCleared, linesWon, keywordsEarned } = body;
+  const { tilesCleared, linesWon, keywordsEarned, boardState } = body;
 
   const pool = await getPool();
+  const boardStateJson = boardState ? JSON.stringify(boardState) : null;
   const result = await pool
     .request()
     .input('id', sql.Int, id)
     .input('tilesCleared', sql.Int, tilesCleared ?? 0)
     .input('linesWon', sql.Int, linesWon ?? 0)
     .input('keywordsEarned', sql.Int, keywordsEarned ?? 0)
+    .input('boardState', sql.NVarChar(sql.MAX), boardStateJson)
     .query(`
       UPDATE game_sessions
       SET tiles_cleared   = @tilesCleared,
           lines_won       = @linesWon,
           keywords_earned = @keywordsEarned,
+          board_state     = COALESCE(@boardState, board_state),
           last_active_at  = SYSUTCDATETIME()
       WHERE id = @id;
     `);

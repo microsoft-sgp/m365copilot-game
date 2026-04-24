@@ -53,6 +53,15 @@
   }
 }
 
+@keyframes tileShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 /* ──────────────────────────────────────────────────────────────
    Base layer — global background atmosphere and typography.
    ────────────────────────────────────────────────────────────── */
@@ -238,8 +247,21 @@
   }
   .tile:hover {
     border-color: var(--color-lilac-2);
-    box-shadow: 0 0 18px rgba(168, 85, 247, 0.3);
-    transform: translateY(-2px);
+    box-shadow: 0 0 24px rgba(168, 85, 247, 0.45);
+    transform: scale(1.03);
+  }
+  .tile:not(.cleared)::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      110deg,
+      transparent 30%,
+      rgba(192, 132, 252, 0.04) 45%,
+      transparent 60%
+    );
+    animation: tileShimmer 3.5s ease-in-out infinite;
+    pointer-events: none;
   }
   .tile.cleared {
     background: linear-gradient(

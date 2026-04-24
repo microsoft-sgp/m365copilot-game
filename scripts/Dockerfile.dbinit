@@ -1,0 +1,6 @@
+FROM node:20-alpine
+WORKDIR /app
+RUN npm init -y && npm install mssql
+COPY database/ ./database/
+COPY scripts/init-db.mjs ./init-db.mjs
+CMD ["node", "init-db.mjs"]

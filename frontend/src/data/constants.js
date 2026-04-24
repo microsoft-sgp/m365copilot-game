@@ -13,4 +13,5 @@ export const STORAGE_KEYS = {
   submissions: 'copilot_bingo_subs',
   playerName: 'copilot_bingo_player_name',
   lastPack: 'copilot_bingo_last_pack',
+  email: 'copilot_bingo_email',
 };

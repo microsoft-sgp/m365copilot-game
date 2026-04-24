@@ -19,6 +19,7 @@ const promptText = computed(() =>
 const proof = ref('');
 const result = ref({ kind: '', messages: [] });
 const copied = ref(false);
+const verifying = ref(false);
 
 async function copyPrompt() {
   try {
@@ -35,6 +36,8 @@ function openCopilot() {
 }
 
 function verify() {
+  if (verifying.value) return;
+
   const text = proof.value.trim();
   if (!text) {
     result.value = {
@@ -43,7 +46,11 @@ function verify() {
     };
     return;
   }
+
+  verifying.value = true;
   const res = verifyTile(props.tileIndex, text);
+  verifying.value = false;
+
   if (!res.ok) {
     result.value = { kind: 'fail', messages: res.errors };
     return;
@@ -54,6 +61,17 @@ function verify() {
     title: 'Tile Cleared!',
     sub: `"${tile.value.title}" verified!`,
   });
+
+  // Consolidated multi-line win feedback
+  const lines = res.linesWon || (res.lineWon ? [res.lineWon] : []);
+  if (lines.length > 1) {
+    showToast({
+      icon: '🎉',
+      title: `${lines.length} Lines Completed!`,
+      sub: `${lines.length} keywords earned!`,
+    });
+  }
+
   if (res.weeklyKw) {
     showToast({
       icon: '🗓️',
@@ -62,8 +80,8 @@ function verify() {
       kw: res.weeklyKw,
     });
   }
-  if (res.lineWon) {
-    emit('won', res.lineWon);
+  if (lines.length > 0) {
+    emit('won', lines.length === 1 ? lines[0] : lines[lines.length - 1]);
   }
   emit('close');
 }
@@ -75,10 +93,10 @@ function verify() {
     @click.self="emit('close')"
   >
     <div
-      class="relative max-h-[90vh] w-full max-w-[600px] overflow-y-auto rounded-[20px] border-[1.5px] border-lilac-2 bg-app-2 p-7 shadow-[0_0_60px_rgba(168,85,247,0.5)]"
+      class="relative h-full w-full overflow-y-auto border-lilac-2 bg-app-2 p-4 shadow-[0_0_60px_rgba(168,85,247,0.5)] sm:max-h-[90vh] sm:max-w-[600px] sm:rounded-[20px] sm:border-[1.5px] sm:p-7"
     >
       <button
-        class="absolute right-3.5 top-3.5 cursor-pointer border-none bg-transparent text-xl text-muted hover:text-neon"
+        class="absolute right-3 top-3 z-10 cursor-pointer border-none bg-transparent text-2xl text-muted hover:text-neon sm:right-3.5 sm:top-3.5 sm:text-xl"
         @click="emit('close')"
       >
         ✕
@@ -158,9 +176,10 @@ function verify() {
         ></textarea>
         <button
           class="btn btn-primary mt-2.5 w-full"
+          :disabled="verifying"
           @click="verify"
         >
-          ✅ Verify &amp; Claim
+          {{ verifying ? '⏳ Verifying…' : '✅ Verify & Claim' }}
         </button>
         <div
           v-if="result.kind"
