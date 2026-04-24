@@ -26,17 +26,17 @@ const tabs = [
 
   <!-- Mobile: bottom navigation bar -->
   <nav
-    class="fixed bottom-0 left-0 right-0 z-[100] flex border-t border-themed bg-app-2/95 backdrop-blur-md sm:hidden"
+    class="fixed bottom-0 left-0 right-0 z-[100] flex border-t border-themed bg-surface-container/95 backdrop-blur-md sm:hidden"
   >
     <button
       v-for="t in tabs"
       :key="t.id"
-      class="flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 border-none bg-transparent text-muted transition-colors"
-      :class="{ '!text-neon': props.modelValue === t.id }"
+      class="flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 border-none bg-transparent text-on-surface-variant transition-colors"
+      :class="{ '!text-tertiary': props.modelValue === t.id }"
       @click="emit('update:modelValue', t.id)"
     >
-      <span class="text-[18px]">{{ t.icon }}</span>
-      <span class="text-[10px] font-semibold uppercase tracking-[0.5px]">{{ t.label }}</span>
+      <span class="text-title-md">{{ t.icon }}</span>
+      <span class="text-label-sm font-semibold uppercase tracking-[0.5px]">{{ t.label }}</span>
     </button>
   </nav>
 </template>

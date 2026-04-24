@@ -81,16 +81,16 @@ function startEdit(org) {
 
 <template>
   <div>
-    <h3 class="mb-4 text-base font-extrabold text-lilac">🏢 Organizations</h3>
+    <h3 class="mb-4 text-base font-extrabold text-primary">🏢 Organizations</h3>
 
-    <div v-if="loading" class="text-muted">Loading…</div>
+    <div v-if="loading" class="text-on-surface-variant">Loading…</div>
     <template v-else>
       <!-- Add new org -->
       <div class="mb-5 flex gap-2">
         <input v-model="newOrgName" class="field-input max-w-[250px]" placeholder="New organization name" @keyup.enter="createOrg" />
         <button class="btn btn-primary btn-sm" @click="createOrg">+ Add</button>
       </div>
-      <div v-if="error" class="mb-3 text-[12px] text-error">{{ error }}</div>
+      <div v-if="error" class="mb-3 text-label-md text-error">{{ error }}</div>
 
       <!-- Org list -->
       <div v-for="org in orgs" :key="org.id" class="glass mb-3 rounded-xl p-4">
@@ -103,22 +103,22 @@ function startEdit(org) {
             </div>
           </template>
           <template v-else>
-            <strong class="text-text">{{ org.name }}</strong>
+            <strong class="text-on-surface">{{ org.name }}</strong>
             <div class="flex gap-1">
               <button class="btn btn-ghost btn-xs" @click="startEdit(org)">Edit</button>
-              <button class="btn-danger btn-xs px-2 py-1 text-[11px]" @click="deleteOrg(org.id)">Delete</button>
+              <button class="btn-danger btn-xs px-2 py-1 text-label-sm" @click="deleteOrg(org.id)">Delete</button>
             </div>
           </template>
         </div>
 
         <!-- Domains -->
-        <div class="ml-2 text-[12px] text-muted">
+        <div class="ml-2 text-label-md text-on-surface-variant">
           <div v-for="d in org.domains" :key="d.id" class="mb-1 flex items-center gap-2">
-            <code class="text-lilac">{{ d.domain }}</code>
+            <code class="text-primary">{{ d.domain }}</code>
             <button class="text-error hover:underline" @click="removeDomain(org.id, d.id)">✕</button>
           </div>
           <div class="mt-1 flex gap-1">
-            <input v-model="newDomain[org.id]" class="field-input max-w-[200px] text-[12px]" placeholder="add domain" @keyup.enter="addDomain(org.id)" />
+            <input v-model="newDomain[org.id]" class="field-input max-w-[200px] text-label-md" placeholder="add domain" @keyup.enter="addDomain(org.id)" />
             <button class="btn btn-ghost btn-xs" @click="addDomain(org.id)">+</button>
           </div>
         </div>

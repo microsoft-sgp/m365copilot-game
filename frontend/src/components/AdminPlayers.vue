@@ -53,7 +53,7 @@ async function revokeSubmission(subId) {
 
 <template>
   <div>
-    <h3 class="mb-4 text-base font-extrabold text-lilac">👤 Player Management</h3>
+    <h3 class="mb-4 text-base font-extrabold text-primary">👤 Player Management</h3>
 
     <!-- Search -->
     <div class="mb-5 flex gap-2">
@@ -64,21 +64,21 @@ async function revokeSubmission(subId) {
     <!-- Results -->
     <div v-if="players.length > 0 && !selectedPlayer" class="glass rounded-xl p-4">
       <div class="overflow-x-auto">
-        <table class="w-full border-collapse text-[12px]">
+        <table class="w-full border-collapse text-label-md">
           <thead>
             <tr>
-              <th class="border-b border-themed px-2 py-1.5 text-left text-lilac">Name</th>
-              <th class="border-b border-themed px-2 py-1.5 text-left text-lilac">Email</th>
-              <th class="border-b border-themed px-2 py-1.5 text-left text-lilac">Sessions</th>
-              <th class="border-b border-themed px-2 py-1.5 text-left text-lilac">Submissions</th>
+              <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Name</th>
+              <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Email</th>
+              <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Sessions</th>
+              <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Submissions</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="p in players" :key="p.id" class="cursor-pointer hover:bg-lilac/5" @click="selectPlayer(p)">
-              <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1.5">{{ p.player_name }}</td>
-              <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1.5">{{ p.email }}</td>
-              <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1.5">{{ p.session_count }}</td>
-              <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1.5">{{ p.submission_count }}</td>
+            <tr v-for="p in players" :key="p.id" class="cursor-pointer hover:bg-primary/8" @click="selectPlayer(p)">
+              <td class="border-b border-outline-variant px-2 py-1.5">{{ p.player_name }}</td>
+              <td class="border-b border-outline-variant px-2 py-1.5">{{ p.email }}</td>
+              <td class="border-b border-outline-variant px-2 py-1.5">{{ p.session_count }}</td>
+              <td class="border-b border-outline-variant px-2 py-1.5">{{ p.submission_count }}</td>
             </tr>
           </tbody>
         </table>
@@ -89,60 +89,60 @@ async function revokeSubmission(subId) {
     <div v-if="playerDetail" class="glass rounded-xl p-5">
       <div class="mb-3 flex items-center justify-between">
         <div>
-          <strong class="text-lg text-text">{{ playerDetail.player.player_name }}</strong>
-          <div class="text-[12px] text-muted">{{ playerDetail.player.email }}</div>
+          <strong class="text-lg text-on-surface">{{ playerDetail.player.player_name }}</strong>
+          <div class="text-label-md text-on-surface-variant">{{ playerDetail.player.email }}</div>
         </div>
         <div class="flex gap-2">
           <button class="btn btn-ghost btn-xs" @click="selectedPlayer = null; playerDetail = null">← Back</button>
-          <button class="btn-danger btn-xs px-2 py-1 text-[11px]" @click="deletePlayer(playerDetail.player.id)">Delete Player</button>
+          <button class="btn-danger btn-xs px-2 py-1 text-label-sm" @click="deletePlayer(playerDetail.player.id)">Delete Player</button>
         </div>
       </div>
 
       <!-- Sessions -->
-      <h4 class="mb-2 text-[13px] font-bold text-lilac">Game Sessions</h4>
-      <div v-if="playerDetail.sessions.length === 0" class="mb-4 text-[12px] text-muted">No sessions</div>
+      <h4 class="mb-2 text-label-lg font-bold text-primary">Game Sessions</h4>
+      <div v-if="playerDetail.sessions.length === 0" class="mb-4 text-label-md text-on-surface-variant">No sessions</div>
       <div v-else class="mb-4 overflow-x-auto">
-        <table class="w-full border-collapse text-[12px]">
+        <table class="w-full border-collapse text-label-md">
           <thead>
             <tr>
-              <th class="border-b border-themed px-2 py-1 text-left text-lilac">Pack</th>
-              <th class="border-b border-themed px-2 py-1 text-left text-lilac">Tiles</th>
-              <th class="border-b border-themed px-2 py-1 text-left text-lilac">Lines</th>
-              <th class="border-b border-themed px-2 py-1 text-left text-lilac">Keywords</th>
-              <th class="border-b border-themed px-2 py-1 text-left text-lilac">Last Active</th>
+              <th class="border-b border-themed px-2 py-1 text-left text-primary">Pack</th>
+              <th class="border-b border-themed px-2 py-1 text-left text-primary">Tiles</th>
+              <th class="border-b border-themed px-2 py-1 text-left text-primary">Lines</th>
+              <th class="border-b border-themed px-2 py-1 text-left text-primary">Keywords</th>
+              <th class="border-b border-themed px-2 py-1 text-left text-primary">Last Active</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="s in playerDetail.sessions" :key="s.id">
-              <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1">{{ s.pack_id }}</td>
-              <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1">{{ s.tiles_cleared }}/9</td>
-              <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1">{{ s.lines_won }}</td>
-              <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1">{{ s.keywords_earned }}</td>
-              <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1">{{ new Date(s.last_active_at).toLocaleString() }}</td>
+              <td class="border-b border-outline-variant px-2 py-1">{{ s.pack_id }}</td>
+              <td class="border-b border-outline-variant px-2 py-1">{{ s.tiles_cleared }}/9</td>
+              <td class="border-b border-outline-variant px-2 py-1">{{ s.lines_won }}</td>
+              <td class="border-b border-outline-variant px-2 py-1">{{ s.keywords_earned }}</td>
+              <td class="border-b border-outline-variant px-2 py-1">{{ new Date(s.last_active_at).toLocaleString() }}</td>
             </tr>
           </tbody>
         </table>
       </div>
 
       <!-- Submissions -->
-      <h4 class="mb-2 text-[13px] font-bold text-lilac">Submissions</h4>
-      <div v-if="playerDetail.submissions.length === 0" class="text-[12px] text-muted">No submissions</div>
+      <h4 class="mb-2 text-label-lg font-bold text-primary">Submissions</h4>
+      <div v-if="playerDetail.submissions.length === 0" class="text-label-md text-on-surface-variant">No submissions</div>
       <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse text-[12px]">
+        <table class="w-full border-collapse text-label-md">
           <thead>
             <tr>
-              <th class="border-b border-themed px-2 py-1 text-left text-lilac">Org</th>
-              <th class="border-b border-themed px-2 py-1 text-left text-lilac">Keyword</th>
-              <th class="border-b border-themed px-2 py-1 text-left text-lilac">Submitted</th>
-              <th class="border-b border-themed px-2 py-1 text-left text-lilac">Actions</th>
+              <th class="border-b border-themed px-2 py-1 text-left text-primary">Org</th>
+              <th class="border-b border-themed px-2 py-1 text-left text-primary">Keyword</th>
+              <th class="border-b border-themed px-2 py-1 text-left text-primary">Submitted</th>
+              <th class="border-b border-themed px-2 py-1 text-left text-primary">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="s in playerDetail.submissions" :key="s.id">
-              <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1">{{ s.org }}</td>
-              <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1 font-mono text-[11px]">{{ s.keyword }}</td>
-              <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1">{{ new Date(s.created_at).toLocaleString() }}</td>
-              <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1">
+              <td class="border-b border-outline-variant px-2 py-1">{{ s.org }}</td>
+              <td class="border-b border-outline-variant px-2 py-1 font-mono text-label-sm">{{ s.keyword }}</td>
+              <td class="border-b border-outline-variant px-2 py-1">{{ new Date(s.created_at).toLocaleString() }}</td>
+              <td class="border-b border-outline-variant px-2 py-1">
                 <button class="text-error hover:underline" @click="revokeSubmission(s.id)">Revoke</button>
               </td>
             </tr>

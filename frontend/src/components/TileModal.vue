@@ -89,21 +89,21 @@ function verify() {
 
 <template>
   <div
-    class="fixed inset-0 z-[200] flex items-center justify-center bg-app/85 p-4 backdrop-blur-sm"
+    class="fixed inset-0 z-[200] flex items-center justify-center bg-surface/85 p-4 backdrop-blur-sm"
     @click.self="emit('close')"
   >
     <div
-      class="relative h-full w-full overflow-y-auto border-lilac-2 bg-app-2 p-4 shadow-[0_0_60px_rgba(168,85,247,0.5)] sm:max-h-[90vh] sm:max-w-[600px] sm:rounded-[20px] sm:border-[1.5px] sm:p-7"
+      class="relative h-full w-full overflow-y-auto border-primary bg-surface-container p-4 shadow-[0_0_60px_rgba(77,208,225,0.5)] sm:max-h-[90vh] sm:max-w-[600px] sm:rounded-[20px] sm:border-[1.5px] sm:p-7"
     >
       <button
-        class="absolute right-3 top-3 z-10 cursor-pointer border-none bg-transparent text-2xl text-muted hover:text-neon sm:right-3.5 sm:top-3.5 sm:text-xl"
+        class="absolute right-3 top-3 z-10 cursor-pointer border-none bg-transparent text-2xl text-on-surface-variant hover:text-tertiary sm:right-3.5 sm:top-3.5 sm:text-xl"
         @click="emit('close')"
       >
         ✕
       </button>
 
       <div
-        class="mb-1.5 text-[11px] font-bold uppercase tracking-[2px] text-lilac"
+        class="mb-1.5 text-label-sm font-bold uppercase tracking-[2px] text-primary"
       >
         Task {{ tileIndex + 1 }} · {{ tile?.tag }}
       </div>
@@ -112,22 +112,22 @@ function verify() {
       </div>
 
       <pre
-        class="mb-3 whitespace-pre-wrap rounded-[10px] border border-themed bg-app-3 p-3.5 text-[13px] leading-relaxed text-text"
+        class="mb-3 whitespace-pre-wrap rounded-[10px] border border-themed bg-surface-container-high p-3.5 text-label-lg leading-relaxed text-on-surface"
         >{{ promptText }}</pre
       >
 
       <div
-        class="mb-3.5 rounded-xl border border-lilac-3 bg-gradient-to-br from-lilac-3/20 to-lilac-2/10 p-3.5"
+        class="mb-3.5 rounded-xl border border-primary-container bg-gradient-to-br from-primary-container/20 to-primary/10 p-3.5"
       >
         <h4
-          class="mb-2 text-xs font-bold uppercase tracking-[1px] text-lilac"
+          class="mb-2 text-xs font-bold uppercase tracking-[1px] text-primary"
         >
           🚀 Launch Copilot Chat
         </h4>
         <div class="flex flex-col gap-2">
-          <div class="flex items-start gap-2.5 text-[13px]">
+          <div class="flex items-start gap-2.5 text-label-lg">
             <div
-              class="mt-0.5 flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-lilac-3 text-[11px] font-extrabold text-white"
+              class="mt-0.5 flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-primary-container text-label-sm font-extrabold text-white"
             >
               1
             </div>
@@ -136,14 +136,14 @@ function verify() {
               <button class="btn btn-primary btn-sm mt-1.5" @click="copyPrompt">
                 📋 Copy Prompt
               </button>
-              <span v-if="copied" class="ml-2 text-[11px] text-success"
+              <span v-if="copied" class="ml-2 text-label-sm text-success"
                 >✓ Copied!</span
               >
             </div>
           </div>
-          <div class="flex items-start gap-2.5 text-[13px]">
+          <div class="flex items-start gap-2.5 text-label-lg">
             <div
-              class="mt-0.5 flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-lilac-3 text-[11px] font-extrabold text-white"
+              class="mt-0.5 flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-primary-container text-label-sm font-extrabold text-white"
             >
               2
             </div>
@@ -151,7 +151,7 @@ function verify() {
               <strong>Open Copilot Chat</strong> and paste your prompt.<br />
               <button
                 class="btn btn-ghost btn-sm mt-1.5"
-                style="border-color: var(--color-lilac-2); color: var(--color-lilac)"
+                style="border-color: var(--color-primary); color: var(--color-primary)"
                 @click="openCopilot"
               >
                 🌐 Open Copilot Chat ↗

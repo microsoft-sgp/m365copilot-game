@@ -52,11 +52,11 @@ async function verifyOtp() {
 <template>
   <div class="flex min-h-[60vh] items-center justify-center px-5">
     <div class="glass mx-auto w-full max-w-[420px] rounded-[14px] p-8">
-      <h2 class="text-gradient mb-2 text-[22px] font-black">🔐 Admin Login</h2>
+      <h2 class="text-gradient mb-2 text-title-lg font-black">🔐 Admin Login</h2>
 
       <!-- Step 1: Email -->
       <template v-if="step === 'email'">
-        <p class="mb-4 text-sm text-muted">
+        <p class="mb-4 text-sm text-on-surface-variant">
           Enter your admin email to receive a one-time code.
         </p>
         <div class="mb-4">
@@ -69,7 +69,7 @@ async function verifyOtp() {
             @keyup.enter="requestOtp"
           />
         </div>
-        <div v-if="error" class="mb-3 text-[12px] text-error">{{ error }}</div>
+        <div v-if="error" class="mb-3 text-label-md text-error">{{ error }}</div>
         <button
           class="btn btn-primary w-full"
           :disabled="loading"
@@ -81,7 +81,7 @@ async function verifyOtp() {
 
       <!-- Step 2: OTP verification -->
       <template v-else>
-        <p class="mb-4 text-sm text-muted">
+        <p class="mb-4 text-sm text-on-surface-variant">
           Enter the 6-digit code sent to <strong>{{ email }}</strong>.
         </p>
         <div class="mb-4">
@@ -95,7 +95,7 @@ async function verifyOtp() {
             @keyup.enter="verifyOtp"
           />
         </div>
-        <div v-if="error" class="mb-3 text-[12px] text-error">{{ error }}</div>
+        <div v-if="error" class="mb-3 text-label-md text-error">{{ error }}</div>
         <button
           class="btn btn-primary w-full"
           :disabled="loading"
@@ -104,16 +104,16 @@ async function verifyOtp() {
           {{ loading ? 'Verifying…' : 'Verify & Login' }}
         </button>
         <button
-          class="mt-3 w-full text-center text-[12px] text-muted hover:text-lilac"
+          class="mt-3 w-full text-center text-label-md text-on-surface-variant hover:text-primary"
           @click="step = 'email'; error = ''"
         >
           ← Back to email
         </button>
       </template>
 
-      <div class="mt-6 border-t border-lilac/20 pt-4 text-center">
+      <div class="mt-6 border-t border-outline-variant pt-4 text-center">
         <button
-          class="text-[12px] text-muted hover:text-lilac"
+          class="text-label-md text-on-surface-variant hover:text-primary"
           @click="emit('back')"
         >
           ← Back to Game

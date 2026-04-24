@@ -24,8 +24,8 @@ function submit() {
 <template>
   <div class="flex min-h-[60vh] items-center justify-center px-5">
     <div class="glass mx-auto w-full max-w-[440px] rounded-[14px] p-8 text-center">
-      <h1 class="text-gradient mb-2 text-[28px] font-black">🎮 Copilot Chat Bingo</h1>
-      <p class="mb-6 text-sm text-muted">
+      <h1 class="text-gradient mb-2 text-headline-sm font-black">🎮 Copilot Chat Bingo</h1>
+      <p class="mb-6 text-sm text-on-surface-variant">
         Enter your email to play. Your progress will be saved so you can resume
         on any device.
       </p>
@@ -39,16 +39,16 @@ function submit() {
           placeholder="you@university.edu.sg"
           @keyup.enter="submit"
         />
-        <div v-if="error" class="mt-1 text-[12px] text-error">{{ error }}</div>
+        <div v-if="error" class="mt-1 text-label-md text-error">{{ error }}</div>
       </div>
 
       <button class="btn btn-primary w-full" @click="submit">
         Continue →
       </button>
 
-      <div class="mt-6 border-t border-lilac/20 pt-4">
+      <div class="mt-6 border-t border-outline-variant pt-4">
         <button
-          class="text-[12px] text-muted hover:text-lilac transition-colors"
+          class="text-label-md text-on-surface-variant hover:text-primary transition-colors"
           @click="emit('admin')"
         >
           🔐 Admin Login

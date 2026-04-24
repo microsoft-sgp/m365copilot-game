@@ -70,9 +70,9 @@ describe('LeaderboardTable', () => {
     const w = mount(LeaderboardTable, { props: { playerOrg: 'NUS' } });
     await w.vm.$nextTick();
     const rows = w.findAll('tbody tr');
-    expect(rows[0].classes()).toContain('bg-lilac/10');
+    expect(rows[0].classes()).toContain('bg-primary/10');
     expect(rows[0].text()).toContain('★ You');
-    expect(rows[1].classes()).not.toContain('bg-lilac/10');
+    expect(rows[1].classes()).not.toContain('bg-primary/10');
   });
 
   it('hides Last Submission column on compact via CSS class', async () => {

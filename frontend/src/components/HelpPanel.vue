@@ -5,13 +5,13 @@ import { COPILOT_URL } from '../data/constants.js';
 <template>
   <div class="mx-auto max-w-[640px]">
     <div class="glass rounded-[14px] p-6">
-      <h2 class="text-gradient mb-1 text-[22px] font-black">How to Play</h2>
-      <p class="mb-3.5 text-sm text-muted">
+      <h2 class="text-gradient mb-1 text-title-lg font-black">How to Play</h2>
+      <p class="mb-3.5 text-sm text-on-surface-variant">
         Complete Copilot Chat tasks on your 3×3 board, verify your answers, and
         earn keywords when you complete a Bingo line.
       </p>
       <ol
-        class="list-decimal pl-[18px] text-[14px] leading-loose text-muted"
+        class="list-decimal pl-[18px] text-body-md leading-loose text-on-surface-variant"
       >
         <li>Pick a pack (1–999) and enter your name → Launch your board.</li>
         <li>Click any tile to open the task panel.</li>

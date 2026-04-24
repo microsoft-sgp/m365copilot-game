@@ -17,7 +17,7 @@ const progressPct = computed(() =>
 <template>
   <div v-if="cp" class="glass mb-4 rounded-[14px] px-5 py-4">
     <h4
-      class="mb-2.5 text-xs font-bold uppercase tracking-[1px] text-lilac"
+      class="mb-2.5 text-xs font-bold uppercase tracking-[1px] text-primary"
     >
       7-Week Challenge Progress
     </h4>
@@ -35,7 +35,7 @@ const progressPct = computed(() =>
       </div>
     </div>
     <div class="flex flex-col gap-1">
-      <div class="flex justify-between text-xs text-muted">
+      <div class="flex justify-between text-xs text-on-surface-variant">
         <span
           >Completed: {{ done }}/{{ TOTAL_WEEKS }} • {{ left }} week{{
             left !== 1 ? 's' : ''

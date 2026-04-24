@@ -16,14 +16,14 @@ function copy(code) {
 <template>
   <div class="mx-auto max-w-[660px]">
     <div
-      class="my-5 flex items-center gap-2 text-[13px] font-bold uppercase tracking-[2px] text-muted"
+      class="my-5 flex items-center gap-2 text-label-lg font-bold uppercase tracking-[2px] text-on-surface-variant"
     >
       My Earned Keywords
-      <span class="h-px flex-1 bg-[rgba(192,132,252,0.25)]"></span>
+      <span class="h-px flex-1 bg-outline-variant"></span>
     </div>
 
     <div v-if="!state.keywords.length">
-      <p class="text-[13px] text-muted">
+      <p class="text-label-lg text-on-surface-variant">
         No keywords yet — complete a Bingo line to earn one!
       </p>
     </div>
@@ -34,10 +34,10 @@ function copy(code) {
         :key="k.code"
         class="glass flex items-center gap-2.5 rounded-[10px] px-3.5 py-2.5 text-xs"
       >
-        <div class="flex-1 font-mono text-[13px] font-bold text-neon">
+        <div class="flex-1 font-mono text-label-lg font-bold text-tertiary">
           {{ k.code }}
         </div>
-        <div class="text-[11px] text-muted">
+        <div class="text-label-sm text-on-surface-variant">
           Pack {{ pad(k.packId) }} · {{ k.lineId }} · {{ fmt(k.ts) }}
         </div>
         <button class="btn btn-ghost btn-xs" @click="copy(k.code)">

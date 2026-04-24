@@ -60,7 +60,7 @@ async function toggleActive(c) {
 <template>
   <div>
     <div class="mb-4 flex items-center justify-between">
-      <h3 class="text-base font-extrabold text-lilac">🎮 Campaigns</h3>
+      <h3 class="text-base font-extrabold text-primary">🎮 Campaigns</h3>
       <button class="btn btn-primary btn-sm" @click="showCreate = !showCreate">+ New Campaign</button>
     </div>
 
@@ -91,12 +91,12 @@ async function toggleActive(c) {
       <button class="btn btn-primary btn-sm" @click="createCampaign">Create</button>
     </div>
 
-    <div v-if="loading" class="text-muted">Loading…</div>
+    <div v-if="loading" class="text-on-surface-variant">Loading…</div>
     <template v-else>
       <div v-for="c in campaigns" :key="c.id" class="glass mb-3 rounded-xl p-4">
         <!-- Edit mode -->
         <template v-if="editing && editing.id === c.id">
-          <div class="mb-2 grid grid-cols-2 gap-3 text-[13px]">
+          <div class="mb-2 grid grid-cols-2 gap-3 text-label-lg">
             <div>
               <label class="field-label">Display Name</label>
               <input v-model="editing.displayName" class="field-input" />
@@ -124,9 +124,9 @@ async function toggleActive(c) {
         <template v-else>
           <div class="mb-1 flex items-center justify-between">
             <div>
-              <strong class="text-text">{{ c.id }}</strong>
-              <span class="ml-2 text-[12px] text-muted">{{ c.displayName }}</span>
-              <span v-if="c.isActive" class="ml-2 rounded-full bg-success/20 px-2 py-0.5 text-[10px] font-bold text-success">ACTIVE</span>
+              <strong class="text-on-surface">{{ c.id }}</strong>
+              <span class="ml-2 text-label-md text-on-surface-variant">{{ c.displayName }}</span>
+              <span v-if="c.isActive" class="ml-2 rounded-full bg-success/20 px-2 py-0.5 text-label-sm font-bold text-success">ACTIVE</span>
             </div>
             <div class="flex gap-1">
               <button class="btn btn-ghost btn-xs" @click="startEdit(c)">Edit</button>
@@ -135,7 +135,7 @@ async function toggleActive(c) {
               </button>
             </div>
           </div>
-          <div class="text-[11px] text-muted">
+          <div class="text-label-sm text-on-surface-variant">
             {{ c.stats.totalPlayers }} players · {{ c.stats.totalSessions }} sessions · {{ c.stats.totalSubmissions }} submissions
           </div>
         </template>

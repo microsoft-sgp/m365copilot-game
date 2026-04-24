@@ -55,7 +55,7 @@ async function onSubmit() {
   <div class="mx-auto max-w-[680px]">
     <div class="glass mb-5 rounded-[14px] p-[22px]">
       <div class="mb-3.5 flex items-center justify-between">
-        <h3 class="m-0 text-base font-extrabold text-lilac">
+        <h3 class="m-0 text-base font-extrabold text-primary">
           🏆 Organization Leaderboard
         </h3>
       </div>
@@ -63,7 +63,7 @@ async function onSubmit() {
     </div>
 
     <div class="glass mb-5 rounded-[14px] p-[22px]">
-      <h3 class="mb-3.5 text-base font-extrabold text-lilac">
+      <h3 class="mb-3.5 text-base font-extrabold text-primary">
         📬 Submit a Keyword
       </h3>
 
@@ -97,13 +97,13 @@ async function onSubmit() {
         />
         <div
           v-if="email && detection.org"
-          class="mt-1 text-[11px] text-success"
+          class="mt-1 text-label-sm text-success"
         >
           ✓ Detected org: {{ detection.org }}
         </div>
         <div
           v-else-if="email && detection.domain && !detection.org"
-          class="mt-1 text-[11px] text-success"
+          class="mt-1 text-label-sm text-success"
         >
           Domain not recognised — please type your organisation.
         </div>
@@ -112,11 +112,11 @@ async function onSubmit() {
         <label class="field-label">Keyword</label>
         <input
           :value="kw"
-          class="field-input font-mono text-[13px]"
+          class="field-input font-mono text-label-lg"
           placeholder="CO-APR26-001-R1-XXXXXXXX or CO-APR26-W1-001-XXXXXXXX"
           @input="onKwInput"
         />
-        <div class="mt-1 text-[11px] leading-relaxed text-muted">
+        <div class="mt-1 text-label-sm leading-relaxed text-on-surface-variant">
           Line keyword:
           <code>CO-{CampaignId}-{PackId}-{LineId}-{Token}</code><br />
           Weekly Clear:

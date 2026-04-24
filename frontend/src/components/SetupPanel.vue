@@ -66,8 +66,8 @@ function launch() {
 
 <template>
   <div class="glass mx-auto max-w-[560px] rounded-[14px] p-6">
-    <h2 class="text-gradient mb-1 text-[22px] font-black">Start Your Board</h2>
-    <p class="mb-[18px] text-[13px] text-muted">
+    <h2 class="text-gradient mb-1 text-title-lg font-black">Start Your Board</h2>
+    <p class="mb-[18px] text-label-lg text-on-surface-variant">
       Choose a pack (001–{{ TOTAL_PACKS }}) or enter a Lucky Number to generate
       your personalised Bingo board.
     </p>

@@ -28,55 +28,55 @@ async function exportCsv() {
 
 <template>
   <div>
-    <div v-if="loading" class="text-muted">Loading dashboard…</div>
+    <div v-if="loading" class="text-on-surface-variant">Loading dashboard…</div>
     <template v-else-if="dashboard">
       <!-- Summary Cards -->
       <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div class="glass rounded-xl p-4 text-center">
-          <div class="text-2xl font-black text-neon">{{ dashboard.summary.totalPlayers }}</div>
-          <div class="text-[11px] text-muted">Players</div>
+          <div class="text-2xl font-black text-tertiary">{{ dashboard.summary.totalPlayers }}</div>
+          <div class="text-label-sm text-on-surface-variant">Players</div>
         </div>
         <div class="glass rounded-xl p-4 text-center">
-          <div class="text-2xl font-black text-neon">{{ dashboard.summary.totalSessions }}</div>
-          <div class="text-[11px] text-muted">Sessions</div>
+          <div class="text-2xl font-black text-tertiary">{{ dashboard.summary.totalSessions }}</div>
+          <div class="text-label-sm text-on-surface-variant">Sessions</div>
         </div>
         <div class="glass rounded-xl p-4 text-center">
-          <div class="text-2xl font-black text-neon">{{ dashboard.summary.totalSubmissions }}</div>
-          <div class="text-[11px] text-muted">Submissions</div>
+          <div class="text-2xl font-black text-tertiary">{{ dashboard.summary.totalSubmissions }}</div>
+          <div class="text-label-sm text-on-surface-variant">Submissions</div>
         </div>
         <div class="glass rounded-xl p-4 text-center">
-          <div class="text-2xl font-black text-neon">{{ dashboard.summary.avgTilesCleared }}</div>
-          <div class="text-[11px] text-muted">Avg Tiles</div>
+          <div class="text-2xl font-black text-tertiary">{{ dashboard.summary.avgTilesCleared }}</div>
+          <div class="text-label-sm text-on-surface-variant">Avg Tiles</div>
         </div>
       </div>
 
-      <div v-if="dashboard.summary.topOrg" class="mb-5 text-sm text-muted">
-        🏆 Top Org: <strong class="text-lilac">{{ dashboard.summary.topOrg }}</strong>
+      <div v-if="dashboard.summary.topOrg" class="mb-5 text-sm text-on-surface-variant">
+        🏆 Top Org: <strong class="text-primary">{{ dashboard.summary.topOrg }}</strong>
       </div>
 
       <!-- Sessions Table -->
       <div class="glass mb-5 rounded-[14px] p-5">
         <div class="mb-3 flex items-center justify-between">
-          <h3 class="text-base font-extrabold text-lilac">📋 Recent Sessions</h3>
+          <h3 class="text-base font-extrabold text-primary">📋 Recent Sessions</h3>
         </div>
         <div class="overflow-x-auto">
-          <table class="w-full border-collapse text-[12px]">
+          <table class="w-full border-collapse text-label-md">
             <thead>
               <tr>
-                <th class="border-b border-themed px-2 py-1.5 text-left text-lilac">Player</th>
-                <th class="border-b border-themed px-2 py-1.5 text-left text-lilac">Pack</th>
-                <th class="border-b border-themed px-2 py-1.5 text-left text-lilac">Tiles</th>
-                <th class="border-b border-themed px-2 py-1.5 text-left text-lilac">Lines</th>
-                <th class="border-b border-themed px-2 py-1.5 text-left text-lilac">Last Active</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Player</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Pack</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Tiles</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Lines</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Last Active</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="s in dashboard.sessions" :key="s.id" class="hover:bg-lilac/5">
-                <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1.5">{{ s.player_name }}</td>
-                <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1.5">{{ s.pack_id }}</td>
-                <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1.5">{{ s.tiles_cleared }}/9</td>
-                <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1.5">{{ s.lines_won }}</td>
-                <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1.5">{{ new Date(s.last_active_at).toLocaleString() }}</td>
+              <tr v-for="s in dashboard.sessions" :key="s.id" class="hover:bg-primary/8">
+                <td class="border-b border-outline-variant px-2 py-1.5">{{ s.player_name }}</td>
+                <td class="border-b border-outline-variant px-2 py-1.5">{{ s.pack_id }}</td>
+                <td class="border-b border-outline-variant px-2 py-1.5">{{ s.tiles_cleared }}/9</td>
+                <td class="border-b border-outline-variant px-2 py-1.5">{{ s.lines_won }}</td>
+                <td class="border-b border-outline-variant px-2 py-1.5">{{ new Date(s.last_active_at).toLocaleString() }}</td>
               </tr>
             </tbody>
           </table>
@@ -86,25 +86,25 @@ async function exportCsv() {
       <!-- Submissions Table -->
       <div class="glass mb-5 rounded-[14px] p-5">
         <div class="mb-3 flex items-center justify-between">
-          <h3 class="text-base font-extrabold text-lilac">📬 Recent Submissions</h3>
+          <h3 class="text-base font-extrabold text-primary">📬 Recent Submissions</h3>
           <button class="btn btn-ghost btn-xs" @click="exportCsv">↓ Export CSV</button>
         </div>
         <div class="overflow-x-auto">
-          <table class="w-full border-collapse text-[12px]">
+          <table class="w-full border-collapse text-label-md">
             <thead>
               <tr>
-                <th class="border-b border-themed px-2 py-1.5 text-left text-lilac">Player</th>
-                <th class="border-b border-themed px-2 py-1.5 text-left text-lilac">Org</th>
-                <th class="border-b border-themed px-2 py-1.5 text-left text-lilac">Keyword</th>
-                <th class="border-b border-themed px-2 py-1.5 text-left text-lilac">Submitted</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Player</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Org</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Keyword</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Submitted</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="s in dashboard.submissions" :key="s.id" class="hover:bg-lilac/5">
-                <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1.5">{{ s.player_name }}</td>
-                <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1.5">{{ s.org }}</td>
-                <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1.5 font-mono text-[11px]">{{ s.keyword }}</td>
-                <td class="border-b border-[rgba(192,132,252,0.15)] px-2 py-1.5">{{ new Date(s.created_at).toLocaleString() }}</td>
+              <tr v-for="s in dashboard.submissions" :key="s.id" class="hover:bg-primary/8">
+                <td class="border-b border-outline-variant px-2 py-1.5">{{ s.player_name }}</td>
+                <td class="border-b border-outline-variant px-2 py-1.5">{{ s.org }}</td>
+                <td class="border-b border-outline-variant px-2 py-1.5 font-mono text-label-sm">{{ s.keyword }}</td>
+                <td class="border-b border-outline-variant px-2 py-1.5">{{ new Date(s.created_at).toLocaleString() }}</td>
               </tr>
             </tbody>
           </table>

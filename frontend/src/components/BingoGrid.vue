@@ -18,14 +18,14 @@ const { state } = useBingoGame();
       @click="emit('open-tile', i)"
     >
       <div
-        class="text-[10px] font-extrabold uppercase tracking-[0.5px] text-lilac"
+        class="text-label-sm font-extrabold uppercase tracking-[0.5px] text-primary"
       >
         Task {{ i + 1 }}
       </div>
-      <div class="text-[14px] font-bold leading-snug text-text">
+      <div class="text-body-md font-bold leading-snug text-on-surface">
         {{ t.title }}
       </div>
-      <div class="mt-auto text-[10px] text-muted">{{ t.tag }}</div>
+      <div class="mt-auto text-label-sm text-on-surface-variant">{{ t.tag }}</div>
     </div>
   </div>
 </template>
