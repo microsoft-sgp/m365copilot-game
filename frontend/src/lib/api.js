@@ -48,6 +48,10 @@ export function apiGetOrgDomains() {
   return request('GET', '/organizations/domains');
 }
 
+export function apiGetHealth() {
+  return request('GET', '/health');
+}
+
 // Admin API functions
 function adminRequest(method, path, body) {
   const token = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('admin_token') : null;

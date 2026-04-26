@@ -36,6 +36,10 @@ check() {
 echo "🔍 1. Public Config Endpoints"
 echo "---------------------------------------------"
 
+# Health endpoint
+result=$(curl -sf "$API_BASE/health" 2>/dev/null || echo "FAIL")
+check "GET /health reports healthy status" "$result" '"status":"healthy"'
+
 # Campaign config
 result=$(curl -sf "$API_BASE/campaigns/active" 2>/dev/null || echo "FAIL")
 check "GET /campaigns/active returns active campaign" "$result" '"campaignId":"APR26"'

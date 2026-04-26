@@ -59,6 +59,7 @@ const { handler: getOrgDomains } = await import('./src/functions/getOrgDomains.j
 const { handler: getPlayerState } = await import('./src/functions/getPlayerState.js');
 const { handler: requestOtp } = await import('./src/functions/requestOtp.js');
 const { handler: verifyOtp } = await import('./src/functions/verifyOtp.js');
+const { handler: health } = await import('./src/functions/health.js');
 
 // Admin org/campaign/player handlers are registered differently (multiple per file)
 // Import the modules to trigger app.http registrations, but we'll route manually
@@ -67,6 +68,7 @@ const adminCampaigns = await import('./src/functions/adminCampaigns.js');
 const adminPlayers = await import('./src/functions/adminPlayers.js');
 
 // Public routes
+app.get('/api/health', adapt({ handler: health }));
 app.post('/api/sessions', adapt({ handler: createSession }));
 app.patch('/api/sessions/:id', adapt({ handler: updateSession }));
 app.post('/api/events', adapt({ handler: recordEvent }));
