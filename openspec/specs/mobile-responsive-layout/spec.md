@@ -7,7 +7,7 @@ Defines responsive layout adaptations for compact (<640px) and expanded (>=640px
 ## Requirements
 
 ### Requirement: Compact layout adapts to screens under 640px
-The system SHALL apply a compact layout on viewports narrower than 640px (Tailwind `sm:` breakpoint), adjusting component sizing, spacing, and visibility to remain usable without horizontal overflow.
+The system SHALL apply a compact layout on viewports narrower than 640px (Tailwind `sm:` breakpoint), adjusting component sizing, spacing, and visibility to remain usable without horizontal overflow. All text on compact screens SHALL use the named M3 typography scale with a minimum of 11px (`text-label-sm`).
 
 #### Scenario: No horizontal overflow on 375px viewport
 - **GIVEN** a player opens the game on a 375px-wide device
@@ -17,7 +17,7 @@ The system SHALL apply a compact layout on viewports narrower than 640px (Tailwi
 #### Scenario: Content remains readable on compact screens
 - **GIVEN** a player views the game on a compact screen
 - **WHEN** any text content renders
-- **THEN** all body text MUST be at least 14px (0.875rem) and all label text MUST be at least 11px (0.6875rem)
+- **THEN** all body text MUST be at least 14px (`text-body-md`) and all label text MUST be at least 11px (`text-label-sm`), using named typography scale tokens instead of arbitrary pixel values
 
 ### Requirement: TopBar hides non-essential content on compact screens
 The system SHALL hide the branding text on compact screens, showing only the game title and compact score indicators.

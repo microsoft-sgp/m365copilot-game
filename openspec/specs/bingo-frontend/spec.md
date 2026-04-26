@@ -64,12 +64,12 @@ The system SHALL persist game state in browser storage for offline resilience, a
 - **THEN** the system MUST restore the active board, cleared tiles, earned keywords, and related progress from browser storage
 
 ### Requirement: Tailwind CSS is the primary styling entry
-The system SHALL style the migrated frontend through Tailwind CSS, with `tailwind.css` serving as the primary global stylesheet entry for shared theme tokens, reusable visual effects, and responsive presentation. Typography sizes MUST align with Material Design 3 type scale minimums: body text at 14px (0.875rem) minimum, label text at 11px (0.6875rem) minimum, and header letter-spacing at 0.5px maximum for label-style text.
+The system SHALL style the frontend through Tailwind CSS, with `tailwind.css` serving as the primary global stylesheet entry. The `@theme` block SHALL define color tokens using Material Design 3 dark scheme role names derived from a teal seed color (`#00BCD4`). Typography sizes SHALL be defined as named `@theme` font-size tokens mapped to the M3 type scale. Body text SHALL be at minimum 14px (0.875rem), label text at minimum 11px (0.6875rem), and header letter-spacing at 0.5px maximum for label-style text. All interactive elements SHALL implement M3 state layers: hover (8% primary overlay), focus-visible (outline ring), pressed (10% primary overlay), and disabled (38% foreground opacity with 12% surface overlay).
 
 #### Scenario: Tailwind styling is applied to the migrated experience
 - **GIVEN** the migrated frontend is loaded in a supported browser
 - **WHEN** the interface renders the game shell and its primary interactive views
-- **THEN** the experience MUST render with Tailwind-driven styling rather than depending on the legacy inline stylesheet from the single-file implementation
+- **THEN** the experience MUST render with Tailwind-driven styling using M3 dark scheme teal-family colors rather than the legacy purple/neon palette
 
 #### Scenario: Responsive layout remains usable on smaller screens
 - **GIVEN** a player views the migrated frontend on a narrow viewport (<640px)
@@ -79,7 +79,27 @@ The system SHALL style the migrated frontend through Tailwind CSS, with `tailwin
 #### Scenario: Typography meets M3 minimum sizes
 - **GIVEN** the game renders on any viewport size
 - **WHEN** table body cells, tile descriptions, form labels, or leaderboard entries are displayed
-- **THEN** body text MUST be at least 14px, table header letter-spacing MUST NOT exceed 0.5px, and all text MUST meet WCAG AA contrast ratio (4.5:1 for normal text, 3:1 for large text)
+- **THEN** body text MUST be at least 14px, label text MUST be at least 11px, table header letter-spacing MUST NOT exceed 0.5px, and all text MUST meet WCAG AA contrast ratio (4.5:1 for normal text, 3:1 for large text)
+
+#### Scenario: Color tokens follow M3 role naming
+- **GIVEN** the `@theme` block in `tailwind.css` is inspected
+- **WHEN** color tokens are reviewed
+- **THEN** tokens MUST use M3 role names (`primary`, `on-primary`, `surface`, `on-surface`, `outline-variant`, etc.) instead of ad-hoc names (`lilac`, `neon`, `app`, `card`)
+
+#### Scenario: Typography uses named scale tokens
+- **GIVEN** any Vue component template is inspected
+- **WHEN** text size classes are reviewed
+- **THEN** text sizes MUST use named Tailwind utilities (`text-label-sm`, `text-label-md`, `text-body-md`, `text-title-lg`, etc.) instead of arbitrary values (`text-[10px]`, `text-[14px]`)
+
+#### Scenario: Interactive elements have consistent state feedback
+- **GIVEN** any interactive element (button, tab, tile, link, table row) is rendered
+- **WHEN** the user hovers, focuses via keyboard, or presses the element
+- **THEN** the element MUST display the appropriate M3 state layer (hover: 8% primary overlay, focus: outline ring, pressed: 10% overlay)
+
+#### Scenario: No hardcoded color values in component templates
+- **GIVEN** any Vue component template is inspected
+- **WHEN** CSS classes and inline styles are reviewed
+- **THEN** there MUST be no hardcoded `rgba(192,132,252,...)` values or purple hex codes; all colors MUST reference design tokens
 
 ### Requirement: Leaderboard polls server at regular intervals
 The system SHALL poll `GET /api/leaderboard` every 30 seconds to display a shared, up-to-date leaderboard reflecting all participants' submissions.
@@ -121,22 +141,22 @@ The system SHALL render the game title "⚡ COPILOT BINGO" as the primary visual
 - **THEN** the TopBar MUST show the game title prominently, display scores as emoji+number pairs, and MUST NOT contain "Powered by" or brand attribution text
 
 ### Requirement: Tiles have enhanced game-like visual styling
-The system SHALL render bingo tiles with enhanced visual feedback: a scale+glow hover effect on unclaimed tiles and a subtle CSS shimmer animation on unclaimed tiles to draw attention.
+The system SHALL render bingo tiles with enhanced visual feedback: a scale+glow hover effect using teal-family primary color on unclaimed tiles and a subtle CSS shimmer animation using primary color tones on unclaimed tiles to draw attention.
 
-#### Scenario: Unclaimed tile shows hover effect
-- **GIVEN** a player has an active board with unclaimed tiles
-- **WHEN** the player hovers over or touches an unclaimed tile
-- **THEN** the tile MUST scale slightly (approximately 1.03×) and show a glow shadow effect
+#### Scenario: Unclaimed tile hover effect
+- **GIVEN** a player hovers over an unclaimed tile
+- **WHEN** the cursor enters the tile
+- **THEN** the tile MUST scale to 1.03× and display a teal-toned glow shadow using the primary color
 
-#### Scenario: Unclaimed tiles have subtle shimmer
-- **GIVEN** a player has an active board with unclaimed tiles
-- **WHEN** the board renders
-- **THEN** unclaimed tiles MUST display a subtle CSS shimmer animation (slow, low-opacity) to indicate they are interactive
+#### Scenario: Unclaimed tile shimmer animation
+- **GIVEN** an unclaimed tile is visible on the board
+- **WHEN** the tile renders
+- **THEN** the tile MUST display a subtle CSS shimmer animation using primary color at low opacity (4%)
 
-#### Scenario: Cleared tiles do not shimmer
-- **GIVEN** a player has cleared one or more tiles
-- **WHEN** the board renders
-- **THEN** cleared tiles MUST NOT display the shimmer animation
+#### Scenario: Cleared tile styling
+- **GIVEN** a tile has been cleared by the player
+- **WHEN** the tile renders
+- **THEN** the tile MUST display a teal-toned gradient background using primary-container and primary colors, with a checkmark indicator and glow border
 
 ### Requirement: HudBar displays motivational micro-copy
 The system SHALL display a short motivational message in the HudBar that changes based on the player's board progress percentage.
