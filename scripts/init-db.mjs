@@ -78,6 +78,14 @@ async function run() {
         }
       }
     }
+
+    console.log('Running migration 004-add-progression-scores.sql...');
+    const sql4 = readFileSync('./database/004-add-progression-scores.sql', 'utf8');
+    await pool.request().batch(sql4);
+
+    console.log('Running migration 005-pack-assignment-lifecycle.sql...');
+    const sql5 = readFileSync('./database/005-pack-assignment-lifecycle.sql', 'utf8');
+    await pool.request().batch(sql5);
   } else {
     console.log('Tables already exist, skipping migrations.');
   }

@@ -1,6 +1,25 @@
 import { app } from '@azure/functions';
 import sql from 'mssql';
 import { getPool } from '../lib/db.js';
+import {
+  isPackAssignmentLifecycleEnabled,
+  resolvePackAssignment,
+} from '../lib/packAssignments.js';
+
+function mapSessionRecord(s) {
+  if (!s) return null;
+  return {
+    gameSessionId: s.id,
+    packId: s.pack_id,
+    campaignId: s.campaign_id,
+    tilesCleared: s.tiles_cleared,
+    linesWon: s.lines_won,
+    keywordsEarned: s.keywords_earned,
+    boardState: s.board_state ? JSON.parse(s.board_state) : null,
+    startedAt: s.started_at,
+    lastActiveAt: s.last_active_at,
+  };
+}
 
 export const handler = async (request, context) => {
   const email = request.query.get('email');
@@ -26,6 +45,49 @@ export const handler = async (request, context) => {
   }
 
   const player = playerResult.recordset[0];
+  const lifecycleEnabled = isPackAssignmentLifecycleEnabled();
+
+  if (lifecycleEnabled) {
+    const assignmentResolution = await resolvePackAssignment({
+      pool,
+      playerId: player.id,
+      context,
+      allowRotation: true,
+    });
+
+    const assignment = assignmentResolution.assignment;
+
+    const sessionResult = await pool
+      .request()
+      .input('assignmentId', sql.Int, assignment.assignmentId)
+      .query(`
+        SELECT TOP 1
+          id, pack_id, campaign_id, tiles_cleared, lines_won,
+          keywords_earned, board_state, started_at, last_active_at
+        FROM game_sessions
+        WHERE assignment_id = @assignmentId
+        ORDER BY last_active_at DESC, id DESC;
+      `);
+
+    const activeSession = mapSessionRecord(sessionResult.recordset[0]);
+
+    return {
+      jsonBody: {
+        ok: true,
+        player: {
+          playerName: player.player_name,
+          sessionId: player.session_id,
+          activeAssignment: {
+            ...assignment,
+            rotated: assignmentResolution.rotated,
+            completedPackId: assignmentResolution.completedPackId,
+            totalWeeks: assignmentResolution.campaign.totalWeeks,
+          },
+          activeSession,
+        },
+      },
+    };
+  }
 
   // Get most recent active session with board state
   const sessionResult = await pool
@@ -40,21 +102,7 @@ export const handler = async (request, context) => {
       ORDER BY last_active_at DESC;
     `);
 
-  let activeSession = null;
-  if (sessionResult.recordset.length > 0) {
-    const s = sessionResult.recordset[0];
-    activeSession = {
-      gameSessionId: s.id,
-      packId: s.pack_id,
-      campaignId: s.campaign_id,
-      tilesCleared: s.tiles_cleared,
-      linesWon: s.lines_won,
-      keywordsEarned: s.keywords_earned,
-      boardState: s.board_state ? JSON.parse(s.board_state) : null,
-      startedAt: s.started_at,
-      lastActiveAt: s.last_active_at,
-    };
-  }
+  const activeSession = mapSessionRecord(sessionResult.recordset[0]);
 
   return {
     jsonBody: {

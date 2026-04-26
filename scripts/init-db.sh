@@ -19,4 +19,10 @@ echo "Running migration 002..."
 echo "Running migration 003..."
 /opt/mssql-tools/bin/sqlcmd -S "$DB_HOST" -U sa -P "$SA_PASSWORD" -d bingodb -i /docker-entrypoint-initdb.d/003-add-admin-and-campaigns.sql
 
+echo "Running migration 004..."
+/opt/mssql-tools/bin/sqlcmd -S "$DB_HOST" -U sa -P "$SA_PASSWORD" -d bingodb -i /docker-entrypoint-initdb.d/004-add-progression-scores.sql
+
+echo "Running migration 005..."
+/opt/mssql-tools/bin/sqlcmd -S "$DB_HOST" -U sa -P "$SA_PASSWORD" -d bingodb -i /docker-entrypoint-initdb.d/005-pack-assignment-lifecycle.sql
+
 echo "Database initialization complete!"

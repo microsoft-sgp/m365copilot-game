@@ -195,7 +195,7 @@ Replace `sql-bingo-server` with your actual server name and the password with th
 
 ## Step 5 — Run the database migrations
 
-The database needs three SQL scripts to create the tables, seed organization data, and add progression-scoring storage.
+The database needs five SQL scripts to create the tables, seed organization data, add campaign/admin support, add progression-scoring storage, and add pack-assignment lifecycle storage.
 
 ### Option A — Azure Portal Query Editor (easiest, no extra tools)
 
@@ -206,6 +206,7 @@ The database needs three SQL scripts to create the tables, seed organization dat
 5. Paste the contents of `database/001-create-tables.sql` into the editor and click **Run**.
 6. Paste the contents of `database/002-seed-organizations.sql` into the editor and click **Run**.
 7. Paste the contents of `database/004-add-progression-scores.sql` into the editor and click **Run**.
+8. Paste the contents of `database/005-pack-assignment-lifecycle.sql` into the editor and click **Run**.
 
 ### Option B — sqlcmd (command line)
 
@@ -233,6 +234,12 @@ sqlcmd -S sql-bingo-server.database.windows.net \
   -U bingoadmin \
   -P '<YourStrongPassword123!>' \
   -i database/004-add-progression-scores.sql
+
+sqlcmd -S sql-bingo-server.database.windows.net \
+  -d bingodb \
+  -U bingoadmin \
+  -P '<YourStrongPassword123!>' \
+  -i database/005-pack-assignment-lifecycle.sql
 ```
 
 ### Option C — Azure Data Studio (GUI)
@@ -292,12 +299,14 @@ az functionapp config appsettings set \
     "JWT_SECRET=<random-64-character-string-for-jwt-signing>" \
     "ADMIN_EMAILS=admin1@example.com,admin2@example.com" \
     "SMTP_CONNECTION=<your-smtp-or-acs-connection-string>" \
-    "LEADERBOARD_SOURCE=progression"
+    "LEADERBOARD_SOURCE=progression" \
+    "ENABLE_PACK_ASSIGNMENT_LIFECYCLE=true"
 ```
 
 > **Important:** Replace the password and choose strong values for `ADMIN_KEY` and `JWT_SECRET`. The admin key is used for CLI/API access to admin endpoints. `JWT_SECRET` signs admin portal session tokens. `ADMIN_EMAILS` is a comma-separated list of emails allowed to log into the admin portal via OTP. `SMTP_CONNECTION` configures the email service for sending OTP codes (Azure Communication Services or SMTP). Keep all secrets confidential.
 
   > **Scoring source toggle:** `LEADERBOARD_SOURCE=progression` enables verified gameplay progression scoring. Set `LEADERBOARD_SOURCE=submissions` to temporarily roll back to legacy submission-based leaderboard aggregation.
+  > **Pack lifecycle toggle:** `ENABLE_PACK_ASSIGNMENT_LIFECYCLE=true` enables server-authoritative pack assignment and 7-week completion rotation. Set `ENABLE_PACK_ASSIGNMENT_LIFECYCLE=false` to temporarily roll back to legacy manual pack selection behavior.
 
 ### 7c. Deploy the backend code
 

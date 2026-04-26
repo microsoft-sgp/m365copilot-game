@@ -16,8 +16,8 @@ async function request(method, path, body) {
   }
 }
 
-export function apiCreateSession(sessionId, playerName, packId, email) {
-  return request('POST', '/sessions', { sessionId, playerName, packId, email });
+export function apiCreateSession(payload) {
+  return request('POST', '/sessions', payload);
 }
 
 export function apiUpdateSession(gameSessionId, counts) {

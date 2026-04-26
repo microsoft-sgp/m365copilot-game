@@ -36,6 +36,10 @@ function resetState() {
   const { state } = useBingoGame();
   state.sessionId = 'test-session';
   state.playerName = '';
+  state.assignedPackId = 0;
+  state.assignmentCycle = 0;
+  state.assignmentRotated = false;
+  state.completedPackId = null;
   state.packId = 0;
   state.gameSessionId = null;
   state.tiles = [];
@@ -107,7 +111,12 @@ describe('useBingoGame.startBoard', () => {
     startBoard({ name: 'Ada', packId: 1 });
     await Promise.resolve();
     await Promise.resolve();
-    expect(apiCreateSession).toHaveBeenCalledWith('test-session', 'Ada', 1, '');
+    expect(apiCreateSession).toHaveBeenCalledWith({
+      sessionId: 'test-session',
+      playerName: 'Ada',
+      email: '',
+      packId: 1,
+    });
     expect(state.gameSessionId).toBe(789);
   });
 
@@ -257,6 +266,46 @@ describe('useBingoGame computed counters', () => {
     state.keywords = [{ code: 'a' }, { code: 'b' }, { code: 'c' }];
     expect(linesWon.value).toBe(2);
     expect(keywordCount.value).toBe(3);
+  });
+});
+
+describe('useBingoGame assignment hydration', () => {
+  it('hydrates assigned pack without forcing board active when no active session exists', () => {
+    const { hydrateFromServer, state } = useBingoGame();
+    hydrateFromServer({
+      playerName: 'Ada',
+      activeAssignment: {
+        assignmentId: 21,
+        packId: 88,
+        cycleNumber: 3,
+        rotated: false,
+        completedPackId: null,
+      },
+      activeSession: null,
+    });
+
+    expect(state.playerName).toBe('Ada');
+    expect(state.assignedPackId).toBe(88);
+    expect(state.assignmentCycle).toBe(3);
+    expect(state.boardActive).toBe(false);
+  });
+
+  it('hydrates rotation metadata for next cycle messaging', () => {
+    const { hydrateFromServer, state } = useBingoGame();
+    hydrateFromServer({
+      playerName: 'Ada',
+      activeAssignment: {
+        assignmentId: 30,
+        packId: 91,
+        cycleNumber: 4,
+        rotated: true,
+        completedPackId: 90,
+      },
+      activeSession: null,
+    });
+
+    expect(state.assignmentRotated).toBe(true);
+    expect(state.completedPackId).toBe(90);
   });
 });
 

@@ -15,17 +15,17 @@ The system SHALL provide the Bingo game through a dedicated frontend application
 - **THEN** the user MUST see the game shell with Game, Keys, My Activity, and Help sections available from the interface
 
 ### Requirement: Deterministic board setup and generation
-The system SHALL allow a player to start a board by choosing a pack number from 1 through 999 or by using a quick-pick action, and the same pack number MUST generate the same task set and order as the current implementation. Player display name SHALL be collected during onboarding identity and MUST NOT be re-requested in board setup.
+The system SHALL allow a player to start a board using a server-assigned pack number from 1 through 999, and the same pack number MUST generate the same task set and order as the current implementation. Player display name SHALL be collected during onboarding identity and MUST NOT be re-requested in board setup.
 
-#### Scenario: Player starts a board with a valid pack number
-- **GIVEN** the player has completed onboarding identity and selected a valid pack number
+#### Scenario: Player starts a board with assigned pack number
+- **GIVEN** the player has completed onboarding identity and a valid assigned pack number exists
 - **WHEN** the player starts the board
 - **THEN** the system MUST create a 3x3 board with nine tasks derived deterministically from that pack number
 
-#### Scenario: Player uses quick pick
+#### Scenario: Setup does not expose manual pack choice
 - **GIVEN** the player is on the setup view without an active board
-- **WHEN** the player uses the quick-pick action
-- **THEN** the system MUST select a pack number within the supported range and make it available for board launch
+- **WHEN** the setup view renders
+- **THEN** the system MUST display the assigned pack and MUST NOT allow manual pack entry or quick-pick selection
 
 ### Requirement: Board progression and verification parity
 The system SHALL preserve the current board progression rules, including task prompt display, proof submission, verification feedback, tile clearing, line completion detection, keyword minting, and weekly challenge progression.
@@ -44,9 +44,9 @@ The system SHALL preserve the current board progression rules, including task pr
 The system SHALL persist game state in browser storage for offline resilience, additionally report game session starts and tile events to the server, and sync full board state to the server for cross-device recovery.
 
 #### Scenario: Player starts a board and session is reported
-- **GIVEN** a player has completed onboarding identity and selects a pack to start a board
+- **GIVEN** a player has completed onboarding identity and receives a server-assigned pack during startup
 - **WHEN** the board is created
-- **THEN** the system MUST persist state to localStorage AND send `POST /api/sessions` with sessionId, playerName, packId, and email to register the session server-side
+- **THEN** the system MUST persist state to localStorage AND send `POST /api/sessions` with sessionId, playerName, assigned packId, and email to register the session server-side
 
 #### Scenario: Player clears a tile and event is reported
 - **GIVEN** a player has an active board with a known gameSessionId

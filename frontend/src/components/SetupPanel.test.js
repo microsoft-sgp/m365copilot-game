@@ -26,64 +26,52 @@ afterEach(() => vi.clearAllMocks());
 describe('SetupPanel', () => {
   beforeEach(() => {
     localStorage.setItem('copilot_bingo_player_name', 'Ada');
+    const { state } = useBingoGame();
+    state.assignedPackId = 42;
+    state.assignmentCycle = 2;
+    state.assignmentRotated = false;
+    state.completedPackId = null;
   });
 
-  it('renders the setup form with Launch Board button', () => {
+  it('renders assigned-pack setup with Launch Board button', () => {
     const w = mount(SetupPanel);
     expect(w.text()).toContain('Start Your Board');
+    expect(w.text()).toContain('#042');
     expect(w.findAll('button').some((b) => b.text().includes('Launch Board'))).toBe(true);
-    expect(w.findAll('button').some((b) => b.text().includes('Quick Pick'))).toBe(true);
-  });
-
-  it('renders 999 pack cells', () => {
-    const w = mount(SetupPanel);
-    expect(w.findAll('.pack-cell')).toHaveLength(999);
-  });
-
-  it('shows an error for pack ids outside 1..999', async () => {
-    const w = mount(SetupPanel);
-    await w.find('input[type="number"]').setValue('1000');
-    await w.findAll('button').find((b) => b.text().includes('Launch Board')).trigger('click');
-    expect(w.text()).toMatch(/pack between 1 and 999/i);
-    expect(useBingoGame().state.boardActive).toBe(false);
+    expect(w.text()).not.toContain('Quick Pick');
+    expect(w.find('input[type="number"]').exists()).toBe(false);
   });
 
   it('calls startBoard on valid input', async () => {
     const w = mount(SetupPanel);
-    await w.find('input[type="number"]').setValue('42');
     await w.findAll('button').find((b) => b.text().includes('Launch Board')).trigger('click');
+    await Promise.resolve();
     const { state } = useBingoGame();
     expect(state.boardActive).toBe(true);
     expect(state.playerName).toBe('Ada');
     expect(state.packId).toBe(42);
   });
 
-  it('selecting a pack cell updates the lucky number input', async () => {
+  it('shows assignment rotation copy when server marks rotated assignment', () => {
+    const { state } = useBingoGame();
+    state.assignmentRotated = true;
+    state.completedPackId = 12;
     const w = mount(SetupPanel);
-    const cell = w.findAll('.pack-cell')[17]; // index 17 → pack 18
-    await cell.trigger('click');
-    expect(w.find('input[type="number"]').element.value).toBe('18');
+    expect(w.text()).toContain('Pack #012');
+    expect(w.text()).toContain('new pack has been assigned');
   });
 
-  it('Quick Pick sets a pack id between 1 and 999', async () => {
-    const w = mount(SetupPanel);
-    await w.findAll('button').find((b) => b.text().includes('Quick Pick')).trigger('click');
-    const value = Number(w.find('input[type="number"]').element.value);
-    expect(value).toBeGreaterThanOrEqual(1);
-    expect(value).toBeLessThanOrEqual(999);
-  });
-
-  it('prefills pack from localStorage on mount', async () => {
+  it('uses last pack from localStorage when assigned pack is not yet hydrated', () => {
+    const { state } = useBingoGame();
+    state.assignedPackId = 0;
     localStorage.setItem('copilot_bingo_last_pack', '77');
     const w = mount(SetupPanel);
-    await w.vm.$nextTick();
-    expect(w.find('input[type="number"]').element.value).toBe('77');
+    expect(w.text()).toContain('#077');
   });
 
   it('blocks launch if onboarding identity is missing', async () => {
     localStorage.removeItem('copilot_bingo_player_name');
     const w = mount(SetupPanel);
-    await w.find('input[type="number"]').setValue('42');
     await w.findAll('button').find((b) => b.text().includes('Launch Board')).trigger('click');
     expect(w.text()).toContain('complete onboarding identity');
     expect(useBingoGame().state.boardActive).toBe(false);

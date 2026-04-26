@@ -20,6 +20,10 @@ function freshState() {
     sessionId: '',
     playerName: '',
     email: '',
+    assignedPackId: 0,
+    assignmentCycle: 0,
+    assignmentRotated: false,
+    completedPackId: null,
     packId: 0,
     gameSessionId: null,
     tiles: [],
@@ -37,6 +41,10 @@ function persist() {
   saveJson(STORAGE_KEYS.state, {
     sessionId: state.sessionId,
     playerName: state.playerName,
+    assignedPackId: state.assignedPackId,
+    assignmentCycle: state.assignmentCycle,
+    assignmentRotated: state.assignmentRotated,
+    completedPackId: state.completedPackId,
     packId: state.packId,
     gameSessionId: state.gameSessionId,
     // Persist tile metadata WITHOUT the verify function (functions cannot be
@@ -89,39 +97,88 @@ export function useBingoGame() {
     Math.round((clearedCount.value / 9) * 100),
   );
 
-  function startBoard({ name, packId, email }) {
+  function applyAssignment(assignment) {
+    if (!assignment) return;
+    if (assignment.packId) {
+      state.assignedPackId = assignment.packId;
+    }
+    if (assignment.cycleNumber) {
+      state.assignmentCycle = assignment.cycleNumber;
+    }
+    state.assignmentRotated = Boolean(assignment.rotated);
+    state.completedPackId = assignment.completedPackId ?? null;
+  }
+
+  async function startBoard({ name, packId, email } = {}) {
     const canonicalName = state.playerName || (name || '').trim() || 'Player';
     if (!state.playerName && canonicalName) {
       state.playerName = canonicalName;
     }
-    state.packId = packId;
     if (email) state.email = email;
-    state.tiles = getPack(packId);
-    state.cleared = new Array(9).fill(false);
-    state.wonLines = state.wonLines || [];
-    state.keywords = state.keywords || [];
-    state.boardActive = true;
 
-    if (!state.challengeProfile) {
-      state.challengeProfile = {
-        challengeStartAt: Date.now(),
-        currentWeek: 1,
-        weeksCompleted: 0,
-        weeklySubmissions: [],
-      };
+    let resolvedPackId = Number(packId || state.assignedPackId || state.packId || 0);
+    let resolvedGameSessionId = state.gameSessionId;
+
+    function initializeBoard(targetPackId) {
+      state.packId = targetPackId;
+      state.assignedPackId = targetPackId;
+      state.tiles = getPack(targetPackId);
+      state.cleared = new Array(9).fill(false);
+      state.wonLines = state.wonLines || [];
+      state.keywords = state.keywords || [];
+      state.boardActive = true;
+
+      if (!state.challengeProfile) {
+        state.challengeProfile = {
+          challengeStartAt: Date.now(),
+          currentWeek: 1,
+          weeksCompleted: 0,
+          weeklySubmissions: [],
+        };
+      }
+
+      saveString(STORAGE_KEYS.playerName, canonicalName);
+      saveString(STORAGE_KEYS.lastPack, String(targetPackId));
     }
 
-    saveString(STORAGE_KEYS.playerName, canonicalName);
-    saveString(STORAGE_KEYS.lastPack, String(packId));
+    if (resolvedPackId > 0) {
+      initializeBoard(resolvedPackId);
+    }
 
-    // Fire-and-forget: register session server-side
-    apiCreateSession(state.sessionId, canonicalName, packId, state.email)
-      .then((res) => {
-        if (res.ok && res.data && res.data.gameSessionId) {
-          state.gameSessionId = res.data.gameSessionId;
+    try {
+      const sessionPayload = {
+        sessionId: state.sessionId,
+        playerName: canonicalName,
+        email: state.email,
+      };
+      if (packId) sessionPayload.packId = Number(packId);
+
+      const res = await apiCreateSession(sessionPayload);
+      if (res.ok && res.data) {
+        if (res.data.activeAssignment) {
+          applyAssignment(res.data.activeAssignment);
         }
-      })
-      .catch(() => { /* API unavailable — continue normally */ });
+        if (res.data.packId) {
+          resolvedPackId = Number(res.data.packId);
+        }
+        if (res.data.gameSessionId) {
+          resolvedGameSessionId = res.data.gameSessionId;
+        }
+      }
+    } catch {
+      // API unavailable — continue with local fallback state.
+    }
+
+    if (!resolvedPackId || resolvedPackId < 1) {
+      return { ok: false, message: 'Unable to resolve your assigned pack. Please try again.' };
+    }
+
+    state.gameSessionId = resolvedGameSessionId ?? null;
+    if (!state.boardActive || state.packId !== resolvedPackId) {
+      initializeBoard(resolvedPackId);
+    }
+
+    return { ok: true, packId: resolvedPackId };
   }
 
   function resetBoard() {
@@ -242,11 +299,19 @@ export function useBingoGame() {
   }
 
   function hydrateFromServer(serverState) {
-    if (!serverState || !serverState.activeSession) return;
-    const session = serverState.activeSession;
+    if (!serverState) return;
     state.playerName = serverState.playerName || state.playerName;
+    applyAssignment(serverState.activeAssignment);
+
+    const session = serverState.activeSession;
+    if (!session) {
+      state.boardActive = false;
+      return;
+    }
+
     state.gameSessionId = session.gameSessionId;
     state.packId = session.packId;
+    state.assignedPackId = session.packId || state.assignedPackId;
 
     if (session.boardState) {
       state.cleared = session.boardState.cleared || [];

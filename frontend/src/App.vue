@@ -29,7 +29,22 @@ onMounted(() => {
   // Check hash-based routing for admin
   checkRoute();
   window.addEventListener('hashchange', checkRoute);
+
+  if (playerEmail.value && playerName.value) {
+    syncPlayerState(playerEmail.value);
+  }
 });
+
+async function syncPlayerState(email) {
+  try {
+    const res = await apiGetPlayerState(email);
+    if (res.ok && res.data && res.data.player) {
+      hydrateFromServer(res.data.player);
+    }
+  } catch {
+    // API unavailable — continue with local state
+  }
+}
 
 function checkRoute() {
   const hash = window.location.hash;
@@ -50,15 +65,7 @@ async function onEmailContinue(identity) {
   saveString(STORAGE_KEYS.playerName, identity.name);
   setIdentity(identity);
 
-  // Try to fetch existing progress from server
-  try {
-    const res = await apiGetPlayerState(identity.email);
-    if (res.ok && res.data && res.data.player) {
-      hydrateFromServer(res.data.player);
-    }
-  } catch {
-    // API unavailable — continue with local state
-  }
+  await syncPlayerState(identity.email);
 }
 
 function onAdminNav() {
