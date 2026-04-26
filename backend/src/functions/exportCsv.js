@@ -8,21 +8,40 @@ export const handler = async (request, context) => {
   if (!auth.ok) return auth.response;
 
   const campaign = request.query.get('campaign') || 'APR26';
+  const useLegacySubmissionSource = process.env.LEADERBOARD_SOURCE === 'submissions';
   const pool = await getPool();
 
   const result = await pool
     .request()
     .input('campaign', sql.NVarChar(20), campaign)
-    .query(`
-      SELECT o.name AS org, p.player_name, p.email, s.keyword, s.created_at AS submitted_at
-      FROM submissions s
-      JOIN players p ON s.player_id = p.id
-      JOIN organizations o ON s.org_id = o.id
-      WHERE s.campaign_id = @campaign
-      ORDER BY s.created_at ASC;
-    `);
+    .query(useLegacySubmissionSource
+      ? `
+        SELECT o.name AS org, p.player_name, p.email, s.keyword, s.created_at AS submitted_at
+        FROM submissions s
+        JOIN players p ON s.player_id = p.id
+        JOIN organizations o ON s.org_id = o.id
+        WHERE s.campaign_id = @campaign
+        ORDER BY s.created_at ASC;
+      `
+      : `
+        SELECT
+          COALESCE(o.name, 'UNMAPPED') AS org,
+          p.player_name,
+          p.email,
+          ps.event_type,
+          ps.event_key,
+          ps.keyword,
+          ps.created_at AS submitted_at
+        FROM progression_scores ps
+        JOIN players p ON ps.player_id = p.id
+        LEFT JOIN organizations o ON ps.org_id = o.id
+        WHERE ps.campaign_id = @campaign
+        ORDER BY ps.created_at ASC;
+      `);
 
-  const header = 'org,player_name,email,keyword,submitted_at';
+  const header = useLegacySubmissionSource
+    ? 'org,player_name,email,keyword,submitted_at'
+    : 'org,player_name,email,event_type,event_key,keyword,submitted_at';
   const rows = result.recordset.map((r) => {
     const escapeCsv = (v) => {
       const s = String(v ?? '');
@@ -30,13 +49,20 @@ export const handler = async (request, context) => {
         ? `"${s.replace(/"/g, '""')}"`
         : s;
     };
-    return [
+    const base = [
       escapeCsv(r.org),
       escapeCsv(r.player_name),
       escapeCsv(r.email),
-      escapeCsv(r.keyword),
-      escapeCsv(r.submitted_at),
-    ].join(',');
+    ];
+    if (useLegacySubmissionSource) {
+      base.push(escapeCsv(r.keyword));
+    } else {
+      base.push(escapeCsv(r.event_type));
+      base.push(escapeCsv(r.event_key));
+      base.push(escapeCsv(r.keyword));
+    }
+    base.push(escapeCsv(r.submitted_at));
+    return base.join(',');
   });
 
   const csv = [header, ...rows].join('\n');

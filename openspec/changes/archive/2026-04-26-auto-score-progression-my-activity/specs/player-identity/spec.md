@@ -1,10 +1,4 @@
-# player-identity
-
-## Purpose
-
-Defines the email-based player identity system including the email gate, cross-device state retrieval, and server-side board state persistence.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Email gate on first load
 The system SHALL present an onboarding identity screen before the game setup panel when no player identity is stored locally. The onboarding screen SHALL require both email and display name.
@@ -24,24 +18,6 @@ The system SHALL present an onboarding identity screen before the game setup pan
 - **WHEN** the player submits an empty display name, empty email, or an email without an `@` character
 - **THEN** the system MUST display a validation error and MUST NOT proceed
 
-### Requirement: Cross-device state retrieval
-The system SHALL retrieve a player's existing game state from the server when an email is entered, enabling progress to persist across devices.
-
-#### Scenario: Player with existing server-side progress
-- **GIVEN** the player enters an email that has existing game sessions on the server
-- **WHEN** the email gate is submitted
-- **THEN** the system MUST call `GET /api/player/state?email=<email>`, receive the player's active session data (packId, cleared tiles, won lines, keywords, challenge profile), and hydrate the Vue reactive state from the server response
-
-#### Scenario: Player with no server-side progress
-- **GIVEN** the player enters an email with no existing server records
-- **WHEN** the email gate is submitted
-- **THEN** the system MUST proceed to the setup panel (pack selection) with a fresh state
-
-#### Scenario: Server unavailable during state retrieval
-- **GIVEN** the API is unreachable when the player submits their email
-- **WHEN** the state retrieval request fails
-- **THEN** the system MUST proceed using localStorage state (if any) or fresh state, and display a subtle indicator that offline mode is active
-
 ### Requirement: Email stored as identity anchor
 The system SHALL persist the player's email and onboarding display name in localStorage and include them in subsequent session-related API calls to maintain identity consistency.
 
@@ -55,6 +31,8 @@ The system SHALL persist the player's email and onboarding display name in local
 - **WHEN** `POST /api/sessions` is called
 - **THEN** the request body MUST include the player's email and onboarding display name alongside sessionId and packId
 
+## ADDED Requirements
+
 ### Requirement: Display name is fixed after onboarding
 The system SHALL treat player display name as immutable for normal player flows after onboarding is completed.
 
@@ -62,16 +40,3 @@ The system SHALL treat player display name as immutable for normal player flows 
 - **GIVEN** a player has already completed onboarding and entered gameplay
 - **WHEN** the player navigates across setup, game, keys, or activity surfaces
 - **THEN** the system MUST NOT present any display name edit controls and MUST continue using the onboarding display name
-
-### Requirement: Server-side board state persistence
-The system SHALL persist the full board state to the server on every state mutation, making the database the source of truth for cross-device sync.
-
-#### Scenario: Board state saved on tile clear
-- **GIVEN** a player clears a tile on an active board with a known gameSessionId
-- **WHEN** the tile is verified and cleared
-- **THEN** the system MUST send the full board state (cleared array, won lines, keywords, challenge profile) to the server via the session update endpoint
-
-#### Scenario: Board state saved on board start
-- **GIVEN** a player starts a new board
-- **WHEN** the session is created on the server
-- **THEN** the system MUST persist the initial board state (all tiles uncleared, empty keywords, initial challenge profile) to the server

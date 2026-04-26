@@ -7,7 +7,7 @@ describe('HelpPanel', () => {
   it('renders the "How to Play" heading and ordered list', () => {
     const w = mount(HelpPanel);
     expect(w.text()).toContain('How to Play');
-    expect(w.findAll('ol li')).toHaveLength(6);
+    expect(w.findAll('ol li')).toHaveLength(7);
   });
 
   it('provides a link to open Copilot Chat', () => {

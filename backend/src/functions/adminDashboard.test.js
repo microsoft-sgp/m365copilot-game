@@ -43,13 +43,20 @@ describe('GET /admin/dashboard', () => {
         {
           totalPlayers: 12,
           totalSessions: 18,
-          totalSubmissions: 7,
+          totalSubmissions: 9,
           avgTilesCleared: 4.2345,
         },
       ],
       [{ org: 'Contoso', score: 9 }],
       [{ id: 1, player_name: 'Ada' }],
-      [{ id: 2, player_name: 'Grace', keyword: 'CO-APR26-001-R1-AAAA1111' }],
+      [{
+        id: 2,
+        player_name: 'Grace',
+        keyword: 'CO-APR26-001-R1-AAAA1111',
+        event_type: 'line_won',
+        event_key: 'R1',
+        created_at: '2026-04-24T00:00:00.000Z',
+      }],
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
@@ -60,7 +67,7 @@ describe('GET /admin/dashboard', () => {
     expect(res.jsonBody.summary).toEqual({
       totalPlayers: 12,
       totalSessions: 18,
-      totalSubmissions: 7,
+      totalSubmissions: 9,
       avgTilesCleared: 4.2, // rounded to 1 decimal
       topOrg: 'Contoso',
     });
@@ -101,5 +108,21 @@ describe('GET /admin/dashboard', () => {
       }),
     );
     calls.forEach((c) => expect(c.inputs.campaign).toBe('SEP27'));
+  });
+
+  it('supports rollback to legacy submissions source via env flag', async () => {
+    process.env.LEADERBOARD_SOURCE = 'submissions';
+    const { pool, calls } = createMockPool([
+      [{ totalPlayers: 0, totalSessions: 0, totalSubmissions: 0, avgTilesCleared: null }],
+      [],
+      [],
+      [],
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    await handler(fakeRequest({ headers: { 'x-admin-key': 'secret' } }));
+    expect(calls[0].query).toMatch(/FROM submissions/);
+    expect(calls[1].query).toMatch(/FROM submissions/);
+    expect(calls[3].query).toMatch(/FROM submissions/);
   });
 });

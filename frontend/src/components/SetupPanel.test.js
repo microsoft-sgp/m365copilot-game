@@ -24,6 +24,10 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 describe('SetupPanel', () => {
+  beforeEach(() => {
+    localStorage.setItem('copilot_bingo_player_name', 'Ada');
+  });
+
   it('renders the setup form with Launch Board button', () => {
     const w = mount(SetupPanel);
     expect(w.text()).toContain('Start Your Board');
@@ -36,17 +40,8 @@ describe('SetupPanel', () => {
     expect(w.findAll('.pack-cell')).toHaveLength(999);
   });
 
-  it('shows an error when the name is empty', async () => {
-    const w = mount(SetupPanel);
-    await w.find('input[type="number"]').setValue('5');
-    await w.findAll('button').find((b) => b.text().includes('Launch Board')).trigger('click');
-    expect(w.text()).toContain('Please enter your name');
-    expect(useBingoGame().state.boardActive).toBe(false);
-  });
-
   it('shows an error for pack ids outside 1..999', async () => {
     const w = mount(SetupPanel);
-    await w.find('input[type="text"]').setValue('Ada');
     await w.find('input[type="number"]').setValue('1000');
     await w.findAll('button').find((b) => b.text().includes('Launch Board')).trigger('click');
     expect(w.text()).toMatch(/pack between 1 and 999/i);
@@ -55,7 +50,6 @@ describe('SetupPanel', () => {
 
   it('calls startBoard on valid input', async () => {
     const w = mount(SetupPanel);
-    await w.find('input[type="text"]').setValue('Ada');
     await w.find('input[type="number"]').setValue('42');
     await w.findAll('button').find((b) => b.text().includes('Launch Board')).trigger('click');
     const { state } = useBingoGame();
@@ -79,12 +73,19 @@ describe('SetupPanel', () => {
     expect(value).toBeLessThanOrEqual(999);
   });
 
-  it('prefills name and pack from localStorage on mount', async () => {
-    localStorage.setItem('copilot_bingo_player_name', 'Grace');
+  it('prefills pack from localStorage on mount', async () => {
     localStorage.setItem('copilot_bingo_last_pack', '77');
     const w = mount(SetupPanel);
     await w.vm.$nextTick();
-    expect(w.find('input[type="text"]').element.value).toBe('Grace');
     expect(w.find('input[type="number"]').element.value).toBe('77');
+  });
+
+  it('blocks launch if onboarding identity is missing', async () => {
+    localStorage.removeItem('copilot_bingo_player_name');
+    const w = mount(SetupPanel);
+    await w.find('input[type="number"]').setValue('42');
+    await w.findAll('button').find((b) => b.text().includes('Launch Board')).trigger('click');
+    expect(w.text()).toContain('complete onboarding identity');
+    expect(useBingoGame().state.boardActive).toBe(false);
   });
 });

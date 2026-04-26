@@ -8,7 +8,7 @@ import TopBar from './components/TopBar.vue';
 import AppTabs from './components/AppTabs.vue';
 import GameTab from './components/GameTab.vue';
 import KeywordsPanel from './components/KeywordsPanel.vue';
-import SubmitPanel from './components/SubmitPanel.vue';
+import MyActivityPanel from './components/MyActivityPanel.vue';
 import HelpPanel from './components/HelpPanel.vue';
 import EmailGate from './components/EmailGate.vue';
 import ToastMessage from './components/ToastMessage.vue';
@@ -18,10 +18,11 @@ import GameFooter from './components/GameFooter.vue';
 const AdminLogin = defineAsyncComponent(() => import('./components/AdminLogin.vue'));
 const AdminLayout = defineAsyncComponent(() => import('./components/AdminLayout.vue'));
 
-const { hydrateFromServer, setEmail } = useBingoGame();
+const { hydrateFromServer, setIdentity } = useBingoGame();
 
 const activeTab = ref('game');
 const playerEmail = ref(loadString(STORAGE_KEYS.email));
+const playerName = ref(loadString(STORAGE_KEYS.playerName));
 const view = ref('game'); // 'game' | 'admin-login' | 'admin'
 
 onMounted(() => {
@@ -42,14 +43,16 @@ function checkRoute() {
   }
 }
 
-async function onEmailContinue(email) {
-  playerEmail.value = email;
-  saveString(STORAGE_KEYS.email, email);
-  setEmail(email);
+async function onEmailContinue(identity) {
+  playerEmail.value = identity.email;
+  playerName.value = identity.name;
+  saveString(STORAGE_KEYS.email, identity.email);
+  saveString(STORAGE_KEYS.playerName, identity.name);
+  setIdentity(identity);
 
   // Try to fetch existing progress from server
   try {
-    const res = await apiGetPlayerState(email);
+    const res = await apiGetPlayerState(identity.email);
     if (res.ok && res.data && res.data.player) {
       hydrateFromServer(res.data.player);
     }
@@ -93,7 +96,7 @@ function onBackToGame() {
     <!-- Game views -->
     <template v-else>
       <!-- Email gate -->
-      <template v-if="!playerEmail">
+      <template v-if="!playerEmail || !playerName">
         <EmailGate @continue="onEmailContinue" @admin="onAdminNav" />
         <GameFooter />
       </template>
@@ -109,8 +112,8 @@ function onBackToGame() {
         <section v-show="activeTab === 'keywords'" class="px-5 py-5 pb-20 sm:pb-5">
           <KeywordsPanel />
         </section>
-        <section v-show="activeTab === 'submit'" class="px-5 py-5 pb-20 sm:pb-5">
-          <SubmitPanel />
+        <section v-show="activeTab === 'activity'" class="px-5 py-5 pb-20 sm:pb-5">
+          <MyActivityPanel />
         </section>
         <section v-show="activeTab === 'help'" class="px-5 py-5 pb-20 sm:pb-5">
           <HelpPanel />

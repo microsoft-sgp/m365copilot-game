@@ -29,7 +29,7 @@ export const handler = async (request, context) => {
         USING (SELECT @email AS email) AS source
         ON target.email = source.email
         WHEN MATCHED THEN
-          UPDATE SET player_name = @playerName, session_id = @sessionId
+          UPDATE SET session_id = @sessionId
         WHEN NOT MATCHED THEN
           INSERT (session_id, player_name, email) VALUES (@sessionId, @playerName, @email)
         OUTPUT inserted.id;

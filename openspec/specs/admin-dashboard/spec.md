@@ -7,17 +7,17 @@ Defines the admin dashboard and CSV export endpoints for campaign administrators
 ## Requirements
 
 ### Requirement: Admin dashboard endpoint
-The system SHALL expose `GET /api/admin/dashboard` to return game session and submission data for campaign administrators, protected by JWT-based authentication or the static admin key.
+The system SHALL expose `GET /api/admin/dashboard` to return campaign gameplay and scoring data sourced from progression-based scoring records, protected by JWT-based authentication or the static admin key.
 
 #### Scenario: Authorized admin views dashboard data (JWT)
 - **GIVEN** the request includes a valid `Authorization: Bearer <jwt>` header with a non-expired admin JWT
 - **WHEN** the admin sends `GET /api/admin/dashboard?campaign=APR26`
-- **THEN** the system MUST return `{ sessions: [...], submissions: [...], summary: { totalPlayers, totalSessions, totalSubmissions, avgTilesCleared, topOrg } }`
+- **THEN** the system MUST return dashboard summaries and lists consistent with progression-based leaderboard scoring
 
 #### Scenario: Authorized admin views dashboard data (legacy key)
 - **GIVEN** the request includes a valid `X-Admin-Key` header matching the configured admin password
 - **WHEN** the admin sends `GET /api/admin/dashboard?campaign=APR26`
-- **THEN** the system MUST return the same dashboard data (backward compatible)
+- **THEN** the system MUST return the same progression-consistent dashboard data (backward compatible)
 
 #### Scenario: Unauthorized access attempt
 - **GIVEN** the request has neither a valid JWT nor a valid `X-Admin-Key` header
@@ -25,17 +25,25 @@ The system SHALL expose `GET /api/admin/dashboard` to return game session and su
 - **THEN** the system MUST return HTTP 401 with `{ ok: false, message: "Unauthorized" }`
 
 ### Requirement: CSV export endpoint
-The system SHALL expose `GET /api/admin/export` to download submission data as a CSV file, protected by JWT-based authentication or the static admin key.
+The system SHALL expose `GET /api/admin/export` to download campaign scoring data consistent with progression-based leaderboard records, protected by JWT-based authentication or the static admin key.
 
 #### Scenario: Authorized CSV export (JWT)
 - **GIVEN** the request includes a valid admin JWT
 - **WHEN** the admin sends `GET /api/admin/export?campaign=APR26`
-- **THEN** the system MUST return a CSV file with headers `org,player_name,email,keyword,submitted_at`
+- **THEN** the system MUST return a CSV file containing progression-scoring-compatible rows for campaign reporting
 
 #### Scenario: Authorized CSV export (legacy key)
 - **GIVEN** the request includes a valid `X-Admin-Key` header
 - **WHEN** the admin sends `GET /api/admin/export?campaign=APR26`
-- **THEN** the system MUST return the same CSV file (backward compatible)
+- **THEN** the system MUST return the same progression-consistent CSV file (backward compatible)
+
+### Requirement: Dashboard parity with player leaderboard
+The system SHALL ensure admin score totals for a campaign match the same scoring source used by `GET /api/leaderboard`.
+
+#### Scenario: Admin and player leaderboard parity
+- **GIVEN** progression scoring records exist for a campaign
+- **WHEN** admin dashboard summary and player leaderboard are both queried for that campaign
+- **THEN** organization ranking and score totals MUST be derived from the same scoring source and remain numerically consistent
 
 ### Requirement: Admin password stored as app setting
 The system SHALL read the admin password from an Azure Functions App Setting (environment variable), never from source code. Additional app settings SHALL be required for JWT signing and admin email allow-list.

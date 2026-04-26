@@ -28,17 +28,17 @@ The system SHALL store email-domain-to-organization mappings in an `org_domains`
 - **THEN** the system MUST return no result, allowing the API to fall back to a manually provided org name
 
 ### Requirement: Players table
-The system SHALL store player records in a `players` table keyed by email as the primary identity, with session_id retained for backward compatibility.
+The system SHALL store player records in a `players` table keyed by email as the primary identity, with onboarding display name fixed as the canonical player_name and session_id retained for backward compatibility.
 
 #### Scenario: Player created on first session
 - **GIVEN** an email that does not exist in the players table
-- **WHEN** a new game session is started with that email
-- **THEN** the system MUST insert a player record with the email, sessionId, playerName, and created_at timestamp
+- **WHEN** a new game session is started with that email and onboarding display name
+- **THEN** the system MUST insert a player record with email, sessionId, canonical player_name, and created_at timestamp
 
-#### Scenario: Player upserted by email on subsequent sessions
+#### Scenario: Existing player starts subsequent sessions
 - **GIVEN** an email that already exists in the players table
 - **WHEN** a new game session is started with the same email
-- **THEN** the system MUST reuse the existing player record, updating the player_name if changed, without creating a duplicate
+- **THEN** the system MUST reuse the existing player record and MUST NOT overwrite canonical player_name from normal gameplay flow
 
 #### Scenario: Player upserted by sessionId (backward compatibility)
 - **GIVEN** a sessionId that already exists in the players table but no email is provided
@@ -81,29 +81,29 @@ The system SHALL store granular tile-level events in a `tile_events` table for e
 - **WHEN** the event recording endpoint is called with eventType "line_won"
 - **THEN** the system MUST insert a tile_events record including the keyword and line_id
 
-### Requirement: Submissions table
-The system SHALL store keyword submissions in a `submissions` table with a unique constraint on (player_id, keyword) to prevent duplicate submissions by the same player.
+### Requirement: Progression scoring records table
+The system SHALL persist score-bearing progression events in a dedicated table keyed for idempotency and leaderboard aggregation.
 
-#### Scenario: Unique submission accepted
-- **GIVEN** a player has not previously submitted this keyword
-- **WHEN** the submission is inserted
-- **THEN** the system MUST store the record with player_id, org_id, keyword, campaign_id, and created_at
+#### Scenario: Idempotent score record for line completion
+- **GIVEN** a player has already received score for a specific line completion in a campaign
+- **WHEN** the same scoring event is processed again
+- **THEN** the system MUST prevent duplicate score records for that event identity
 
-#### Scenario: Duplicate submission rejected by constraint
-- **GIVEN** a submission already exists with the same player_id and keyword
-- **WHEN** a duplicate insert is attempted
-- **THEN** the database MUST reject the insert via the unique constraint
+#### Scenario: Score record linked to org and player
+- **GIVEN** a score-bearing progression event is accepted
+- **WHEN** the score record is inserted
+- **THEN** the system MUST store campaign, player, organization, event type, event identity, and timestamp fields needed for leaderboard and activity views
 
 ### Requirement: Leaderboard aggregation query
-The system SHALL support an aggregation query that computes per-organization scores as COUNT(DISTINCT keyword), contributor counts as COUNT(DISTINCT email), and last submission timestamp, filtered by campaign_id.
+The system SHALL support an aggregation query that computes per-organization ranking from progression-scoring records derived from verified gameplay events, including contributor counts and last scoring timestamp, filtered by campaign_id.
 
 #### Scenario: Leaderboard query returns ranked results
-- **GIVEN** multiple submissions exist across organizations for campaign "APR26"
+- **GIVEN** multiple progression-scoring records exist across organizations for campaign `APR26`
 - **WHEN** the leaderboard aggregation query is executed
-- **THEN** the system MUST return organizations ranked by distinct keyword count descending, with contributor count and last submission time
+- **THEN** the system MUST return organizations ranked by progression score descending, with contributor count and last scoring time
 
 ### Requirement: Migration scripts in database folder
-The system SHALL provide numbered SQL migration scripts in the `database/` folder for creating tables and seeding initial data.
+The system SHALL provide numbered SQL migration scripts in the `database/` folder for creating tables, seeding data, and introducing progression-scoring schema changes.
 
 #### Scenario: Tables created from migration script
 - **GIVEN** a fresh Azure SQL database
@@ -114,6 +114,11 @@ The system SHALL provide numbered SQL migration scripts in the `database/` folde
 - **GIVEN** tables have been created
 - **WHEN** `002-seed-organizations.sql` is executed
 - **THEN** all organizations and domain mappings from the existing orgMap.js MUST be present in the database
+
+#### Scenario: Progression scoring migration applied
+- **GIVEN** an existing database initialized with prior migrations
+- **WHEN** the new progression-scoring migration runs
+- **THEN** the system MUST create required schema/index changes without data loss for existing players, sessions, submissions, and events
 
 ### Requirement: Index for leaderboard performance
 The system SHALL include a composite index on submissions(campaign_id, org_id) to support efficient leaderboard aggregation queries.

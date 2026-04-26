@@ -195,7 +195,7 @@ Replace `sql-bingo-server` with your actual server name and the password with th
 
 ## Step 5 — Run the database migrations
 
-The database needs two SQL scripts to create the tables and seed the organization data.
+The database needs three SQL scripts to create the tables, seed organization data, and add progression-scoring storage.
 
 ### Option A — Azure Portal Query Editor (easiest, no extra tools)
 
@@ -205,6 +205,7 @@ The database needs two SQL scripts to create the tables and seed the organizatio
 4. Log in with the SQL admin username (`bingoadmin`) and password.
 5. Paste the contents of `database/001-create-tables.sql` into the editor and click **Run**.
 6. Paste the contents of `database/002-seed-organizations.sql` into the editor and click **Run**.
+7. Paste the contents of `database/004-add-progression-scores.sql` into the editor and click **Run**.
 
 ### Option B — sqlcmd (command line)
 
@@ -226,6 +227,12 @@ sqlcmd -S sql-bingo-server.database.windows.net \
        -U bingoadmin \
        -P '<YourStrongPassword123!>' \
        -i database/002-seed-organizations.sql
+
+sqlcmd -S sql-bingo-server.database.windows.net \
+  -d bingodb \
+  -U bingoadmin \
+  -P '<YourStrongPassword123!>' \
+  -i database/004-add-progression-scores.sql
 ```
 
 ### Option C — Azure Data Studio (GUI)
@@ -284,10 +291,13 @@ az functionapp config appsettings set \
     "ADMIN_KEY=<pick-a-strong-secret-for-admin-access>" \
     "JWT_SECRET=<random-64-character-string-for-jwt-signing>" \
     "ADMIN_EMAILS=admin1@example.com,admin2@example.com" \
-    "SMTP_CONNECTION=<your-smtp-or-acs-connection-string>"
+    "SMTP_CONNECTION=<your-smtp-or-acs-connection-string>" \
+    "LEADERBOARD_SOURCE=progression"
 ```
 
 > **Important:** Replace the password and choose strong values for `ADMIN_KEY` and `JWT_SECRET`. The admin key is used for CLI/API access to admin endpoints. `JWT_SECRET` signs admin portal session tokens. `ADMIN_EMAILS` is a comma-separated list of emails allowed to log into the admin portal via OTP. `SMTP_CONNECTION` configures the email service for sending OTP codes (Azure Communication Services or SMTP). Keep all secrets confidential.
+
+  > **Scoring source toggle:** `LEADERBOARD_SOURCE=progression` enables verified gameplay progression scoring. Set `LEADERBOARD_SOURCE=submissions` to temporarily roll back to legacy submission-based leaderboard aggregation.
 
 ### 7c. Deploy the backend code
 
@@ -403,14 +413,32 @@ Open your Static Web App URL in a browser and check:
 
 | # | What to check | Expected result |
 |---|---|---|
-| 1 | App loads | You see the **Game**, **Keywords**, **Submit**, and **Help** tabs |
-| 2 | Start a game | Enter a name, pick a pack (e.g. `42`), the 3×3 board appears |
+| 1 | App loads | You see the **Game**, **Keywords**, **Activity**, and **Help** tabs |
+| 2 | Start a game | Complete onboarding identity (name + email), pick a pack (e.g. `42`), the 3×3 board appears |
 | 3 | Quick Pick | Generates a random pack between 1–999 |
 | 4 | Page reload | Board, cleared tiles, and keywords are restored |
-| 5 | Submit keyword | The submission goes through (check browser DevTools Network tab — you should see a `POST` to `/api/submissions`) |
-| 6 | Leaderboard | Visit the Submit tab — leaderboard shows your submission |
+| 5 | Verify progression scoring | Clear a line and confirm `POST` to `/api/events` with `line_won` and leaderboard refresh |
+| 6 | Leaderboard | Visit the Activity tab — leaderboard and timeline show score events |
 | 7 | No console errors | Browser DevTools → Console shows no errors |
 | 8 | Admin dashboard | `curl -H "X-Admin-Key: <your-key>" https://func-bingo-api.azurewebsites.net/api/admin/dashboard?campaign=APR26` returns engagement data |
+
+### Progression scoring cutover and rollback runbook
+
+1. Deploy backend with `LEADERBOARD_SOURCE=submissions` first.
+2. Apply `database/004-add-progression-scores.sql`.
+3. Deploy frontend/backend changes that emit and consume progression score events.
+4. Validate parity in staging:
+  - Compare `GET /api/leaderboard` output with `LEADERBOARD_SOURCE=submissions` vs `LEADERBOARD_SOURCE=progression`.
+  - Confirm admin dashboard totals match leaderboard totals in both modes.
+5. Switch production app setting to `LEADERBOARD_SOURCE=progression`.
+6. Monitor leaderboard/admin parity and API error rates.
+
+Rollback:
+
+1. Set app setting `LEADERBOARD_SOURCE=submissions`.
+2. Restart Function App.
+3. Verify leaderboard and admin dashboard return legacy submission-based totals.
+4. Keep progression score data for reconciliation; do not drop new tables during rollback.
 
 ---
 

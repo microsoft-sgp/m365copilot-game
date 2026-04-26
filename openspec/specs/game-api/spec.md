@@ -7,7 +7,7 @@ Defines the Azure Functions RESTful API backend for the Copilot Chat Bingo game:
 ## Requirements
 
 ### Requirement: Session creation endpoint
-The system SHALL expose `POST /api/sessions` to create a player record and associated game session when a player starts a new board, accepting email as the primary identity.
+The system SHALL expose `POST /api/sessions` to create a player record and associated game session when a player starts a new board, accepting email as the primary identity and onboarding display name as immutable identity metadata.
 
 #### Scenario: New player starts a board
 - **GIVEN** a player with a new email starts a board
@@ -16,8 +16,8 @@ The system SHALL expose `POST /api/sessions` to create a player record and assoc
 
 #### Scenario: Existing player starts another board
 - **GIVEN** a player whose email already exists in the players table
-- **WHEN** the frontend sends `POST /api/sessions` with the same email but a new packId
-- **THEN** the system MUST reuse the existing player record, create a new game session, and return the new gameSessionId
+- **WHEN** the frontend sends `POST /api/sessions` with the same email and packId
+- **THEN** the system MUST reuse the existing player record and MUST preserve the original onboarding playerName as the canonical display name
 
 #### Scenario: Missing required fields
 - **GIVEN** a request missing sessionId, playerName, packId, or email
@@ -38,61 +38,33 @@ The system SHALL expose `PATCH /api/sessions/:id` to update game session progres
 - **THEN** the system MUST return HTTP 404 with `{ ok: false, message: "Session not found" }`
 
 ### Requirement: Event recording endpoint
-The system SHALL expose `POST /api/events` to record granular tile events (clears, line wins, keyword earnings) for engagement analytics.
+The system SHALL expose `POST /api/events` to record granular tile events and create score-bearing progression records from verified event types.
 
 #### Scenario: Tile clear event recorded
 - **GIVEN** a valid gameSessionId exists
 - **WHEN** the frontend sends `POST /api/events` with `{ gameSessionId, tileIndex, eventType: "cleared" }`
 - **THEN** the system MUST insert a tile_events record and return `{ ok: true }`
 
-#### Scenario: Line win event with keyword
+#### Scenario: Line win event generates score record
 - **GIVEN** a valid gameSessionId exists
 - **WHEN** the frontend sends `POST /api/events` with `{ gameSessionId, tileIndex, eventType: "line_won", keyword, lineId }`
-- **THEN** the system MUST insert a tile_events record including the keyword and lineId
+- **THEN** the system MUST insert a tile_events record and MUST persist an idempotent progression scoring record linked to the event
 
 #### Scenario: Event with invalid gameSessionId
 - **GIVEN** the gameSessionId does not exist in game_sessions
 - **WHEN** the frontend sends `POST /api/events`
 - **THEN** the system MUST return HTTP 400 with `{ ok: false, message: "Invalid session" }`
 
-### Requirement: Keyword submission endpoint
-The system SHALL expose `POST /api/submissions` to submit a keyword for the shared leaderboard, with server-side validation and deduplication.
-
-#### Scenario: Valid keyword submission
-- **GIVEN** a player provides a valid org, name, email, and keyword matching the accepted format
-- **WHEN** the frontend sends `POST /api/submissions` with `{ org, name, email, keyword }`
-- **THEN** the system MUST resolve the organization from the email domain, upsert the player, insert the submission, and return `{ ok: true, orgDupe: false, message: "Keyword accepted for <org>!" }`
-
-#### Scenario: Duplicate keyword by same player
-- **GIVEN** a submission already exists with the same email and keyword
-- **WHEN** the player submits the same keyword again
-- **THEN** the system MUST return `{ ok: false, message: "You have already submitted this keyword." }` with HTTP 409
-
-#### Scenario: Duplicate keyword within same organization
-- **GIVEN** another player from the same organization has already submitted this keyword
-- **WHEN** a new player from the same org submits the same keyword
-- **THEN** the system MUST accept the submission but return `{ ok: true, orgDupe: true, message: "Submitted! Note: this keyword was already counted for <org>, so org score won't increase." }`
-
-#### Scenario: Invalid keyword format
-- **GIVEN** the keyword does not match the expected pattern
-- **WHEN** the player submits it
-- **THEN** the system MUST return HTTP 400 with `{ ok: false, message: "Invalid keyword format." }`
-
-#### Scenario: Email domain not in org mapping
-- **GIVEN** the player's email domain is not in the org_domains table
-- **WHEN** the player submits with a manually entered org name
-- **THEN** the system MUST upsert the organization by name (without a domain mapping) and proceed with the submission
-
 ### Requirement: Leaderboard retrieval endpoint
-The system SHALL expose `GET /api/leaderboard` to return aggregated organization rankings from all submissions.
+The system SHALL expose `GET /api/leaderboard` to return aggregated organization rankings from progression scoring records derived from verified gameplay.
 
-#### Scenario: Leaderboard with submissions
-- **GIVEN** one or more submissions exist for the current campaign
+#### Scenario: Leaderboard with progression scoring records
+- **GIVEN** one or more progression scoring records exist for the current campaign
 - **WHEN** the frontend sends `GET /api/leaderboard?campaign=APR26`
-- **THEN** the system MUST return `{ leaderboard: [{ rank, org, score, contributors, lastSubmission }] }` sorted by score descending, where score is `COUNT(DISTINCT keyword)` per org and contributors is `COUNT(DISTINCT email)` per org
+- **THEN** the system MUST return `{ leaderboard: [{ rank, org, score, contributors, lastSubmission }] }` sorted by score descending, where score and contributor metrics are computed from progression-derived scoring records
 
-#### Scenario: Leaderboard with no submissions
-- **GIVEN** no submissions exist for the requested campaign
+#### Scenario: Leaderboard with no progression scoring records
+- **GIVEN** no progression scoring records exist for the requested campaign
 - **WHEN** the frontend sends `GET /api/leaderboard?campaign=APR26`
 - **THEN** the system MUST return `{ leaderboard: [] }`
 
@@ -116,19 +88,6 @@ The system SHALL use parameterized queries for all database operations to preven
 - **GIVEN** any endpoint receives user-provided data (email, keyword, org name)
 - **WHEN** the data is used in a SQL query
 - **THEN** the system MUST use parameterized inputs and MUST NOT interpolate user data into SQL strings
-
-### Requirement: Rate limiting on submission endpoints
-The system SHALL enforce rate limiting on the `POST /api/submissions` endpoint to prevent abuse.
-
-#### Scenario: Normal submission rate
-- **GIVEN** a client submits keywords at a reasonable pace
-- **WHEN** submissions are within the rate limit
-- **THEN** the system MUST process them normally
-
-#### Scenario: Excessive submission rate
-- **GIVEN** a client sends submissions faster than the configured limit
-- **WHEN** the rate limit is exceeded
-- **THEN** the system MUST return HTTP 429 with a retry-after indication
 
 ### Requirement: Player state retrieval endpoint
 The system SHALL expose `GET /api/player/state` to retrieve a player's game state by email for cross-device progress sync, without authentication.

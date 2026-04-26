@@ -13,12 +13,13 @@ import { COPILOT_URL } from '../data/constants.js';
       <ol
         class="list-decimal pl-[18px] text-body-md leading-loose text-on-surface-variant"
       >
-        <li>Pick a pack (1–999) and enter your name → Launch your board.</li>
+        <li>Complete onboarding with your email and display name.</li>
+        <li>Pick a pack (1–999) → Launch your board.</li>
         <li>Click any tile to open the task panel.</li>
         <li>Copy the prompt → Open Copilot Chat → Paste and run it.</li>
         <li>Paste your proof into the text box → Verify &amp; Claim.</li>
         <li>Complete a row, column, or diagonal → earn a keyword!</li>
-        <li>Submit keywords on the Submit tab to score for your org.</li>
+        <li>View score updates and timeline in the My Activity tab.</li>
       </ol>
       <div class="mt-4">
         <a

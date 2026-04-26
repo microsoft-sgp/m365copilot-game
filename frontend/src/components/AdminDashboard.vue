@@ -19,7 +19,7 @@ async function exportCsv() {
     const url = URL.createObjectURL(res.blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'submissions.csv';
+    a.download = 'progression-scores.csv';
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -42,7 +42,7 @@ async function exportCsv() {
         </div>
         <div class="glass rounded-xl p-4 text-center">
           <div class="text-2xl font-black text-tertiary">{{ dashboard.summary.totalSubmissions }}</div>
-          <div class="text-label-sm text-on-surface-variant">Submissions</div>
+          <div class="text-label-sm text-on-surface-variant">Score Events</div>
         </div>
         <div class="glass rounded-xl p-4 text-center">
           <div class="text-2xl font-black text-tertiary">{{ dashboard.summary.avgTilesCleared }}</div>
@@ -83,10 +83,10 @@ async function exportCsv() {
         </div>
       </div>
 
-      <!-- Submissions Table -->
+      <!-- Score Events Table -->
       <div class="glass mb-5 rounded-[14px] p-5">
         <div class="mb-3 flex items-center justify-between">
-          <h3 class="text-base font-extrabold text-primary">📬 Recent Submissions</h3>
+          <h3 class="text-base font-extrabold text-primary">🧾 Recent Score Events</h3>
           <button class="btn btn-ghost btn-xs" @click="exportCsv">↓ Export CSV</button>
         </div>
         <div class="overflow-x-auto">
@@ -95,14 +95,16 @@ async function exportCsv() {
               <tr>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Player</th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Org</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Event</th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Keyword</th>
-                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Submitted</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Awarded</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="s in dashboard.submissions" :key="s.id" class="hover:bg-primary/8">
                 <td class="border-b border-outline-variant px-2 py-1.5">{{ s.player_name }}</td>
                 <td class="border-b border-outline-variant px-2 py-1.5">{{ s.org }}</td>
+                <td class="border-b border-outline-variant px-2 py-1.5">{{ s.event_type || 'legacy_submission' }}</td>
                 <td class="border-b border-outline-variant px-2 py-1.5 font-mono text-label-sm">{{ s.keyword }}</td>
                 <td class="border-b border-outline-variant px-2 py-1.5">{{ new Date(s.created_at).toLocaleString() }}</td>
               </tr>

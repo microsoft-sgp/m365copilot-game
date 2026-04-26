@@ -90,7 +90,10 @@ export function useBingoGame() {
   );
 
   function startBoard({ name, packId, email }) {
-    state.playerName = name;
+    const canonicalName = state.playerName || (name || '').trim() || 'Player';
+    if (!state.playerName && canonicalName) {
+      state.playerName = canonicalName;
+    }
     state.packId = packId;
     if (email) state.email = email;
     state.tiles = getPack(packId);
@@ -108,11 +111,11 @@ export function useBingoGame() {
       };
     }
 
-    saveString(STORAGE_KEYS.playerName, name);
+    saveString(STORAGE_KEYS.playerName, canonicalName);
     saveString(STORAGE_KEYS.lastPack, String(packId));
 
     // Fire-and-forget: register session server-side
-    apiCreateSession(state.sessionId, name, packId, state.email)
+    apiCreateSession(state.sessionId, canonicalName, packId, state.email)
       .then((res) => {
         if (res.ok && res.data && res.data.gameSessionId) {
           state.gameSessionId = res.data.gameSessionId;
@@ -173,7 +176,17 @@ export function useBingoGame() {
           }).catch(() => {});
         }
 
-        weeklyKw = tryWeeklyClear() || weeklyKw;
+        const weeklyAward = tryWeeklyClear();
+        weeklyKw = weeklyAward?.keyword || weeklyKw;
+        if (weeklyAward && state.gameSessionId) {
+          apiRecordEvent({
+            gameSessionId: state.gameSessionId,
+            tileIndex,
+            eventType: 'weekly_won',
+            keyword: weeklyAward.keyword,
+            lineId: `W${weeklyAward.week}`,
+          }).catch(() => {});
+        }
         newLinesWon.push({ line, kw });
       }
     }
@@ -207,6 +220,7 @@ export function useBingoGame() {
     const cp = state.challengeProfile;
     if (!cp) return null;
     if ((cp.weeklySubmissions || []).includes(cp.currentWeek)) return null;
+    const awardedWeek = cp.currentWeek;
     const wkw = mintWeeklyKeyword(cp.currentWeek, state.packId, state.sessionId);
     if (state.keywords.find((k) => k.code === wkw)) return null;
     state.keywords.push({
@@ -224,7 +238,7 @@ export function useBingoGame() {
       TOTAL_WEEKS,
     );
     cp.currentWeek = Math.min(cp.currentWeek + 1, maxWeek, TOTAL_WEEKS);
-    return wkw;
+    return { keyword: wkw, week: awardedWeek };
   }
 
   function hydrateFromServer(serverState) {
@@ -247,6 +261,16 @@ export function useBingoGame() {
     }
   }
 
+  function setIdentity({ email, name }) {
+    state.email = email;
+    if (!state.playerName && name) {
+      state.playerName = name;
+    }
+    if (name) {
+      saveString(STORAGE_KEYS.playerName, state.playerName || name);
+    }
+  }
+
   function setEmail(email) {
     state.email = email;
   }
@@ -261,6 +285,7 @@ export function useBingoGame() {
     resetBoard,
     verifyTile,
     hydrateFromServer,
+    setIdentity,
     setEmail,
     campaignId: CAMPAIGN_ID,
   };

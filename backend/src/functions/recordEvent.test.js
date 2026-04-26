@@ -6,6 +6,12 @@ vi.mock('../lib/db.js', () => ({ getPool: vi.fn() }));
 import { getPool } from '../lib/db.js';
 import { handler } from './recordEvent.js';
 
+function sqlError(number, message = 'unique constraint violation') {
+  const err = new Error(message);
+  err.number = number;
+  return err;
+}
+
 describe('POST /events (recordEvent)', () => {
   beforeEach(() => {
     vi.mocked(getPool).mockReset();
@@ -60,6 +66,7 @@ describe('POST /events (recordEvent)', () => {
     const { pool, calls } = createMockPool([
       { recordset: [{ id: 1 }] },
       { recordset: [], rowsAffected: [1] },
+      { recordset: [], rowsAffected: [1] },
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
@@ -68,7 +75,7 @@ describe('POST /events (recordEvent)', () => {
         body: {
           gameSessionId: 1,
           tileIndex: 4,
-          eventType: 'line',
+          eventType: 'line_won',
           keyword: 'CO-APR26-001-R1-ABCD1234',
           lineId: 'R1',
         },
@@ -77,10 +84,11 @@ describe('POST /events (recordEvent)', () => {
     expect(calls[1].inputs).toEqual({
       gameSessionId: 1,
       tileIndex: 4,
-      eventType: 'line',
+      eventType: 'line_won',
       keyword: 'CO-APR26-001-R1-ABCD1234',
       lineId: 'R1',
     });
+    expect(calls[2].inputs.eventKey).toBe('R1');
   });
 
   it('coerces missing optional fields to null', async () => {
@@ -95,5 +103,54 @@ describe('POST /events (recordEvent)', () => {
     );
     expect(calls[1].inputs.keyword).toBeNull();
     expect(calls[1].inputs.lineId).toBeNull();
+  });
+
+  it('creates progression score records for line wins', async () => {
+    const { pool, calls } = createMockPool([
+      { recordset: [{ id: 1 }] },
+      { recordset: [], rowsAffected: [1] },
+      { recordset: [], rowsAffected: [1] },
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      fakeRequest({
+        body: {
+          gameSessionId: 1,
+          tileIndex: 6,
+          eventType: 'line_won',
+          keyword: 'CO-APR26-001-R2-ZZZZ1111',
+          lineId: 'R2',
+        },
+      }),
+    );
+
+    expect(res.jsonBody).toEqual({ ok: true });
+    expect(calls).toHaveLength(3);
+    expect(calls[2].query).toMatch(/INSERT INTO progression_scores/);
+    expect(calls[2].inputs.eventKey).toBe('R2');
+  });
+
+  it('ignores duplicate progression score inserts', async () => {
+    const { pool } = createMockPool([
+      { recordset: [{ id: 1 }] },
+      { recordset: [], rowsAffected: [1] },
+      sqlError(2627),
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      fakeRequest({
+        body: {
+          gameSessionId: 1,
+          tileIndex: 6,
+          eventType: 'line_won',
+          keyword: 'CO-APR26-001-R2-ZZZZ1111',
+          lineId: 'R2',
+        },
+      }),
+    );
+
+    expect(res.jsonBody).toEqual({ ok: true });
   });
 });

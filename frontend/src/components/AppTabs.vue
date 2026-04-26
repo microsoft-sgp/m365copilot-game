@@ -5,7 +5,7 @@ const emit = defineEmits(['update:modelValue']);
 const tabs = [
   { id: 'game', icon: '🎮', label: 'Game' },
   { id: 'keywords', icon: '🔑', label: 'Keys' },
-  { id: 'submit', icon: '📬', label: 'Submit' },
+  { id: 'activity', icon: '🧾', label: 'Activity' },
   { id: 'help', icon: '❓', label: 'Help' },
 ];
 </script>

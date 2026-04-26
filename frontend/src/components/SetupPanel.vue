@@ -6,7 +6,6 @@ import { useBingoGame } from '../composables/useBingoGame.js';
 
 const { startBoard } = useBingoGame();
 
-const playerName = ref('');
 const luckyNum = ref('');
 const search = ref('');
 const error = ref('');
@@ -15,7 +14,6 @@ const packs = Array.from({ length: TOTAL_PACKS }, (_, i) => i + 1);
 const gridRef = ref(null);
 
 onMounted(() => {
-  playerName.value = loadString(STORAGE_KEYS.playerName);
   const lp = loadString(STORAGE_KEYS.lastPack);
   if (lp) {
     luckyNum.value = lp;
@@ -50,14 +48,14 @@ function scrollToSelected() {
 
 function launch() {
   error.value = '';
-  const name = playerName.value.trim();
+  const name = loadString(STORAGE_KEYS.playerName);
   const num = parseInt(luckyNum.value, 10);
-  if (!name) {
-    error.value = 'Please enter your name.';
-    return;
-  }
   if (!num || num < 1 || num > TOTAL_PACKS) {
     error.value = `Please choose a pack between 1 and ${TOTAL_PACKS}.`;
+    return;
+  }
+  if (!name) {
+    error.value = 'Please restart and complete onboarding identity.';
     return;
   }
   startBoard({ name, packId: num });
@@ -68,32 +66,20 @@ function launch() {
   <div class="glass mx-auto max-w-[560px] rounded-[14px] p-6">
     <h2 class="text-gradient mb-1 text-title-lg font-black">Start Your Board</h2>
     <p class="mb-[18px] text-label-lg text-on-surface-variant">
-      Choose a pack (001–{{ TOTAL_PACKS }}) or enter a Lucky Number to generate
-      your personalised Bingo board.
+      Choose a pack (001–{{ TOTAL_PACKS }}) or use Quick Pick to generate your
+      personalised Bingo board.
     </p>
 
-    <div class="mb-3.5 grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-      <div>
-        <label class="field-label">Your Name</label>
-        <input
-          v-model="playerName"
-          class="field-input"
-          type="text"
-          placeholder="e.g. Alex"
-          maxlength="40"
-        />
-      </div>
-      <div>
-        <label class="field-label">Lucky Number (Pack)</label>
-        <input
-          v-model="luckyNum"
-          class="field-input"
-          type="number"
-          :min="1"
-          :max="TOTAL_PACKS"
-          placeholder="1–999"
-        />
-      </div>
+    <div class="mb-3.5">
+      <label class="field-label">Lucky Number (Pack)</label>
+      <input
+        v-model="luckyNum"
+        class="field-input"
+        type="number"
+        :min="1"
+        :max="TOTAL_PACKS"
+        placeholder="1–999"
+      />
     </div>
 
     <label class="field-label">Browse Packs</label>

@@ -17,7 +17,7 @@ describe('AppTabs', () => {
     expect(labels).toEqual([
       '🎮 Game',
       '🔑 Keys',
-      '📬 Submit',
+      '🧾 Activity',
       '❓ Help',
     ]);
   });
@@ -32,9 +32,9 @@ describe('AppTabs', () => {
 
   it('emits update:modelValue with the tab id on click', async () => {
     const w = mount(AppTabs, { props: { modelValue: 'game' } });
-    // Click the 3rd desktop button (Submit)
+    // Click the 3rd desktop button (Activity)
     const desktopNav = w.findAll('nav')[0];
     await desktopNav.findAll('button')[2].trigger('click');
-    expect(w.emitted('update:modelValue')).toEqual([['submit']]);
+    expect(w.emitted('update:modelValue')).toEqual([['activity']]);
   });
 });

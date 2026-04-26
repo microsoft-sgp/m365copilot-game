@@ -60,6 +60,26 @@ describe('POST /sessions (createSession)', () => {
     expect(calls[1].inputs).toEqual({ playerId: 11, packId: 42 });
   });
 
+  it('uses email identity while preserving canonical onboarding name', async () => {
+    const { pool, calls } = createMockPool([
+      { recordset: [{ id: 11 }] },
+      { recordset: [{ id: 99 }] },
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      fakeRequest({ body: { sessionId: 'sess-abc', playerName: 'New Alias', packId: 42, email: 'ada@smu.edu.sg' } }),
+    );
+
+    expect(res.jsonBody).toEqual({ ok: true, gameSessionId: 99 });
+    expect(calls[0].inputs).toEqual({
+      sessionId: 'sess-abc',
+      playerName: 'New Alias',
+      email: 'ada@smu.edu.sg',
+    });
+    expect(calls[0].query).toMatch(/UPDATE SET session_id = @sessionId/);
+  });
+
   it('returns the existing session id on duplicate-key error (2627)', async () => {
     const { pool } = createMockPool([
       { recordset: [{ id: 11 }] }, // player upsert

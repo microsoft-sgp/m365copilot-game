@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockPool, fakeRequest } from '../test-helpers/mockPool.js';
 
 vi.mock('../lib/db.js', () => ({ getPool: vi.fn() }));
@@ -7,8 +7,17 @@ import { getPool } from '../lib/db.js';
 import { handler } from './getLeaderboard.js';
 
 describe('GET /leaderboard', () => {
+  let prevSource;
+
   beforeEach(() => {
     vi.mocked(getPool).mockReset();
+    prevSource = process.env.LEADERBOARD_SOURCE;
+    delete process.env.LEADERBOARD_SOURCE;
+  });
+
+  afterEach(() => {
+    if (prevSource === undefined) delete process.env.LEADERBOARD_SOURCE;
+    else process.env.LEADERBOARD_SOURCE = prevSource;
   });
 
   it('defaults to the APR26 campaign when none is supplied', async () => {
@@ -28,7 +37,7 @@ describe('GET /leaderboard', () => {
     expect(calls[0].inputs.campaign).toBe('SEP27');
   });
 
-  it('ranks rows by their order from the query (already ORDER BY score DESC)', async () => {
+  it('ranks rows by progression score query order', async () => {
     const { pool } = createMockPool([
       [
         { org: 'Contoso', score: 9, contributors: 3, lastSubmission: 't3' },
@@ -52,5 +61,14 @@ describe('GET /leaderboard', () => {
 
     const res = await handler(fakeRequest({}));
     expect(res.jsonBody.leaderboard).toEqual([]);
+  });
+
+  it('supports rollback to legacy submissions source via env flag', async () => {
+    process.env.LEADERBOARD_SOURCE = 'submissions';
+    const { pool, calls } = createMockPool([[]]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    await handler(fakeRequest({}));
+    expect(calls[0].query).toMatch(/FROM submissions s/);
   });
 });

@@ -12,13 +12,13 @@ The system SHALL provide the Bingo game through a dedicated frontend application
 #### Scenario: Frontend application loads the game shell
 - **GIVEN** a user opens the migrated frontend entry point
 - **WHEN** the application initializes successfully
-- **THEN** the user MUST see the game shell with the Game Board, My Keywords, Submit and Leaderboard, and Help sections available from the interface
+- **THEN** the user MUST see the game shell with Game, Keys, My Activity, and Help sections available from the interface
 
 ### Requirement: Deterministic board setup and generation
-The system SHALL allow a player to start a board by entering a name and choosing a pack number from 1 through 999 or by using a quick-pick action, and the same pack number MUST generate the same task set and order as the current implementation.
+The system SHALL allow a player to start a board by choosing a pack number from 1 through 999 or by using a quick-pick action, and the same pack number MUST generate the same task set and order as the current implementation. Player display name SHALL be collected during onboarding identity and MUST NOT be re-requested in board setup.
 
 #### Scenario: Player starts a board with a valid pack number
-- **GIVEN** the player has entered a non-empty name and selected a valid pack number
+- **GIVEN** the player has completed onboarding identity and selected a valid pack number
 - **WHEN** the player starts the board
 - **THEN** the system MUST create a 3x3 board with nine tasks derived deterministically from that pack number
 
@@ -44,7 +44,7 @@ The system SHALL preserve the current board progression rules, including task pr
 The system SHALL persist game state in browser storage for offline resilience, additionally report game session starts and tile events to the server, and sync full board state to the server for cross-device recovery.
 
 #### Scenario: Player starts a board and session is reported
-- **GIVEN** a player enters a name and selects a pack to start a board
+- **GIVEN** a player has completed onboarding identity and selects a pack to start a board
 - **WHEN** the board is created
 - **THEN** the system MUST persist state to localStorage AND send `POST /api/sessions` with sessionId, playerName, packId, and email to register the session server-side
 
@@ -80,19 +80,6 @@ The system SHALL style the migrated frontend through Tailwind CSS, with `tailwin
 - **GIVEN** the game renders on any viewport size
 - **WHEN** table body cells, tile descriptions, form labels, or leaderboard entries are displayed
 - **THEN** body text MUST be at least 14px, table header letter-spacing MUST NOT exceed 0.5px, and all text MUST meet WCAG AA contrast ratio (4.5:1 for normal text, 3:1 for large text)
-
-### Requirement: Submission and leaderboard behavior is preserved
-The system SHALL persist keyword submissions to the server via `POST /api/submissions` and retrieve the shared leaderboard from `GET /api/leaderboard`, while retaining localStorage as an offline fallback cache. The admin clear-data section SHALL be removed from the submission panel.
-
-#### Scenario: Submission with a valid keyword is accepted
-- **GIVEN** the player provides organization, name, email, and a keyword that matches the accepted format
-- **WHEN** the player submits the keyword
-- **THEN** the system MUST send the submission to `POST /api/submissions`, store it locally in localStorage as a cache, and update the leaderboard from the server response
-
-#### Scenario: Admin clear data section removed from SubmitPanel
-- **GIVEN** the submission and leaderboard view renders
-- **WHEN** a non-admin player views the page
-- **THEN** the "Admin — Clear Local Data" section MUST NOT be displayed; this functionality is moved to the admin portal
 
 ### Requirement: Leaderboard polls server at regular intervals
 The system SHALL poll `GET /api/leaderboard` every 30 seconds to display a shared, up-to-date leaderboard reflecting all participants' submissions.
@@ -132,19 +119,6 @@ The system SHALL render the game title "⚡ COPILOT BINGO" as the primary visual
 - **GIVEN** a player has entered their email and the game shell is active
 - **WHEN** the TopBar renders
 - **THEN** the TopBar MUST show the game title prominently, display scores as emoji+number pairs, and MUST NOT contain "Powered by" or brand attribution text
-
-### Requirement: Leaderboard renders above submission form on Submit tab
-The system SHALL display the Organization Leaderboard card above the keyword submission form in the SubmitPanel, reversing the current order.
-
-#### Scenario: Leaderboard appears first on Submit tab
-- **GIVEN** a player navigates to the Submit & Leaderboard tab
-- **WHEN** the SubmitPanel renders
-- **THEN** the Organization Leaderboard card MUST appear above the keyword submission form card
-
-#### Scenario: Player's organization is visually highlighted
-- **GIVEN** the leaderboard contains multiple organizations and the player's email matches a detected organization
-- **WHEN** the leaderboard renders
-- **THEN** the player's organization row MUST be visually distinguished from other rows (e.g., highlighted border or background)
 
 ### Requirement: Tiles have enhanced game-like visual styling
 The system SHALL render bingo tiles with enhanced visual feedback: a scale+glow hover effect on unclaimed tiles and a subtle CSS shimmer animation on unclaimed tiles to draw attention.
