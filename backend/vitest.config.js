@@ -1,0 +1,20 @@
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', 'text', 'html'],
+      include: ['src/**/*.js'],
+      exclude: ['src/index.js', 'src/test-helpers/**', '**/*.test.js'],
+      // Floors enforced when running `npm run test:coverage`.
+      // Raise these as gaps are closed.
+      thresholds: {
+        statements: 80,
+        branches: 75,
+        functions: 85,
+        lines: 80,
+      },
+    },
+  },
+});

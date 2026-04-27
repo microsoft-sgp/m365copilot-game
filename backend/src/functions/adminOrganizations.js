@@ -160,3 +160,12 @@ app.http('adminUpdateOrganization', { methods: ['PUT'], authLevel: 'anonymous', 
 app.http('adminDeleteOrganization', { methods: ['DELETE'], authLevel: 'anonymous', route: 'portal-api/organizations/{id}', handler: deleteOrganization });
 app.http('adminAddDomain', { methods: ['POST'], authLevel: 'anonymous', route: 'portal-api/organizations/{id}/domains', handler: addDomain });
 app.http('adminRemoveDomain', { methods: ['DELETE'], authLevel: 'anonymous', route: 'portal-api/organizations/{id}/domains/{domainId}', handler: removeDomain });
+
+export {
+  listOrganizations,
+  createOrganization,
+  updateOrganization,
+  deleteOrganization,
+  addDomain,
+  removeDomain,
+};

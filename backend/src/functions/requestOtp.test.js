@@ -104,4 +104,23 @@ describe('POST /api/portal-api/request-otp', () => {
     expect(res.status).toBe(503);
     expect(mockPool.calls[3].query).toContain('UPDATE admin_otps SET used = 1');
   });
+
+  it('returns 400 when email lacks an @ sign', async () => {
+    mockPool = createMockPool([[]]);
+    const req = fakeRequest({ body: { email: 'not-an-email' } });
+    const res = await handler(req, { log: vi.fn() });
+    expect(res.status).toBe(400);
+  });
+
+  it('allows a second OTP after the rate-limit window passes', async () => {
+    const longAgo = new Date(Date.now() - 120_000).toISOString();
+    mockPool = createMockPool([
+      [],
+      [{ created_at: longAgo }],
+      { recordset: [{ id: 99 }], rowsAffected: [1] },
+    ]);
+    const req = fakeRequest({ body: { email: 'admin@test.com' } });
+    const res = await handler(req, { log: vi.fn() });
+    expect(res.jsonBody.ok).toBe(true);
+  });
 });

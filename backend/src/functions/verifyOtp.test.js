@@ -103,4 +103,44 @@ describe('POST /api/portal-api/verify-otp', () => {
     expect(res.jsonBody.stepUpToken).toBeDefined();
     expect(res.jsonBody.token).toBeUndefined();
   });
+
+  it('returns 500 when ADMIN_EMAILS is not configured', async () => {
+    delete process.env.ADMIN_EMAILS;
+    mockPool = createMockPool([[]]);
+    const req = fakeRequest({ body: { email: 'admin@test.com', code: '123456' } });
+    const res = await handler(req, { log: vi.fn() });
+    expect(res.status).toBe(500);
+  });
+
+  it('returns 400 when admin-management purpose is missing action', async () => {
+    mockPool = createMockPool([
+      [],
+      [{ id: 1, expires_at: new Date(Date.now() + 300000).toISOString(), used: false }],
+      { recordset: [], rowsAffected: [1] },
+    ]);
+    const req = fakeRequest({
+      body: { email: 'admin@test.com', code: '123456', purpose: 'admin-management' },
+    });
+    const res = await handler(req, { log: vi.fn() });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when admin-management has unknown action', async () => {
+    mockPool = createMockPool([
+      [],
+      [{ id: 1, expires_at: new Date(Date.now() + 300000).toISOString(), used: false }],
+      { recordset: [], rowsAffected: [1] },
+    ]);
+    const req = fakeRequest({
+      body: {
+        email: 'admin@test.com',
+        code: '123456',
+        purpose: 'admin-management',
+        action: 'delete-everything',
+        targetEmail: 'x@y.com',
+      },
+    });
+    const res = await handler(req, { log: vi.fn() });
+    expect(res.status).toBe(400);
+  });
 });

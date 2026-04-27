@@ -373,3 +373,62 @@ describe('useBingoGame exposed metadata', () => {
     LINES.forEach((l) => expect(l.cells).toHaveLength(3));
   });
 });
+
+describe('useBingoGame.hydrateFromServer session restoration', () => {
+  it('is a no-op for null/undefined server state', () => {
+    const { hydrateFromServer, state } = useBingoGame();
+    state.playerName = 'KeepMe';
+    hydrateFromServer(null);
+    hydrateFromServer(undefined);
+    expect(state.playerName).toBe('KeepMe');
+    expect(state.boardActive).toBe(false);
+  });
+
+  it('restores cleared/wonLines/keywords/challengeProfile from board state', () => {
+    const { hydrateFromServer, state } = useBingoGame();
+    hydrateFromServer({
+      playerName: 'Ada',
+      activeAssignment: { assignmentId: 1, packId: 7, cycleNumber: 1 },
+      activeSession: {
+        gameSessionId: 555,
+        packId: 7,
+        boardState: {
+          cleared: [true, false, true, false, false, false, false, false, false],
+          wonLines: ['R1'],
+          keywords: [{ code: 'WK1', packId: 7, lineId: 'W1', ts: 1 }],
+          challengeProfile: { currentWeek: 2, weeksCompleted: 1, weeklySubmissions: [1], challengeStartAt: 0 },
+        },
+      },
+    });
+    expect(state.gameSessionId).toBe(555);
+    expect(state.packId).toBe(7);
+    expect(state.cleared.filter(Boolean)).toHaveLength(2);
+    expect(state.wonLines).toEqual(['R1']);
+    expect(state.keywords).toHaveLength(1);
+    expect(state.challengeProfile.currentWeek).toBe(2);
+    expect(state.boardActive).toBe(true);
+    expect(state.tiles).toHaveLength(9);
+  });
+
+  it('does not activate board when packId is missing on session', () => {
+    const { hydrateFromServer, state } = useBingoGame();
+    hydrateFromServer({
+      playerName: 'Ada',
+      activeSession: { gameSessionId: 1, packId: 0 },
+    });
+    expect(state.boardActive).toBe(false);
+  });
+
+  it('falls back to empty arrays when boardState fields are missing', () => {
+    const { hydrateFromServer, state } = useBingoGame();
+    hydrateFromServer({
+      playerName: 'Ada',
+      activeAssignment: { assignmentId: 1, packId: 3, cycleNumber: 1 },
+      activeSession: { gameSessionId: 9, packId: 3, boardState: {} },
+    });
+    expect(state.cleared).toEqual([]);
+    expect(state.wonLines).toEqual([]);
+    expect(state.keywords).toEqual([]);
+    expect(state.boardActive).toBe(true);
+  });
+});

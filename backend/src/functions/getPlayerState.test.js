@@ -93,4 +93,48 @@ describe('GET /api/player/state', () => {
     expect(res.jsonBody.player.activeAssignment.rotated).toBe(true);
     expect(res.jsonBody.player.activeSession.packId).toBe(77);
   });
+
+  it('returns null boardState when DB column is null', async () => {
+    mockPool = createMockPool([
+      [{ id: 1, player_name: 'Alice', session_id: 'abc' }],
+      [{ id: 10, pack_id: 1, campaign_id: 'APR26', tiles_cleared: 0, lines_won: 0, keywords_earned: 0, board_state: null, started_at: 'x', last_active_at: 'y' }],
+    ]);
+    const res = await handler(fakeRequest({ query: { email: 'alice@test.com' } }), {});
+    expect(res.jsonBody.player.activeSession.boardState).toBeNull();
+  });
+
+  it('exposes organization details when player has org_id', async () => {
+    mockPool = createMockPool([
+      [{ id: 1, player_name: 'Alice', session_id: 'abc', org_id: 5, org_name: 'NUS' }],
+      [],
+    ]);
+    const res = await handler(fakeRequest({ query: { email: 'alice@test.com' } }), {});
+    expect(res.jsonBody.player.organization).toEqual({ id: 5, name: 'NUS' });
+  });
+
+  it('returns null organization when player has no org_id', async () => {
+    mockPool = createMockPool([
+      [{ id: 1, player_name: 'Alice', session_id: 'abc', org_id: null }],
+      [],
+    ]);
+    const res = await handler(fakeRequest({ query: { email: 'alice@test.com' } }), {});
+    expect(res.jsonBody.player.organization).toBeNull();
+  });
+
+  it('returns null activeSession when no session exists in lifecycle mode', async () => {
+    vi.mocked(isPackAssignmentLifecycleEnabled).mockReturnValue(true);
+    vi.mocked(resolvePackAssignment).mockResolvedValue({
+      campaign: { id: 'APR26', totalPacks: 999, totalWeeks: 7 },
+      assignment: { assignmentId: 1, packId: 1, cycleNumber: 1, status: 'active', campaignId: 'APR26' },
+      rotated: false,
+      completedPackId: null,
+    });
+    mockPool = createMockPool([
+      [{ id: 1, player_name: 'Alice', session_id: 'abc' }],
+      [],
+    ]);
+    const res = await handler(fakeRequest({ query: { email: 'alice@test.com' } }), {});
+    expect(res.jsonBody.player.activeSession).toBeNull();
+    expect(res.jsonBody.player.activeAssignment.packId).toBe(1);
+  });
 });

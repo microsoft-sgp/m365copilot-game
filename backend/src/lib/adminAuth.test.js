@@ -281,4 +281,84 @@ describe('admin step-up token', () => {
     const token = signAdminStepUpToken('admin@test.com');
     expect(verifyAdminStepUpToken(token, 'other@test.com').ok).toBe(false);
   });
+
+  it('rejects when token is missing', () => {
+    expect(verifyAdminStepUpToken(undefined, 'admin@test.com').ok).toBe(false);
+    expect(verifyAdminStepUpToken('', 'admin@test.com').ok).toBe(false);
+  });
+
+  it('rejects when JWT_SECRET is not configured', () => {
+    const token = signAdminStepUpToken('admin@test.com');
+    delete process.env.JWT_SECRET;
+    const result = verifyAdminStepUpToken(token, 'admin@test.com');
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects scope mismatch on action', () => {
+    const token = signAdminStepUpToken('admin@test.com', { action: 'add-admin', targetEmail: 'x@y.com' });
+    const result = verifyAdminStepUpToken(token, 'admin@test.com', { action: 'remove-admin', targetEmail: 'x@y.com' });
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects scope mismatch on target email', () => {
+    const token = signAdminStepUpToken('admin@test.com', { action: 'add-admin', targetEmail: 'x@y.com' });
+    const result = verifyAdminStepUpToken(token, 'admin@test.com', { action: 'add-admin', targetEmail: 'z@y.com' });
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects expired step-up token with friendly message', async () => {
+    const jwt = await import('jsonwebtoken');
+    const expired = jwt.default.sign(
+      { email: 'admin@test.com', role: 'admin-step-up', purpose: 'admin-management' },
+      process.env.JWT_SECRET,
+      { expiresIn: '-1s' },
+    );
+    const result = verifyAdminStepUpToken(expired, 'admin@test.com');
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/expired/i);
+  });
+
+  it('rejects malformed step-up token', () => {
+    const result = verifyAdminStepUpToken('not.a.real.jwt', 'admin@test.com');
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe('database-backed admin emails', () => {
+  it('returns empty array when admin_users table is missing (err 208)', async () => {
+    const err = new Error('Invalid object name admin_users');
+    err.number = 208;
+    const pool = { request: () => ({ query: async () => { throw err; } }) };
+    const { getDatabaseAdminEmails } = await import('./adminAuth.js');
+    await expect(getDatabaseAdminEmails(pool)).resolves.toEqual([]);
+  });
+
+  it('rethrows other database errors', async () => {
+    const err = new Error('Network');
+    err.number = 4060;
+    const pool = { request: () => ({ query: async () => { throw err; } }) };
+    const { getDatabaseAdminEmails } = await import('./adminAuth.js');
+    await expect(getDatabaseAdminEmails(pool)).rejects.toThrow('Network');
+  });
+});
+
+describe('isEffectiveAdminEmail', () => {
+  let prev;
+  beforeEach(() => { prev = process.env.ADMIN_EMAILS; process.env.ADMIN_EMAILS = 'admin@test.com'; });
+  afterEach(() => {
+    if (prev === undefined) delete process.env.ADMIN_EMAILS;
+    else process.env.ADMIN_EMAILS = prev;
+  });
+
+  it('matches normalized bootstrap email', async () => {
+    const pool = { request: () => ({ query: async () => ({ recordset: [] }) }) };
+    const { isEffectiveAdminEmail } = await import('./adminAuth.js');
+    await expect(isEffectiveAdminEmail(pool, ' Admin@TEST.com ')).resolves.toBe(true);
+  });
+
+  it('returns false for unknown email', async () => {
+    const pool = { request: () => ({ query: async () => ({ recordset: [] }) }) };
+    const { isEffectiveAdminEmail } = await import('./adminAuth.js');
+    await expect(isEffectiveAdminEmail(pool, 'noone@test.com')).resolves.toBe(false);
+  });
 });

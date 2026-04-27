@@ -232,4 +232,63 @@ describe('POST /sessions (createSession)', () => {
 
     expect(res.jsonBody).toMatchObject({ ok: true, gameSessionId: 909, packId: 44 });
   });
+
+  it('recovers from concurrent INSERT race in lifecycle mode (2627)', async () => {
+    vi.mocked(isPackAssignmentLifecycleEnabled).mockReturnValue(true);
+    vi.mocked(resolvePackAssignment).mockResolvedValue({
+      campaign: { id: 'APR26', totalPacks: 999, totalWeeks: 7 },
+      assignment: {
+        assignmentId: 502,
+        packId: 12,
+        cycleNumber: 1,
+        status: 'active',
+        campaignId: 'APR26',
+      },
+      rotated: false,
+      completedPackId: null,
+    });
+
+    // Order: player upsert, first SELECT (no row), INSERT (conflict), second SELECT (row from racer)
+    const { pool, calls } = createMockPool([
+      { recordset: [{ id: 11 }] },
+      { recordset: [] },
+      sqlError(2627),
+      { recordset: [{ id: 999 }] },
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      fakeRequest({ body: { sessionId: 'sess-abc', playerName: 'Ada', email: 'ada@smu.edu.sg' } }),
+    );
+
+    expect(res.jsonBody).toMatchObject({ ok: true, gameSessionId: 999, packId: 12 });
+    expect(calls).toHaveLength(4);
+  });
+
+  it('rethrows non-uniqueness errors during lifecycle INSERT', async () => {
+    vi.mocked(isPackAssignmentLifecycleEnabled).mockReturnValue(true);
+    vi.mocked(resolvePackAssignment).mockResolvedValue({
+      campaign: { id: 'APR26', totalPacks: 999, totalWeeks: 7 },
+      assignment: {
+        assignmentId: 503,
+        packId: 13,
+        cycleNumber: 1,
+        status: 'active',
+        campaignId: 'APR26',
+      },
+      rotated: false,
+      completedPackId: null,
+    });
+
+    const { pool } = createMockPool([
+      { recordset: [{ id: 11 }] },
+      { recordset: [] },
+      sqlError(50000, 'something else'),
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    await expect(
+      handler(fakeRequest({ body: { sessionId: 's', playerName: 'Ada', email: 'a@smu.edu.sg' } })),
+    ).rejects.toThrow('something else');
+  });
 });

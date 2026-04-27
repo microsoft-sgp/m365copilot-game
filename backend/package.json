@@ -8,7 +8,8 @@
   "scripts": {
     "start": "func start",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@azure/communication-email": "^1.0.0",
@@ -20,6 +21,7 @@
     "node": ">=20.0.0"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.5",
     "vitest": "^4.1.5"
   },
   "overrides": {

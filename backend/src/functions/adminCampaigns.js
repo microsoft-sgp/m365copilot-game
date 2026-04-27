@@ -166,3 +166,11 @@ app.http('adminCreateCampaign', { methods: ['POST'], authLevel: 'anonymous', rou
 app.http('adminUpdateCampaignSettings', { methods: ['PUT'], authLevel: 'anonymous', route: 'portal-api/campaigns/{id}/settings', handler: updateCampaignSettings });
 app.http('adminClearCampaignData', { methods: ['POST'], authLevel: 'anonymous', route: 'portal-api/campaigns/{id}/clear', handler: clearCampaignData });
 app.http('adminResetLeaderboard', { methods: ['POST'], authLevel: 'anonymous', route: 'portal-api/campaigns/{id}/reset-leaderboard', handler: resetLeaderboard });
+
+export {
+  listCampaigns,
+  createCampaign,
+  updateCampaignSettings,
+  clearCampaignData,
+  resetLeaderboard,
+};
