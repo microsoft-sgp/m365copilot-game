@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockPool, fakeRequest, sqlError } from '../test-helpers/mockPool.js';
 
 vi.mock('../lib/db.js', () => ({ getPool: vi.fn() }));
+vi.mock('../lib/organizations.js', () => ({ resolveOrganizationForEmail: vi.fn() }));
 
 import { getPool } from '../lib/db.js';
+import { resolveOrganizationForEmail } from '../lib/organizations.js';
 import { handler } from './submitKeyword.js';
 
 const VALID_KEYWORD = 'CO-APR26-042-R1-ABCD1234';
@@ -21,6 +23,12 @@ function validBody(overrides = {}) {
 describe('POST /submissions (submitKeyword)', () => {
   beforeEach(() => {
     vi.mocked(getPool).mockReset();
+    vi.mocked(resolveOrganizationForEmail).mockReset();
+    vi.mocked(resolveOrganizationForEmail).mockResolvedValue({
+      orgId: 10,
+      orgName: 'Contoso',
+      requiresOrganization: false,
+    });
   });
 
   describe('input validation', () => {
@@ -55,7 +63,6 @@ describe('POST /submissions (submitKeyword)', () => {
 
     it('normalizes keyword to uppercase and email to lowercase before validation', async () => {
       const { pool, calls } = createMockPool([
-        [{ id: 10 }], // domain lookup
         [{ id: 20 }], // player upsert
         [],           // insert submission (rowsAffected 0, but handler ignores)
         [{ cnt: 0 }], // org dupe check
@@ -73,15 +80,17 @@ describe('POST /submissions (submitKeyword)', () => {
         }),
       );
       expect(res.jsonBody.ok).toBe(true);
-      expect(calls[0].inputs.domain).toBe('contoso.com');
-      expect(calls[2].inputs.keyword).toBe(VALID_KEYWORD);
+      expect(resolveOrganizationForEmail).toHaveBeenCalledWith(pool, {
+        email: 'ada@contoso.com',
+        organizationName: 'Contoso',
+      });
+      expect(calls[1].inputs.keyword).toBe(VALID_KEYWORD);
     });
   });
 
   describe('org resolution', () => {
-    it('resolves org by email domain when a mapping exists', async () => {
+    it('uses the shared resolver org id for submission inserts', async () => {
       const { pool, calls } = createMockPool([
-        [{ id: 10 }],
         [{ id: 20 }],
         [],
         [{ cnt: 0 }],
@@ -89,47 +98,40 @@ describe('POST /submissions (submitKeyword)', () => {
       vi.mocked(getPool).mockResolvedValue(pool);
 
       await handler(fakeRequest({ body: validBody() }));
-      expect(calls[0].inputs.domain).toBe('contoso.com');
-      // orgId from domain lookup must flow into the submission insert.
-      expect(calls[2].inputs.orgId).toBe(10);
+      expect(calls[1].inputs.orgId).toBe(10);
     });
 
-    it('falls back to MERGE on org name when no domain match', async () => {
-      const { pool, calls } = createMockPool([
-        [],            // domain lookup miss
-        [{ id: 30 }],  // MERGE output
-        [{ id: 40 }],  // player upsert
-        [],            // submission insert
+    it('uses the resolved organization name in response messages', async () => {
+      vi.mocked(resolveOrganizationForEmail).mockResolvedValue({
+        orgId: 99,
+        orgName: 'Mapped Contoso',
+      });
+      const { pool } = createMockPool([
+        [{ id: 40 }],
+        [],
         [{ cnt: 0 }],
       ]);
       vi.mocked(getPool).mockResolvedValue(pool);
 
-      await handler(fakeRequest({ body: validBody() }));
-      expect(calls[1].inputs.orgName).toBe('Contoso');
-      expect(calls[3].inputs.orgId).toBe(30);
+      const res = await handler(fakeRequest({ body: validBody({ org: 'Manual Name' }) }));
+      expect(res.jsonBody.ok).toBe(true);
+      expect(res.jsonBody.message).toMatch(/Mapped Contoso/);
     });
 
-    it('performs a follow-up SELECT when MERGE returns no output', async () => {
-      const { pool, calls } = createMockPool([
-        [],            // domain miss
-        [],            // MERGE produced no OUTPUT row
-        [{ id: 31 }],  // SELECT fallback
-        [{ id: 41 }],  // player upsert
-        [],            // insert
-        [{ cnt: 0 }],
-      ]);
+    it('returns 400 when the resolver cannot determine an organization', async () => {
+      vi.mocked(resolveOrganizationForEmail).mockResolvedValue({ orgId: null });
+      const { pool } = createMockPool([]);
       vi.mocked(getPool).mockResolvedValue(pool);
 
       const res = await handler(fakeRequest({ body: validBody() }));
-      expect(res.jsonBody.ok).toBe(true);
-      expect(calls[4].inputs.orgId).toBe(31);
+      expect(res.status).toBe(400);
+      expect(res.jsonBody.message).toMatch(/resolve organization/i);
     });
   });
 
   describe('duplicate detection', () => {
     it('returns 409 when the same player submits the same keyword (2627)', async () => {
       const { pool } = createMockPool([
-        [{ id: 10 }],      // domain lookup
         [{ id: 20 }],      // player upsert
         sqlError(2627),    // submission insert dupe
       ]);
@@ -142,7 +144,6 @@ describe('POST /submissions (submitKeyword)', () => {
 
     it('also handles the alternate duplicate-key code 2601', async () => {
       const { pool } = createMockPool([
-        [{ id: 10 }],
         [{ id: 20 }],
         sqlError(2601),
       ]);
@@ -154,7 +155,6 @@ describe('POST /submissions (submitKeyword)', () => {
 
     it('propagates non-constraint errors', async () => {
       const { pool } = createMockPool([
-        [{ id: 10 }],
         [{ id: 20 }],
         sqlError(9001, 'boom'),
       ]);
@@ -165,7 +165,6 @@ describe('POST /submissions (submitKeyword)', () => {
 
     it('flags orgDupe=true when a teammate already submitted this keyword', async () => {
       const { pool } = createMockPool([
-        [{ id: 10 }],
         [{ id: 20 }],
         [],            // insert succeeds
         [{ cnt: 1 }],  // another player in same org already had this keyword
@@ -180,7 +179,6 @@ describe('POST /submissions (submitKeyword)', () => {
 
     it('flags orgDupe=false when first submission for the org', async () => {
       const { pool } = createMockPool([
-        [{ id: 10 }],
         [{ id: 20 }],
         [],
         [{ cnt: 0 }],

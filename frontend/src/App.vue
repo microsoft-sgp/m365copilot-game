@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted, defineAsyncComponent } from 'vue';
+import { computed, ref, onMounted, defineAsyncComponent } from 'vue';
 import { STORAGE_KEYS } from './data/constants.js';
-import { loadString, saveString } from './lib/storage.js';
+import { loadString, removeKey, saveString } from './lib/storage.js';
+import { isPublicEmailDomain } from './lib/emailDomains.js';
 import { apiGetPlayerState } from './lib/api.js';
 import { useBingoGame } from './composables/useBingoGame.js';
 import TopBar from './components/TopBar.vue';
@@ -23,14 +24,19 @@ const { hydrateFromServer, setIdentity } = useBingoGame();
 const activeTab = ref('game');
 const playerEmail = ref(loadString(STORAGE_KEYS.email));
 const playerName = ref(loadString(STORAGE_KEYS.playerName));
+const playerOrganization = ref(loadString(STORAGE_KEYS.organization));
 const view = ref('game'); // 'game' | 'admin-login' | 'admin'
+const identityReady = computed(() => {
+  if (!playerEmail.value || !playerName.value) return false;
+  return !isPublicEmailDomain(playerEmail.value) || !!playerOrganization.value;
+});
 
 onMounted(() => {
   // Check hash-based routing for admin
   checkRoute();
   window.addEventListener('hashchange', checkRoute);
 
-  if (playerEmail.value && playerName.value) {
+  if (identityReady.value) {
     syncPlayerState(playerEmail.value);
   }
 });
@@ -61,8 +67,14 @@ function checkRoute() {
 async function onEmailContinue(identity) {
   playerEmail.value = identity.email;
   playerName.value = identity.name;
+  playerOrganization.value = identity.organization || '';
   saveString(STORAGE_KEYS.email, identity.email);
   saveString(STORAGE_KEYS.playerName, identity.name);
+  if (identity.organization) {
+    saveString(STORAGE_KEYS.organization, identity.organization);
+  } else {
+    removeKey(STORAGE_KEYS.organization);
+  }
   setIdentity(identity);
 
   await syncPlayerState(identity.email);
@@ -103,7 +115,7 @@ function onBackToGame() {
     <!-- Game views -->
     <template v-else>
       <!-- Email gate -->
-      <template v-if="!playerEmail || !playerName">
+      <template v-if="!identityReady">
         <EmailGate @continue="onEmailContinue" @admin="onAdminNav" />
         <GameFooter />
       </template>

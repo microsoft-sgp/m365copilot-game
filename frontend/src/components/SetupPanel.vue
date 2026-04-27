@@ -28,6 +28,7 @@ async function launch() {
   error.value = '';
   const name = loadString(STORAGE_KEYS.playerName);
   const email = loadString(STORAGE_KEYS.email);
+  const organization = loadString(STORAGE_KEYS.organization);
   const num = Number(assignedPack.value || 0);
   if (num && (num < 1 || num > TOTAL_PACKS)) {
     error.value = 'Your assigned pack is not valid. Please refresh and try again.';
@@ -39,7 +40,7 @@ async function launch() {
   }
   launching.value = true;
   try {
-    const result = await startBoard({ name, email, packId: num || undefined });
+    const result = await startBoard({ name, email, organization, packId: num || undefined });
     if (!result?.ok) {
       error.value = result?.message || 'Unable to start your board. Please try again.';
     }

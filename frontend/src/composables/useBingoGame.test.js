@@ -36,6 +36,8 @@ function resetState() {
   const { state } = useBingoGame();
   state.sessionId = 'test-session';
   state.playerName = '';
+  state.email = '';
+  state.organization = '';
   state.assignedPackId = 0;
   state.assignmentCycle = 0;
   state.assignmentRotated = false;
@@ -100,6 +102,23 @@ describe('useBingoGame.startBoard', () => {
     startBoard({ name: 'Ada', packId: 42 });
     expect(localStorage.getItem('copilot_bingo_player_name')).toBe('Ada');
     expect(localStorage.getItem('copilot_bingo_last_pack')).toBe('42');
+  });
+
+  it('includes organization in the session payload when stored', async () => {
+    apiCreateSession.mockResolvedValue({ ok: true, data: { gameSessionId: 789 } });
+    const { startBoard, state } = useBingoGame();
+
+    await startBoard({ name: 'Alex', email: 'alex@gmail.com', organization: 'Contoso', packId: 1 });
+
+    expect(state.organization).toBe('Contoso');
+    expect(localStorage.getItem('copilot_bingo_organization')).toBe('Contoso');
+    expect(apiCreateSession).toHaveBeenCalledWith({
+      sessionId: 'test-session',
+      playerName: 'Alex',
+      email: 'alex@gmail.com',
+      organization: 'Contoso',
+      packId: 1,
+    });
   });
 
   it('calls apiCreateSession and stores the returned gameSessionId', async () => {
@@ -306,6 +325,7 @@ describe('useBingoGame assignment hydration', () => {
     const { hydrateFromServer, state } = useBingoGame();
     hydrateFromServer({
       playerName: 'Ada',
+      organization: { id: 10, name: 'Contoso' },
       activeAssignment: {
         assignmentId: 21,
         packId: 88,
@@ -317,6 +337,8 @@ describe('useBingoGame assignment hydration', () => {
     });
 
     expect(state.playerName).toBe('Ada');
+  expect(state.organization).toBe('Contoso');
+  expect(localStorage.getItem('copilot_bingo_organization')).toBe('Contoso');
     expect(state.assignedPackId).toBe(88);
     expect(state.assignmentCycle).toBe(3);
     expect(state.boardActive).toBe(false);

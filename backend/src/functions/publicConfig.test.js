@@ -34,6 +34,7 @@ describe('GET /api/organizations/domains', () => {
       [
         { domain: 'nus.edu.sg', org: 'NUS' },
         { domain: 'ntu.edu.sg', org: 'NTU' },
+        { domain: 'contoso.com', org: 'Contoso' },
       ],
     ]);
     const req = fakeRequest({});
@@ -41,7 +42,9 @@ describe('GET /api/organizations/domains', () => {
     expect(res.jsonBody.domains).toEqual({
       'nus.edu.sg': 'NUS',
       'ntu.edu.sg': 'NTU',
+      'contoso.com': 'Contoso',
     });
+    expect(res.jsonBody.domains).not.toHaveProperty('gmail.com');
   });
 
   it('returns empty object when no domains', async () => {

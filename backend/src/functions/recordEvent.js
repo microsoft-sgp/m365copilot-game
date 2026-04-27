@@ -1,6 +1,7 @@
 import { app } from '@azure/functions';
 import sql from 'mssql';
 import { getPool } from '../lib/db.js';
+import { resolveOrganizationForEmail } from '../lib/organizations.js';
 
 export const handler = async (request, context) => {
   const body = await request.json();
@@ -19,7 +20,19 @@ export const handler = async (request, context) => {
   const check = await pool
     .request()
     .input('gameSessionId', sql.Int, gameSessionId)
-    .query('SELECT id FROM game_sessions WHERE id = @gameSessionId;');
+    .query(`
+      SELECT TOP 1
+        gs.id,
+        gs.player_id,
+        gs.campaign_id,
+        p.email,
+        p.org_id,
+        o.name AS org_name
+      FROM game_sessions gs
+      JOIN players p ON p.id = gs.player_id
+      LEFT JOIN organizations o ON o.id = p.org_id
+      WHERE gs.id = @gameSessionId;
+    `);
 
   if (check.recordset.length === 0) {
     return {
@@ -43,10 +56,29 @@ export const handler = async (request, context) => {
   const scoreEventTypes = new Set(['line_won', 'weekly_won']);
   if (scoreEventTypes.has(eventType) && keyword) {
     const eventKey = lineId || keyword;
+    const session = check.recordset[0];
+    let orgId = session.org_id ?? null;
+
+    if (!orgId && session.email) {
+      const resolvedOrganization = await resolveOrganizationForEmail(pool, {
+        email: session.email,
+      });
+      orgId = resolvedOrganization.orgId;
+
+      if (orgId && session.player_id) {
+        await pool
+          .request()
+          .input('playerId', sql.Int, session.player_id)
+          .input('orgId', sql.Int, orgId)
+          .query('UPDATE players SET org_id = @orgId WHERE id = @playerId AND org_id IS NULL;');
+      }
+    }
+
     try {
       await pool
         .request()
         .input('gameSessionId', sql.Int, gameSessionId)
+        .input('orgId', sql.Int, orgId ?? null)
         .input('eventType', sql.NVarChar(20), eventType)
         .input('eventKey', sql.NVarChar(64), eventKey)
         .input('keyword', sql.NVarChar(100), keyword)
@@ -62,22 +94,13 @@ export const handler = async (request, context) => {
           )
           SELECT
             gs.id,
-            p.id,
-            od.org_id,
+            gs.player_id,
+            @orgId,
             gs.campaign_id,
             @eventType,
             @eventKey,
             @keyword
           FROM game_sessions gs
-          JOIN players p ON p.id = gs.player_id
-          LEFT JOIN org_domains od
-            ON od.domain = LOWER(
-              CASE
-                WHEN CHARINDEX('@', p.email) > 0
-                THEN SUBSTRING(p.email, CHARINDEX('@', p.email) + 1, LEN(p.email))
-                ELSE ''
-              END
-            )
           WHERE gs.id = @gameSessionId;
         `);
     } catch (err) {

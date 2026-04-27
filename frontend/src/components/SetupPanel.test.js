@@ -19,13 +19,14 @@ beforeEach(() => {
   state.tiles = [];
   state.cleared = [];
   state.playerName = '';
-    state.email = '';
-    state.assignedPackId = 0;
-    state.assignmentCycle = 0;
-    state.assignmentRotated = false;
-    state.completedPackId = null;
+  state.email = '';
+  state.organization = '';
+  state.assignedPackId = 0;
+  state.assignmentCycle = 0;
+  state.assignmentRotated = false;
+  state.completedPackId = null;
   state.packId = 0;
-    state.gameSessionId = null;
+  state.gameSessionId = null;
   state.challengeProfile = null;
 });
 
@@ -93,6 +94,39 @@ describe('SetupPanel', () => {
     expect(state.packId).toBe(88);
     expect(state.assignedPackId).toBe(88);
     expect(state.gameSessionId).toBe(123);
+  });
+
+  it('includes stored organization when launching a public-email player', async () => {
+    localStorage.setItem('copilot_bingo_email', 'alex@gmail.com');
+    localStorage.setItem('copilot_bingo_organization', 'Contoso');
+    const { state } = useBingoGame();
+    state.assignedPackId = 0;
+    localStorage.removeItem('copilot_bingo_last_pack');
+    apiCreateSession.mockResolvedValue({
+      ok: true,
+      data: {
+        gameSessionId: 123,
+        packId: 88,
+        activeAssignment: {
+          assignmentId: 9,
+          packId: 88,
+          cycleNumber: 1,
+          rotated: false,
+          completedPackId: null,
+        },
+      },
+    });
+
+    const w = mount(SetupPanel);
+    await w.findAll('button').find((button) => button.text().includes('Launch Board')).trigger('click');
+    await flushPromises();
+
+    expect(apiCreateSession).toHaveBeenCalledWith({
+      sessionId: 'test-session',
+      playerName: 'Ada',
+      email: 'alex@gmail.com',
+      organization: 'Contoso',
+    });
   });
 
   it('shows assignment rotation copy when server marks rotated assignment', () => {

@@ -36,7 +36,12 @@ export const handler = async (request, context) => {
   const playerResult = await pool
     .request()
     .input('email', sql.NVarChar(320), email.trim().toLowerCase())
-    .query('SELECT id, player_name, session_id FROM players WHERE email = @email;');
+    .query(`
+      SELECT p.id, p.player_name, p.session_id, p.org_id, o.name AS org_name
+      FROM players p
+      LEFT JOIN organizations o ON o.id = p.org_id
+      WHERE p.email = @email;
+    `);
 
   if (playerResult.recordset.length === 0) {
     return {
@@ -77,6 +82,7 @@ export const handler = async (request, context) => {
         player: {
           playerName: player.player_name,
           sessionId: player.session_id,
+          organization: player.org_id ? { id: player.org_id, name: player.org_name } : null,
           activeAssignment: {
             ...assignment,
             rotated: assignmentResolution.rotated,
@@ -110,6 +116,7 @@ export const handler = async (request, context) => {
       player: {
         playerName: player.player_name,
         sessionId: player.session_id,
+        organization: player.org_id ? { id: player.org_id, name: player.org_name } : null,
         activeSession,
       },
     },

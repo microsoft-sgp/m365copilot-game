@@ -39,6 +39,46 @@ describe('EmailGate', () => {
     expect(wrapper.emitted('continue')[0][0]).toEqual({
       email: 'alice@nus.edu.sg',
       name: 'Alice',
+      organization: '',
+    });
+  });
+
+  it('does not ask for organization on private company domains', async () => {
+    const wrapper = mount(EmailGate);
+    await wrapper.find('input[type="text"]').setValue('Alex');
+    await wrapper.find('input[type="email"]').setValue('alex@contoso.com');
+    expect(wrapper.text()).not.toContain('Company / School / Organization');
+
+    await wrapper.find('button.btn-primary').trigger('click');
+    expect(wrapper.emitted('continue')[0][0]).toEqual({
+      email: 'alex@contoso.com',
+      name: 'Alex',
+      organization: '',
+    });
+  });
+
+  it('requires organization on public email domains', async () => {
+    const wrapper = mount(EmailGate);
+    await wrapper.find('input[type="text"]').setValue('Alex');
+    await wrapper.find('input[type="email"]').setValue('alex@gmail.com');
+    expect(wrapper.text()).toContain('Company / School / Organization');
+
+    await wrapper.find('button.btn-primary').trigger('click');
+    expect(wrapper.text()).toContain('Please enter your company, school, or organization');
+    expect(wrapper.emitted('continue')).toBeFalsy();
+  });
+
+  it('emits organization for public email domains', async () => {
+    const wrapper = mount(EmailGate);
+    await wrapper.findAll('input[type="text"]')[0].setValue('Alex');
+    await wrapper.find('input[type="email"]').setValue('alex@outlook.com');
+    await wrapper.findAll('input[type="text"]')[1].setValue(' Contoso ');
+    await wrapper.find('button.btn-primary').trigger('click');
+
+    expect(wrapper.emitted('continue')[0][0]).toEqual({
+      email: 'alex@outlook.com',
+      name: 'Alex',
+      organization: 'Contoso',
     });
   });
 

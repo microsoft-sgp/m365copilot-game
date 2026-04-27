@@ -48,6 +48,7 @@ export function clearAllGameData() {
   removeKey(STORAGE_KEYS.state);
   removeKey(STORAGE_KEYS.submissions);
   removeKey(STORAGE_KEYS.playerName);
+  removeKey(STORAGE_KEYS.organization);
   removeKey(STORAGE_KEYS.lastPack);
   removeKey(STORAGE_KEYS.email);
 }

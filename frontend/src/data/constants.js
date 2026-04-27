@@ -12,6 +12,7 @@ export const STORAGE_KEYS = {
   state: 'copilot_bingo_state',
   submissions: 'copilot_bingo_subs',
   playerName: 'copilot_bingo_player_name',
+  organization: 'copilot_bingo_organization',
   lastPack: 'copilot_bingo_last_pack',
   email: 'copilot_bingo_email',
 };

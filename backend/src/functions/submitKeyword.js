@@ -2,6 +2,7 @@ import { app } from '@azure/functions';
 import sql from 'mssql';
 import { getPool } from '../lib/db.js';
 import { validateKeywordFormat } from '../lib/validation.js';
+import { resolveOrganizationForEmail } from '../lib/organizations.js';
 
 export const handler = async (request, context) => {
     const body = await request.json();
@@ -31,59 +32,33 @@ export const handler = async (request, context) => {
 
     const pool = await getPool();
 
-    // Resolve org from email domain via org_domains, fall back to manual org name
-    const domain = email.split('@')[1];
-    let orgId;
+    const resolvedOrganization = await resolveOrganizationForEmail(pool, {
+      email,
+      organizationName: org,
+    });
 
-    const domainLookup = await pool
-      .request()
-      .input('domain', sql.NVarChar(255), domain)
-      .query(`
-        SELECT o.id FROM org_domains od
-        JOIN organizations o ON o.id = od.org_id
-        WHERE od.domain = @domain;
-      `);
-
-    if (domainLookup.recordset.length > 0) {
-      orgId = domainLookup.recordset[0].id;
-    } else {
-      // Upsert organization by name
-      const orgResult = await pool
-        .request()
-        .input('orgName', sql.NVarChar(100), org)
-        .query(`
-          MERGE organizations AS target
-          USING (SELECT @orgName AS name) AS source
-          ON target.name = source.name
-          WHEN NOT MATCHED THEN
-            INSERT (name) VALUES (@orgName)
-          OUTPUT inserted.id;
-        `);
-      if (orgResult.recordset.length > 0) {
-        orgId = orgResult.recordset[0].id;
-      } else {
-        // MERGE matched but didn't output — fetch existing
-        const existing = await pool
-          .request()
-          .input('orgName', sql.NVarChar(100), org)
-          .query('SELECT id FROM organizations WHERE name = @orgName;');
-        orgId = existing.recordset[0].id;
-      }
+    if (!resolvedOrganization.orgId) {
+      return {
+        status: 400,
+        jsonBody: { ok: false, message: 'Could not resolve organization.' },
+      };
     }
+    const orgId = resolvedOrganization.orgId;
 
     // Upsert player by email (for submissions, email is the identity)
     const playerResult = await pool
       .request()
       .input('email', sql.NVarChar(320), email)
       .input('playerName', sql.NVarChar(200), name)
+      .input('orgId', sql.Int, orgId)
       .query(`
         MERGE players AS target
         USING (SELECT @email AS email) AS source
         ON target.email = source.email
         WHEN MATCHED THEN
-          UPDATE SET player_name = @playerName
+          UPDATE SET player_name = @playerName, org_id = COALESCE(target.org_id, @orgId)
         WHEN NOT MATCHED THEN
-          INSERT (session_id, player_name, email) VALUES (NEWID(), @playerName, @email)
+          INSERT (session_id, player_name, email, org_id) VALUES (NEWID(), @playerName, @email, @orgId)
         OUTPUT inserted.id;
       `);
     let playerId;
@@ -130,7 +105,7 @@ export const handler = async (request, context) => {
       `);
     const orgDupe = orgDupeCheck.recordset[0].cnt > 0;
 
-    const resolvedOrg = org;
+    const resolvedOrg = resolvedOrganization.orgName || org;
     return {
       jsonBody: {
         ok: true,

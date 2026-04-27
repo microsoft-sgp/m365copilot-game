@@ -113,6 +113,7 @@ async function run() {
   await runBatch(pool, '005-pack-assignment-lifecycle.sql');
   await runBatch(pool, '006-admin-users.sql');
   await runBatch(pool, '007-active-pack-assignment-counts.sql');
+  await runBatch(pool, '008-player-organization-attribution.sql');
   await grantAppIdentity(pool);
 
   await pool.close();

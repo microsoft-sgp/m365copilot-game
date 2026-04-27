@@ -1,16 +1,21 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { isPublicEmailDomain } from '../lib/emailDomains.js';
 
 const emit = defineEmits(['continue', 'admin']);
 
 const email = ref('');
 const name = ref('');
+const organization = ref('');
 const error = ref('');
+
+const requiresOrganization = computed(() => isPublicEmailDomain(email.value));
 
 function submit() {
   error.value = '';
   const trimmedName = name.value.trim();
   const trimmed = email.value.trim().toLowerCase();
+  const trimmedOrganization = organization.value.trim();
   if (!trimmedName) {
     error.value = 'Please enter how we should address you.';
     return;
@@ -23,7 +28,15 @@ function submit() {
     error.value = 'Please enter a valid email address.';
     return;
   }
-  emit('continue', { email: trimmed, name: trimmedName });
+  if (requiresOrganization.value && !trimmedOrganization) {
+    error.value = 'Please enter your company, school, or organization.';
+    return;
+  }
+  emit('continue', {
+    email: trimmed,
+    name: trimmedName,
+    organization: requiresOrganization.value ? trimmedOrganization : '',
+  });
 }
 </script>
 
@@ -58,6 +71,18 @@ function submit() {
           @keyup.enter="submit"
         />
         <div v-if="error" class="mt-1 text-label-md text-error">{{ error }}</div>
+      </div>
+
+      <div v-if="requiresOrganization" class="mb-4 text-left">
+        <label class="field-label">Company / School / Organization</label>
+        <input
+          v-model="organization"
+          class="field-input"
+          type="text"
+          placeholder="e.g. Contoso"
+          maxlength="100"
+          @keyup.enter="submit"
+        />
       </div>
 
       <button class="btn btn-primary w-full" @click="submit">

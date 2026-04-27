@@ -5,8 +5,9 @@ import {
   isPackAssignmentLifecycleEnabled,
   resolvePackAssignment,
 } from '../lib/packAssignments.js';
+import { resolveOrganizationForEmail } from '../lib/organizations.js';
 
-async function upsertPlayer(pool, { sessionId, playerName, email }) {
+async function upsertPlayer(pool, { sessionId, playerName, email, orgId = null }) {
   const trimmedEmail = email ? email.trim().toLowerCase() : null;
 
   if (trimmedEmail) {
@@ -15,14 +16,15 @@ async function upsertPlayer(pool, { sessionId, playerName, email }) {
       .input('sessionId', sql.NVarChar(50), sessionId)
       .input('playerName', sql.NVarChar(200), playerName)
       .input('email', sql.NVarChar(320), trimmedEmail)
+      .input('orgId', sql.Int, orgId)
       .query(`
         MERGE players AS target
         USING (SELECT @email AS email) AS source
         ON target.email = source.email
         WHEN MATCHED THEN
-          UPDATE SET session_id = @sessionId
+          UPDATE SET session_id = @sessionId, org_id = COALESCE(target.org_id, @orgId)
         WHEN NOT MATCHED THEN
-          INSERT (session_id, player_name, email) VALUES (@sessionId, @playerName, @email)
+          INSERT (session_id, player_name, email, org_id) VALUES (@sessionId, @playerName, @email, @orgId)
         OUTPUT inserted.id;
       `);
 
@@ -50,6 +52,7 @@ async function upsertPlayer(pool, { sessionId, playerName, email }) {
 export const handler = async (request, context) => {
   const body = await request.json();
   const { sessionId, playerName, packId, email } = body;
+  const organizationName = (body.organization || body.org || '').trim();
   const lifecycleEnabled = isPackAssignmentLifecycleEnabled();
 
   if (!sessionId || !playerName || (!lifecycleEnabled && packId == null)) {
@@ -67,7 +70,28 @@ export const handler = async (request, context) => {
   }
 
   const pool = await getPool();
-  const { playerId } = await upsertPlayer(pool, { sessionId, playerName, email });
+  let resolvedOrganization = { orgId: null };
+
+  if (email) {
+    resolvedOrganization = await resolveOrganizationForEmail(pool, {
+      email,
+      organizationName,
+    });
+
+    if (resolvedOrganization.requiresOrganization) {
+      return {
+        status: 400,
+        jsonBody: { ok: false, message: 'organization is required for public email domains.' },
+      };
+    }
+  }
+
+  const { playerId } = await upsertPlayer(pool, {
+    sessionId,
+    playerName,
+    email,
+    orgId: resolvedOrganization.orgId,
+  });
 
   if (lifecycleEnabled) {
     const assignmentResolution = await resolvePackAssignment({

@@ -6,12 +6,16 @@ vi.mock('../lib/packAssignments.js', () => ({
   isPackAssignmentLifecycleEnabled: vi.fn(),
   resolvePackAssignment: vi.fn(),
 }));
+vi.mock('../lib/organizations.js', () => ({
+  resolveOrganizationForEmail: vi.fn(),
+}));
 
 import { getPool } from '../lib/db.js';
 import {
   isPackAssignmentLifecycleEnabled,
   resolvePackAssignment,
 } from '../lib/packAssignments.js';
+import { resolveOrganizationForEmail } from '../lib/organizations.js';
 import { handler } from './createSession.js';
 
 describe('POST /sessions (createSession)', () => {
@@ -19,6 +23,8 @@ describe('POST /sessions (createSession)', () => {
     vi.mocked(getPool).mockReset();
     vi.mocked(isPackAssignmentLifecycleEnabled).mockReturnValue(false);
     vi.mocked(resolvePackAssignment).mockReset();
+    vi.mocked(resolveOrganizationForEmail).mockReset();
+    vi.mocked(resolveOrganizationForEmail).mockResolvedValue({ orgId: null, requiresOrganization: false });
     delete process.env.ENABLE_PACK_ASSIGNMENT_LIFECYCLE;
   });
 
@@ -72,6 +78,7 @@ describe('POST /sessions (createSession)', () => {
   });
 
   it('uses email identity while preserving canonical onboarding name', async () => {
+    vi.mocked(resolveOrganizationForEmail).mockResolvedValue({ orgId: 10, orgName: 'SMU', requiresOrganization: false });
     const { pool, calls } = createMockPool([
       { recordset: [{ id: 11 }] },
       { recordset: [{ id: 99 }] },
@@ -87,8 +94,30 @@ describe('POST /sessions (createSession)', () => {
       sessionId: 'sess-abc',
       playerName: 'New Alias',
       email: 'ada@smu.edu.sg',
+      orgId: 10,
     });
     expect(calls[0].query).toMatch(/UPDATE SET session_id = @sessionId/);
+    expect(resolveOrganizationForEmail).toHaveBeenCalledWith(pool, {
+      email: 'ada@smu.edu.sg',
+      organizationName: '',
+    });
+  });
+
+  it('returns 400 when a public email domain needs an organization', async () => {
+    vi.mocked(resolveOrganizationForEmail).mockResolvedValue({
+      orgId: null,
+      requiresOrganization: true,
+    });
+    const { pool, calls } = createMockPool([]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      fakeRequest({ body: { sessionId: 'sess-abc', playerName: 'Ada', packId: 42, email: 'ada@gmail.com' } }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(res.jsonBody.message).toMatch(/organization/i);
+    expect(calls).toHaveLength(0);
   });
 
   it('returns the existing session id on duplicate-key error (2627)', async () => {

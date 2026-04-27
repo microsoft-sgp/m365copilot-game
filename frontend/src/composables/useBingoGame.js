@@ -20,6 +20,7 @@ function freshState() {
     sessionId: '',
     playerName: '',
     email: '',
+    organization: '',
     assignedPackId: 0,
     assignmentCycle: 0,
     assignmentRotated: false,
@@ -41,6 +42,7 @@ function persist() {
   saveJson(STORAGE_KEYS.state, {
     sessionId: state.sessionId,
     playerName: state.playerName,
+    organization: state.organization,
     assignedPackId: state.assignedPackId,
     assignmentCycle: state.assignmentCycle,
     assignmentRotated: state.assignmentRotated,
@@ -109,12 +111,18 @@ export function useBingoGame() {
     state.completedPackId = assignment.completedPackId ?? null;
   }
 
-  async function startBoard({ name, packId, email } = {}) {
+  async function startBoard({ name, packId, email, organization } = {}) {
     const canonicalName = state.playerName || (name || '').trim() || 'Player';
     if (!state.playerName && canonicalName) {
       state.playerName = canonicalName;
     }
     if (email) state.email = email;
+    if (organization !== undefined) {
+      state.organization = (organization || '').trim();
+      if (state.organization) {
+        saveString(STORAGE_KEYS.organization, state.organization);
+      }
+    }
 
     let resolvedPackId = Number(packId || state.assignedPackId || state.packId || 0);
     let resolvedGameSessionId = state.gameSessionId;
@@ -151,6 +159,7 @@ export function useBingoGame() {
         playerName: canonicalName,
         email: state.email,
       };
+      if (state.organization) sessionPayload.organization = state.organization;
       if (packId) sessionPayload.packId = Number(packId);
 
       const res = await apiCreateSession(sessionPayload);
@@ -301,6 +310,10 @@ export function useBingoGame() {
   function hydrateFromServer(serverState) {
     if (!serverState) return;
     state.playerName = serverState.playerName || state.playerName;
+    if (serverState.organization?.name) {
+      state.organization = serverState.organization.name;
+      saveString(STORAGE_KEYS.organization, state.organization);
+    }
     applyAssignment(serverState.activeAssignment);
 
     const session = serverState.activeSession;
@@ -326,13 +339,17 @@ export function useBingoGame() {
     }
   }
 
-  function setIdentity({ email, name }) {
+  function setIdentity({ email, name, organization }) {
     state.email = email;
+    state.organization = (organization || '').trim();
     if (!state.playerName && name) {
       state.playerName = name;
     }
     if (name) {
       saveString(STORAGE_KEYS.playerName, state.playerName || name);
+    }
+    if (state.organization) {
+      saveString(STORAGE_KEYS.organization, state.organization);
     }
   }
 
