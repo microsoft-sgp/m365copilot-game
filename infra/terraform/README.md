@@ -83,6 +83,7 @@ Use the backend migration runner to apply these files against the provisioned da
 4. `database/004-add-progression-scores.sql`
 5. `database/005-pack-assignment-lifecycle.sql`
 6. `database/006-admin-users.sql`
+7. `database/007-active-pack-assignment-counts.sql`
 
 Run the migrations with Microsoft Entra authentication and grant the Function App managed identity database access:
 

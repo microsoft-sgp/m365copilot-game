@@ -32,25 +32,106 @@ export async function getActiveCampaign(pool) {
   };
 }
 
-function clampPack(packId, totalPacks) {
-  const n = Number(packId);
-  if (!Number.isFinite(n) || n < 1) return 1;
-  return Math.min(Math.floor(n), Math.max(1, totalPacks));
+function getPackCapacity(totalPacks) {
+  const n = Number(totalPacks);
+  return Math.max(1, Number.isFinite(n) ? Math.floor(n) : DEFAULT_CAMPAIGN.totalPacks);
 }
 
-function choosePack(totalPacks, usedPackIds = []) {
-  const max = Math.max(1, Number(totalPacks) || DEFAULT_CAMPAIGN.totalPacks);
-  const used = new Set(usedPackIds.filter((n) => Number.isInteger(n) && n >= 1 && n <= max));
-  if (used.size >= max) {
-    return Math.floor(Math.random() * max) + 1;
+function chooseRandomPack(candidates) {
+  if (candidates.length === 0) return 1;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+function choosePack(totalPacks, activePackRows = []) {
+  const max = getPackCapacity(totalPacks);
+  const countsByPack = new Map();
+
+  for (const row of activePackRows) {
+    const packId = Number(row.pack_id);
+    const count = Number(row.active_count);
+    if (Number.isInteger(packId) && packId >= 1 && packId <= max && Number.isFinite(count) && count > 0) {
+      countsByPack.set(packId, (countsByPack.get(packId) || 0) + Math.floor(count));
+    }
   }
 
-  let candidate;
-  do {
-    candidate = Math.floor(Math.random() * max) + 1;
-  } while (used.has(candidate));
+  const unusedPacks = [];
+  for (let packId = 1; packId <= max; packId += 1) {
+    if (!countsByPack.has(packId)) unusedPacks.push(packId);
+  }
 
-  return candidate;
+  if (unusedPacks.length > 0) {
+    return chooseRandomPack(unusedPacks);
+  }
+
+  let minCount = Infinity;
+  let leastUsedPacks = [];
+  for (let packId = 1; packId <= max; packId += 1) {
+    const count = countsByPack.get(packId) || 0;
+    if (count < minCount) {
+      minCount = count;
+      leastUsedPacks = [packId];
+    } else if (count === minCount) {
+      leastUsedPacks.push(packId);
+    }
+  }
+
+  return chooseRandomPack(leastUsedPacks);
+}
+
+async function getActiveAssignment(tx, playerId, campaignId) {
+  const result = await tx
+    .request()
+    .input('playerId', sql.Int, playerId)
+    .input('campaignId', sql.NVarChar(20), campaignId)
+    .query(`
+      SELECT TOP 1 *
+      FROM pack_assignments WITH (UPDLOCK, HOLDLOCK)
+      WHERE player_id = @playerId
+        AND campaign_id = @campaignId
+        AND status = 'active'
+      ORDER BY assigned_at DESC, id DESC;
+    `);
+
+  return result.recordset[0] || null;
+}
+
+async function acquireCampaignAssignmentLock(tx, campaignId) {
+  const result = await tx
+    .request()
+    .input('lockResource', sql.NVarChar(255), `pack-assignment:${campaignId}`)
+    .query(`
+      DECLARE @lockResult INT;
+
+      EXEC @lockResult = sp_getapplock
+        @Resource = @lockResource,
+        @LockMode = 'Exclusive',
+        @LockOwner = 'Transaction',
+        @LockTimeout = 10000;
+
+      SELECT @lockResult AS lock_result;
+    `);
+
+  const lockResult = Number(result.recordset[0]?.lock_result);
+  if (!Number.isFinite(lockResult) || lockResult < 0) {
+    throw new Error(`Could not acquire pack assignment lock for campaign ${campaignId}`);
+  }
+}
+
+async function getActivePackCounts(tx, campaignId, totalPacks) {
+  const result = await tx
+    .request()
+    .input('campaignId', sql.NVarChar(20), campaignId)
+    .input('totalPacks', sql.Int, totalPacks)
+    .query(`
+      SELECT pack_id, COUNT(*) AS active_count
+      FROM pack_assignments WITH (UPDLOCK, HOLDLOCK)
+      WHERE campaign_id = @campaignId
+        AND status = 'active'
+        AND pack_id BETWEEN 1 AND @totalPacks
+      GROUP BY pack_id;
+    `);
+
+  return result.recordset;
 }
 
 function getWeeksCompleted(boardStateJson) {
@@ -84,25 +165,13 @@ export async function resolvePackAssignment({
   allowRotation = true,
 }) {
   const campaign = await getActiveCampaign(pool);
+  const totalPacks = getPackCapacity(campaign.totalPacks);
 
   const tx = new sql.Transaction(pool);
   await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
 
   try {
-    const assignmentResult = await tx
-      .request()
-      .input('playerId', sql.Int, playerId)
-      .input('campaignId', sql.NVarChar(20), campaign.id)
-      .query(`
-        SELECT TOP 1 *
-        FROM pack_assignments WITH (UPDLOCK, HOLDLOCK)
-        WHERE player_id = @playerId
-          AND campaign_id = @campaignId
-          AND status = 'active'
-        ORDER BY assigned_at DESC, id DESC;
-      `);
-
-    let assignmentRow = assignmentResult.recordset[0] || null;
+    let assignmentRow = await getActiveAssignment(tx, playerId, campaign.id);
     let rotated = false;
     let completedPackId = null;
 
@@ -140,19 +209,13 @@ export async function resolvePackAssignment({
     }
 
     if (!assignmentRow) {
-      const usedPackRows = await tx
-        .request()
-        .input('playerId', sql.Int, playerId)
-        .input('campaignId', sql.NVarChar(20), campaign.id)
-        .query(`
-          SELECT DISTINCT pack_id
-          FROM game_sessions
-          WHERE player_id = @playerId
-            AND campaign_id = @campaignId;
-        `);
+      await acquireCampaignAssignmentLock(tx, campaign.id);
+      assignmentRow = await getActiveAssignment(tx, playerId, campaign.id);
+    }
 
-      const usedPacks = usedPackRows.recordset.map((r) => r.pack_id);
-      const nextPackId = clampPack(choosePack(campaign.totalPacks, usedPacks), campaign.totalPacks);
+    if (!assignmentRow) {
+      const activePackCounts = await getActivePackCounts(tx, campaign.id, totalPacks);
+      const nextPackId = choosePack(totalPacks, activePackCounts);
 
       const cycleResult = await tx
         .request()

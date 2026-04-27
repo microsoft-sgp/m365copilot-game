@@ -197,7 +197,7 @@ Replace `sql-bingo-server` with your actual server name and the password with th
 
 ## Step 5 — Run the database migrations
 
-The database needs six SQL scripts to create the tables, seed organization data, add campaign/admin support, add progression-scoring storage, add pack-assignment lifecycle storage, and add portal-managed admin users.
+The database needs seven SQL scripts to create the tables, seed organization data, add campaign/admin support, add progression-scoring storage, add pack-assignment lifecycle storage, add portal-managed admin users, and add active pack assignment lookup support.
 
 ### Option A — Azure Portal Query Editor (easiest, no extra tools)
 
@@ -211,6 +211,7 @@ The database needs six SQL scripts to create the tables, seed organization data,
 8. Paste the contents of `database/004-add-progression-scores.sql` into the editor and click **Run**.
 9. Paste the contents of `database/005-pack-assignment-lifecycle.sql` into the editor and click **Run**.
 10. Paste the contents of `database/006-admin-users.sql` into the editor and click **Run**.
+11. Paste the contents of `database/007-active-pack-assignment-counts.sql` into the editor and click **Run**.
 
 ### Option B — sqlcmd (command line)
 
@@ -256,6 +257,12 @@ sqlcmd -S sql-bingo-server.database.windows.net \
   -U bingoadmin \
   -P '<YourStrongPassword123!>' \
   -i database/006-admin-users.sql
+
+sqlcmd -S sql-bingo-server.database.windows.net \
+  -d bingo_db \
+  -U bingoadmin \
+  -P '<YourStrongPassword123!>' \
+  -i database/007-active-pack-assignment-counts.sql
 ```
 
 ### Option C — Azure Data Studio (GUI)

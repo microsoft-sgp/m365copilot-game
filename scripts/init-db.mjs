@@ -96,6 +96,7 @@ async function run() {
   await runBatch('004-add-progression-scores.sql');
   await runBatch('005-pack-assignment-lifecycle.sql');
   await runBatch('006-admin-users.sql');
+  await runBatch('007-active-pack-assignment-counts.sql');
 
   await pool.close();
   console.log('Database initialization complete!');
