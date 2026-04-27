@@ -153,6 +153,7 @@ Never commit local secrets or generated deployment files. The repository ignores
 | [frontend/](frontend/) | Vue 3 + Tailwind CSS v4 single-page application. |
 | [backend/](backend/) | Azure Functions v4 (Node.js) API — sessions, events, submissions, leaderboard, admin. |
 | [database/](database/) | Azure SQL migration scripts (schema + seed data). |
+| [scripts/](scripts/) | Local Docker Compose database bootstrap scripts. |
 | [index.html](index.html) | Legacy single-file build, kept as a rollback target. |
 | [openspec/](openspec/) | Spec-driven change history. |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | **Step-by-step Azure deployment guide.** |
