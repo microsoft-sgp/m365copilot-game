@@ -3,6 +3,15 @@ import { readFileSync } from 'fs';
 
 const SA_PASSWORD = process.env.SA_PASSWORD || 'BingoTest123!';
 const DB_HOST = process.env.DB_HOST || 'db';
+const DB_NAME = process.env.DB_NAME || 'bingo_db';
+
+if (!/^[A-Za-z0-9_]+$/.test(DB_NAME)) {
+  throw new Error('DB_NAME may only contain letters, numbers, and underscores');
+}
+
+function quoteIdentifier(identifier) {
+  return `[${identifier.replace(/]/g, ']]')}]`;
+}
 
 const config = {
   user: 'sa',
@@ -33,22 +42,43 @@ async function run() {
 
   // Connect to master to create database
   const masterPool = await sql.connect(config);
-  const dbCheck = await masterPool.request().query(
-    "SELECT name FROM sys.databases WHERE name = 'bingodb'"
-  );
+  const dbCheck = await masterPool
+    .request()
+    .input('dbName', sql.NVarChar(128), DB_NAME)
+    .query('SELECT name FROM sys.databases WHERE name = @dbName');
   if (dbCheck.recordset.length === 0) {
-    console.log('Creating database bingodb...');
-    await masterPool.request().batch('CREATE DATABASE bingodb');
+    console.log(`Creating database ${DB_NAME}...`);
+    await masterPool.request().batch(`CREATE DATABASE ${quoteIdentifier(DB_NAME)}`);
     // Wait a moment for DB to be ready
     await new Promise((r) => setTimeout(r, 2000));
   } else {
-    console.log('Database bingodb already exists.');
+    console.log(`Database ${DB_NAME} already exists.`);
   }
   await masterPool.close();
 
-  // Connect to bingodb
-  const dbConfig = { ...config, database: 'bingodb' };
+  // Connect to application database
+  const dbConfig = { ...config, database: DB_NAME };
   const pool = await sql.connect(dbConfig);
+
+  async function runBatch(filename) {
+    console.log(`Running migration ${filename}...`);
+    const sqlText = readFileSync(`./database/${filename}`, 'utf8');
+    await pool.request().batch(sqlText);
+  }
+
+  async function runStatementsLenient(filename) {
+    console.log(`Running migration ${filename}...`);
+    const sqlText = readFileSync(`./database/${filename}`, 'utf8');
+    const statements = sqlText.split(/;\s*$/m).filter((statement) => statement.trim());
+    for (const statement of statements) {
+      try {
+        await pool.request().batch(statement);
+      } catch (err) {
+        // Some statements may fail if already applied; keep advancing older dev DBs.
+        console.log(`  Warning: ${err.message.slice(0, 100)}`);
+      }
+    }
+  }
 
   // Check if tables exist already
   const tableCheck = await pool.request().query(
@@ -56,39 +86,16 @@ async function run() {
   );
 
   if (tableCheck.recordset.length === 0) {
-    console.log('Running migration 001-create-tables.sql...');
-    const sql1 = readFileSync('./database/001-create-tables.sql', 'utf8');
-    await pool.request().batch(sql1);
-
-    console.log('Running migration 002-seed-organizations.sql...');
-    const sql2 = readFileSync('./database/002-seed-organizations.sql', 'utf8');
-    await pool.request().batch(sql2);
-
-    console.log('Running migration 003-add-admin-and-campaigns.sql...');
-    const sql3 = readFileSync('./database/003-add-admin-and-campaigns.sql', 'utf8');
-    // Split on GO-like statements; run ALTER TABLE statements separately
-    const statements = sql3.split(/;\s*$/m).filter((s) => s.trim());
-    for (const stmt of statements) {
-      if (stmt.trim()) {
-        try {
-          await pool.request().batch(stmt);
-        } catch (err) {
-          // Some statements may fail if already applied (idempotent)
-          console.log(`  Warning: ${err.message.slice(0, 100)}`);
-        }
-      }
-    }
-
-    console.log('Running migration 004-add-progression-scores.sql...');
-    const sql4 = readFileSync('./database/004-add-progression-scores.sql', 'utf8');
-    await pool.request().batch(sql4);
-
-    console.log('Running migration 005-pack-assignment-lifecycle.sql...');
-    const sql5 = readFileSync('./database/005-pack-assignment-lifecycle.sql', 'utf8');
-    await pool.request().batch(sql5);
+    await runBatch('001-create-tables.sql');
+    await runBatch('002-seed-organizations.sql');
   } else {
-    console.log('Tables already exist, skipping migrations.');
+    console.log('Base tables already exist, applying latest schema migrations.');
   }
+
+  await runStatementsLenient('003-add-admin-and-campaigns.sql');
+  await runBatch('004-add-progression-scores.sql');
+  await runBatch('005-pack-assignment-lifecycle.sql');
+  await runBatch('006-admin-users.sql');
 
   await pool.close();
   console.log('Database initialization complete!');

@@ -112,6 +112,6 @@ export const handler = async (request, context) => {
 app.http('adminDashboard', {
   methods: ['GET'],
   authLevel: 'anonymous',
-  route: 'admin/dashboard',
+  route: 'portal-api/dashboard',
   handler,
 });

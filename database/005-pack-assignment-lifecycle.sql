@@ -49,9 +49,11 @@ IF NOT EXISTS (
     WHERE name = 'FK_game_sessions_assignment'
 )
 BEGIN
+    EXEC(N'
     ALTER TABLE game_sessions
         ADD CONSTRAINT FK_game_sessions_assignment
             FOREIGN KEY (assignment_id) REFERENCES pack_assignments(id);
+    ');
 END;
 
 -- One game session per assignment lifecycle.
@@ -62,9 +64,11 @@ IF NOT EXISTS (
       AND object_id = OBJECT_ID('game_sessions')
 )
 BEGIN
+    EXEC(N'
     CREATE UNIQUE INDEX UX_game_sessions_assignment
         ON game_sessions (assignment_id)
         WHERE assignment_id IS NOT NULL;
+    ');
 END;
 
 -- Legacy uniqueness blocks future pack reuse across cycles; remove it.
@@ -108,12 +112,14 @@ WHERE l.rn = 1
   );
 
 -- Backfill game_sessions.assignment_id from active assignment.
+EXEC(N'
 UPDATE gs
 SET gs.assignment_id = pa.id
 FROM game_sessions gs
 JOIN pack_assignments pa
-  ON pa.player_id = gs.player_id
+    ON pa.player_id = gs.player_id
  AND pa.campaign_id = gs.campaign_id
  AND pa.pack_id = gs.pack_id
- AND pa.status = 'active'
+ AND pa.status = ''active''
 WHERE gs.assignment_id IS NULL;
+');

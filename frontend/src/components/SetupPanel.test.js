@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 
 vi.mock('../lib/api.js', () => ({
   apiCreateSession: vi.fn().mockResolvedValue({ ok: false, data: null }),
@@ -8,16 +8,24 @@ vi.mock('../lib/api.js', () => ({
 }));
 
 import { useBingoGame } from '../composables/useBingoGame.js';
+import { apiCreateSession } from '../lib/api.js';
 import SetupPanel from './SetupPanel.vue';
 
 beforeEach(() => {
   localStorage.clear();
   const { state } = useBingoGame();
+  state.sessionId = 'test-session';
   state.boardActive = false;
   state.tiles = [];
   state.cleared = [];
   state.playerName = '';
+    state.email = '';
+    state.assignedPackId = 0;
+    state.assignmentCycle = 0;
+    state.assignmentRotated = false;
+    state.completedPackId = null;
   state.packId = 0;
+    state.gameSessionId = null;
   state.challengeProfile = null;
 });
 
@@ -45,11 +53,46 @@ describe('SetupPanel', () => {
   it('calls startBoard on valid input', async () => {
     const w = mount(SetupPanel);
     await w.findAll('button').find((b) => b.text().includes('Launch Board')).trigger('click');
-    await Promise.resolve();
+    await flushPromises();
     const { state } = useBingoGame();
     expect(state.boardActive).toBe(true);
     expect(state.playerName).toBe('Ada');
     expect(state.packId).toBe(42);
+  });
+
+  it('requests first assignment from the server when no pack has hydrated yet', async () => {
+    localStorage.setItem('copilot_bingo_email', 'ada@example.com');
+    const { state } = useBingoGame();
+    state.assignedPackId = 0;
+    localStorage.removeItem('copilot_bingo_last_pack');
+    apiCreateSession.mockResolvedValue({
+      ok: true,
+      data: {
+        gameSessionId: 123,
+        packId: 88,
+        activeAssignment: {
+          assignmentId: 9,
+          packId: 88,
+          cycleNumber: 1,
+          rotated: false,
+          completedPackId: null,
+        },
+      },
+    });
+
+    const w = mount(SetupPanel);
+    await w.findAll('button').find((b) => b.text().includes('Launch Board')).trigger('click');
+    await flushPromises();
+
+    expect(apiCreateSession).toHaveBeenCalledWith({
+      sessionId: 'test-session',
+      playerName: 'Ada',
+      email: 'ada@example.com',
+    });
+    expect(state.boardActive).toBe(true);
+    expect(state.packId).toBe(88);
+    expect(state.assignedPackId).toBe(88);
+    expect(state.gameSessionId).toBe(123);
   });
 
   it('shows assignment rotation copy when server marks rotated assignment', () => {

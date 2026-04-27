@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { verifyAdminKey, verifyAdmin, signAdminToken, hashOtp, getAdminEmails } from './adminAuth.js';
+import {
+  verifyAdminKey,
+  verifyAdmin,
+  signAdminToken,
+  hashOtp,
+  getAdminEmails,
+  getEffectiveAdminEmails,
+  normalizeEmail,
+  signAdminStepUpToken,
+  verifyAdminStepUpToken,
+} from './adminAuth.js';
 
 function fakeRequest(headerValue, authHeader) {
   return {
@@ -222,5 +232,53 @@ describe('getAdminEmails', () => {
   it('returns empty array when not set', () => {
     delete process.env.ADMIN_EMAILS;
     expect(getAdminEmails()).toEqual([]);
+  });
+});
+
+describe('effective admin emails', () => {
+  let prev;
+
+  beforeEach(() => { prev = process.env.ADMIN_EMAILS; });
+  afterEach(() => {
+    if (prev === undefined) delete process.env.ADMIN_EMAILS;
+    else process.env.ADMIN_EMAILS = prev;
+  });
+
+  it('normalizes email whitespace and casing', () => {
+    expect(normalizeEmail(' Admin@Test.COM ')).toBe('admin@test.com');
+  });
+
+  it('combines bootstrap and database-backed admins', async () => {
+    process.env.ADMIN_EMAILS = 'admin@test.com';
+    const pool = {
+      request: () => ({
+        query: async () => ({ recordset: [{ email: 'DbAdmin@Test.com' }] }),
+      }),
+    };
+    await expect(getEffectiveAdminEmails(pool)).resolves.toEqual(['admin@test.com', 'dbadmin@test.com']);
+  });
+});
+
+describe('admin step-up token', () => {
+  let prevSecret;
+
+  beforeEach(() => {
+    prevSecret = process.env.JWT_SECRET;
+    process.env.JWT_SECRET = 'test-secret-123';
+  });
+
+  afterEach(() => {
+    if (prevSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = prevSecret;
+  });
+
+  it('accepts valid admin-management proof for matching admin', () => {
+    const token = signAdminStepUpToken('admin@test.com');
+    expect(verifyAdminStepUpToken(token, 'admin@test.com').ok).toBe(true);
+  });
+
+  it('rejects proof for another admin', () => {
+    const token = signAdminStepUpToken('admin@test.com');
+    expect(verifyAdminStepUpToken(token, 'other@test.com').ok).toBe(false);
   });
 });

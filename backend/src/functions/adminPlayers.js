@@ -112,7 +112,7 @@ async function revokeSubmission(request, context) {
   return { jsonBody: { ok: true } };
 }
 
-app.http('adminSearchPlayers', { methods: ['GET'], authLevel: 'anonymous', route: 'admin/players', handler: searchPlayers });
-app.http('adminGetPlayerDetail', { methods: ['GET'], authLevel: 'anonymous', route: 'admin/players/{id}', handler: getPlayerDetail });
-app.http('adminDeletePlayer', { methods: ['DELETE'], authLevel: 'anonymous', route: 'admin/players/{id}', handler: deletePlayer });
-app.http('adminRevokeSubmission', { methods: ['DELETE'], authLevel: 'anonymous', route: 'admin/submissions/{id}', handler: revokeSubmission });
+app.http('adminSearchPlayers', { methods: ['GET'], authLevel: 'anonymous', route: 'portal-api/players', handler: searchPlayers });
+app.http('adminGetPlayerDetail', { methods: ['GET'], authLevel: 'anonymous', route: 'portal-api/players/{id}', handler: getPlayerDetail });
+app.http('adminDeletePlayer', { methods: ['DELETE'], authLevel: 'anonymous', route: 'portal-api/players/{id}', handler: deletePlayer });
+app.http('adminRevokeSubmission', { methods: ['DELETE'], authLevel: 'anonymous', route: 'portal-api/submissions/{id}', handler: revokeSubmission });

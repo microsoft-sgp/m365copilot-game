@@ -1,4 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+const ADMIN_API = '/portal-api';
 
 async function request(method, path, body) {
   try {
@@ -77,77 +78,93 @@ function adminRequest(method, path, body) {
 }
 
 export function apiAdminRequestOtp(email) {
-  return request('POST', '/admin/request-otp', { email });
+  return request('POST', `${ADMIN_API}/request-otp`, { email });
 }
 
 export function apiAdminVerifyOtp(email, code) {
-  return request('POST', '/admin/verify-otp', { email, code });
+  return request('POST', `${ADMIN_API}/verify-otp`, { email, code });
+}
+
+export function apiAdminVerifyStepUpOtp(email, code, action, targetEmail) {
+  return request('POST', `${ADMIN_API}/verify-otp`, { email, code, purpose: 'admin-management', action, targetEmail });
 }
 
 export function apiAdminGetDashboard(campaign) {
-  return adminRequest('GET', `/admin/dashboard?campaign=${encodeURIComponent(campaign || 'APR26')}`);
+  return adminRequest('GET', `${ADMIN_API}/dashboard?campaign=${encodeURIComponent(campaign || 'APR26')}`);
 }
 
 export function apiAdminExportCsv(campaign) {
-  return adminRequest('GET', `/admin/export?campaign=${encodeURIComponent(campaign || 'APR26')}`);
+  return adminRequest('GET', `${ADMIN_API}/export?campaign=${encodeURIComponent(campaign || 'APR26')}`);
 }
 
 export function apiAdminGetOrganizations() {
-  return adminRequest('GET', '/admin/organizations');
+  return adminRequest('GET', `${ADMIN_API}/organizations`);
 }
 
 export function apiAdminCreateOrganization(name) {
-  return adminRequest('POST', '/admin/organizations', { name });
+  return adminRequest('POST', `${ADMIN_API}/organizations`, { name });
 }
 
 export function apiAdminUpdateOrganization(id, name) {
-  return adminRequest('PUT', `/admin/organizations/${id}`, { name });
+  return adminRequest('PUT', `${ADMIN_API}/organizations/${id}`, { name });
 }
 
 export function apiAdminDeleteOrganization(id) {
-  return adminRequest('DELETE', `/admin/organizations/${id}`);
+  return adminRequest('DELETE', `${ADMIN_API}/organizations/${id}`);
 }
 
 export function apiAdminAddDomain(orgId, domain) {
-  return adminRequest('POST', `/admin/organizations/${orgId}/domains`, { domain });
+  return adminRequest('POST', `${ADMIN_API}/organizations/${orgId}/domains`, { domain });
 }
 
 export function apiAdminRemoveDomain(orgId, domainId) {
-  return adminRequest('DELETE', `/admin/organizations/${orgId}/domains/${domainId}`);
+  return adminRequest('DELETE', `${ADMIN_API}/organizations/${orgId}/domains/${domainId}`);
 }
 
 export function apiAdminGetCampaigns() {
-  return adminRequest('GET', '/admin/campaigns');
+  return adminRequest('GET', `${ADMIN_API}/campaigns`);
 }
 
 export function apiAdminCreateCampaign(data) {
-  return adminRequest('POST', '/admin/campaigns', data);
+  return adminRequest('POST', `${ADMIN_API}/campaigns`, data);
 }
 
 export function apiAdminUpdateCampaign(id, settings) {
-  return adminRequest('PUT', `/admin/campaigns/${id}/settings`, settings);
+  return adminRequest('PUT', `${ADMIN_API}/campaigns/${id}/settings`, settings);
 }
 
 export function apiAdminClearCampaignData(id) {
-  return adminRequest('POST', `/admin/campaigns/${id}/clear`);
+  return adminRequest('POST', `${ADMIN_API}/campaigns/${id}/clear`);
 }
 
 export function apiAdminResetLeaderboard(id) {
-  return adminRequest('POST', `/admin/campaigns/${id}/reset-leaderboard`);
+  return adminRequest('POST', `${ADMIN_API}/campaigns/${id}/reset-leaderboard`);
 }
 
 export function apiAdminSearchPlayers(q) {
-  return adminRequest('GET', `/admin/players?q=${encodeURIComponent(q)}`);
+  return adminRequest('GET', `${ADMIN_API}/players?q=${encodeURIComponent(q)}`);
 }
 
 export function apiAdminGetPlayer(id) {
-  return adminRequest('GET', `/admin/players/${id}`);
+  return adminRequest('GET', `${ADMIN_API}/players/${id}`);
 }
 
 export function apiAdminDeletePlayer(id) {
-  return adminRequest('DELETE', `/admin/players/${id}`);
+  return adminRequest('DELETE', `${ADMIN_API}/players/${id}`);
 }
 
 export function apiAdminRevokeSubmission(id) {
-  return adminRequest('DELETE', `/admin/submissions/${id}`);
+  return adminRequest('DELETE', `${ADMIN_API}/submissions/${id}`);
+}
+
+export function apiAdminGetAdmins() {
+  return adminRequest('GET', `${ADMIN_API}/admins`);
+}
+
+export function apiAdminAddAdmin(email, stepUpToken) {
+  return adminRequest('POST', `${ADMIN_API}/admins`, { email, stepUpToken });
+}
+
+export function apiAdminRemoveAdmin(email, stepUpToken) {
+  return adminRequest('DELETE', `${ADMIN_API}/admins/${encodeURIComponent(email)}`, { stepUpToken });
 }

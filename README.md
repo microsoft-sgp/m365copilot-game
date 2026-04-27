@@ -1,29 +1,150 @@
 # Copilot Chat Bingo
 
-A browser-based Bingo game for Microsoft 365 Copilot Chat events. Players generate a deterministic 3×3 board from a pack number, complete Copilot tasks, submit proofs, earn keywords for each completed line, and submit those keywords to a shared leaderboard.
+A browser-based Bingo game for Microsoft 365 Copilot Chat events. Players receive a server-assigned deterministic 3×3 board, complete Copilot tasks, submit proofs, earn keywords for each completed line, and submit those keywords to a shared leaderboard. Event facilitators can manage campaigns, players, organizations, exports, and admin access from an OTP-protected admin portal.
+
+![Copilot Chat Bingo application UI](docs/images/app-ui.svg)
+
+## What it does
+
+Copilot Chat Bingo turns event participation into a lightweight challenge loop: players receive a server-assigned pack, complete Copilot Chat tasks, submit proof for each tile, earn line keywords, and submit those keywords to a shared leaderboard. Facilitators use the admin portal to manage campaigns, organizations, players, exports, and admin access.
 
 ## Features
 
-- **Deterministic boards** — pack numbers `1`–`999` always generate the same nine tasks in the same order, so facilitators can reuse known packs.
-- **Quick pick** — one-click random pack selection within the supported range.
+- **Deterministic assigned boards** — pack numbers `1`–`999` always generate the same nine tasks, while the API assigns and rotates packs fairly per player.
 - **Proof submission & verification** — per-tile validation rules check the player's submitted proof before clearing the tile.
 - **Line detection & keyword minting** — completing a row, column, or diagonal awards a unique keyword, exactly once per line.
 - **Weekly challenges** — bonus progression tracked alongside the main board.
 - **Shared leaderboard** — keyword submissions are stored in Azure SQL and ranked per-organization across all players.
-- **Admin dashboard** — protected endpoint for event facilitators to view engagement metrics and export CSV data.
+- **OTP-protected admin portal** — Azure Communication Services Email sends admin one-time codes for portal login.
+- **Admin operations** — event facilitators can view engagement metrics, export CSV data, manage organizations, manage campaigns, inspect players, and perform safety actions.
+- **Admin access management** — bootstrap admins come from `ADMIN_EMAILS`; portal-managed admins are stored in Azure SQL and require a fresh OTP step-up before add/remove changes.
 - **Session continuity** — reloading the page restores the active board, cleared tiles, earned keywords, and challenge progress from `localStorage`.
 - **Responsive UI** — Tailwind CSS v4 layout that remains usable on narrow viewports.
 
 ## Architecture
 
+```mermaid
+flowchart LR
+   player[Player browser] --> frontend[Vue 3 SPA\nAzure Static Web Apps]
+   admin[Event facilitator] --> frontend
+   frontend --> api[Azure Functions API\nNode.js v4]
+   api --> sql[(Azure SQL\nplayers, sessions, events, submissions, campaigns, admins)]
+   api --> acs[Azure Communication Services Email\nadmin OTP delivery]
+   api --> kv[Key Vault\nadmin key, JWT secret, ACS connection string]
+   api --> appi[Application Insights\ntelemetry]
 ```
-┌─────────────┐      HTTPS       ┌───────────────────┐       SQL        ┌──────────────┐
-│   Frontend   │  ─────────────► │  Azure Functions   │ ──────────────► │  Azure SQL   │
-│  (Vue 3 SPA) │   /api/*        │  (Node.js v4 API)  │                 │  Database     │
-└─────────────┘                  └───────────────────┘                  └──────────────┘
-   Static Web App                   Function App                          Basic tier
-   or any static host               Consumption plan
+
+| Layer | Responsibility |
+| --- | --- |
+| Vue SPA | Player onboarding, board play, keyword submission, activity view, and admin portal screens. |
+| Azure Functions API | HTTP endpoints for sessions, tile events, submissions, leaderboard, campaign config, admin auth, and admin operations. |
+| Azure SQL | Durable storage for game state, progression scoring, organization mappings, campaign settings, OTP hashes, and portal-managed admins. |
+| ACS Email | Production delivery for admin OTP login and sensitive admin-management step-up verification. |
+| Key Vault | Holds generated app secrets referenced by Function App settings. |
+| Terraform | Provisions Azure infrastructure; local state, tfvars, and plans are intentionally ignored. |
+
+## App flow
+
+```mermaid
+flowchart TD
+   start[Player enters name and email] --> hydrate[Load existing player state]
+   hydrate --> assign[Create or resume server-assigned pack]
+   assign --> board[Render 3x3 Copilot task board]
+   board --> proof[Player submits proof for a tile]
+   proof --> verify{Proof passes validation?}
+   verify -- no --> retry[Show validation guidance]
+   retry --> proof
+   verify -- yes --> event[Record tile event and update session]
+   event --> line{Completed row, column, or diagonal?}
+   line -- no --> board
+   line -- yes --> keyword[Mint one keyword for that line]
+   keyword --> submit[Submit keyword to leaderboard]
+   submit --> activity[Leaderboard and activity feed refresh]
+
+   adminLogin[Admin opens #/admin/login] --> otp[Request OTP]
+   otp --> session[Verify OTP and receive admin JWT]
+   session --> portal[Manage dashboard, organizations, campaigns, players, exports]
+   portal --> stepup[Fresh OTP step-up for admin access changes]
 ```
+
+## Get started
+
+### Prerequisites
+
+- Node.js 20.x or later and npm 10.x
+- Docker Desktop, if you want the fastest full-stack local run
+- Azure Functions Core Tools v4, if you want to run the backend directly with `func start`
+- Azure CLI and Terraform only when provisioning or deploying Azure infrastructure
+
+### Option 1: run the full stack with Docker Compose
+
+This starts Azure SQL Edge, runs database migrations, starts the backend API, and serves the built frontend.
+
+```bash
+git clone https://github.com/<your-org-or-user>/m365copilot-game.git
+cd m365copilot-game
+docker compose up --build
+```
+
+Open [http://localhost:8080](http://localhost:8080). The local compose file uses development-only credentials and the bootstrap admin email `admin@test.com`.
+
+### Option 2: run the dev servers manually
+
+Use this path when you want frontend hot reload and local backend debugging.
+
+```bash
+git clone https://github.com/<your-org-or-user>/m365copilot-game.git
+cd m365copilot-game
+
+# Start the local database and apply migrations.
+docker compose up db db-init
+```
+
+Create `backend/local.settings.json` with local-only values:
+
+```json
+{
+   "IsEncrypted": false,
+   "Values": {
+      "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+      "FUNCTIONS_WORKER_RUNTIME": "node",
+      "SQL_CONNECTION_STRING": "Server=tcp:localhost,1433;Initial Catalog=bingo_db;User ID=sa;Password=<local-sa-password>;Encrypt=false;TrustServerCertificate=true;",
+      "ADMIN_KEY": "<local-admin-key>",
+      "JWT_SECRET": "<local-jwt-secret-at-least-32-characters>",
+      "ADMIN_EMAILS": "admin@test.com",
+      "NODE_ENV": "development"
+   }
+}
+```
+
+If you use the root Docker Compose database for manual development, set `<local-sa-password>` to the local-only SQL password defined in [docker-compose.yml](docker-compose.yml). Do not reuse local development values in shared, staging, or production environments.
+
+Then start the API and frontend in separate terminals:
+
+```bash
+cd backend
+npm install
+func start
+```
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173). The Vite dev server proxies `/api` to the local Functions host.
+
+### Test the app
+
+```bash
+cd backend && npm test
+cd ../frontend && npm test
+```
+
+### Security notes for contributors
+
+Never commit local secrets or generated deployment files. The repository ignores `.env*`, `backend/local.settings*.json`, Terraform state and tfvars, Terraform plans, Azure publish profiles, SWA artifacts, local key/certificate material, and test reports. Use placeholder values in public examples and put real production secrets in Azure App Settings or Key Vault.
 
 ## Project layout
 
@@ -40,7 +161,7 @@ A browser-based Bingo game for Microsoft 365 Copilot Chat events. Players genera
 
 | Path | Description |
 | --- | --- |
-| [frontend/src/App.vue](frontend/src/App.vue) | Root shell with tabs for Game, Keywords, Submit, Help. |
+| [frontend/src/App.vue](frontend/src/App.vue) | Root shell with tabs for Game, Keys, Activity, and Help, plus hash-routed admin views. |
 | [frontend/src/components/](frontend/src/components/) | UI components (board, panels, modals, HUD). |
 | [frontend/src/composables/](frontend/src/composables/) | Reactive game state, submissions, and toast helpers. |
 | [frontend/src/lib/](frontend/src/lib/) | Pure logic: deterministic RNG, pack generation, verification, keyword minting, API client, storage adapters. |
@@ -51,37 +172,8 @@ A browser-based Bingo game for Microsoft 365 Copilot Chat events. Players genera
 | Path | Description |
 | --- | --- |
 | [backend/src/functions/](backend/src/functions/) | HTTP-triggered Azure Functions (one file per endpoint). |
-| [backend/src/lib/](backend/src/lib/) | Shared helpers — SQL connection pool, input validation, admin auth. |
+| [backend/src/lib/](backend/src/lib/) | Shared helpers — SQL connection pool, input validation, admin auth, email delivery. |
 | [backend/host.json](backend/host.json) | Azure Functions host configuration (route prefix, logging). |
-
-## Prerequisites
-
-- **Node.js** 20.x or later
-- **npm** 10.x (bundled with Node 20)
-- A modern evergreen browser (Chromium, Firefox, or Safari)
-
-For deployment you also need:
-
-- **Azure CLI** (`az`) — [install guide](https://learn.microsoft.com/cli/azure/install-azure-cli)
-- **Azure Functions Core Tools** v4 (`func`) — [install guide](https://learn.microsoft.com/azure/azure-functions/functions-run-local)
-- An **Azure subscription** (a free account works)
-
-## Quick start (local development)
-
-```bash
-# Terminal 1 — start the API
-cd backend
-npm install
-# Edit local.settings.json with your SQL connection string and ADMIN_KEY
-func start
-
-# Terminal 2 — start the frontend (dev server proxies /api to localhost:7071)
-cd frontend
-npm install
-npm run dev      # http://localhost:5173
-```
-
-Open [http://localhost:5173](http://localhost:5173), enter a player name, pick a pack number (or use Quick Pick), and start the board.
 
 ## Deploy to Azure
 
@@ -102,12 +194,22 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for a complete step-by-step guide covering:
 | `POST` | `/api/events` | Record tile events |
 | `POST` | `/api/submissions` | Submit keyword for leaderboard |
 | `GET` | `/api/leaderboard` | Aggregated org rankings |
-| `GET` | `/api/admin/dashboard` | Admin metrics (requires `X-Admin-Key`) |
-| `GET` | `/api/admin/export` | CSV export (requires `X-Admin-Key`) |
+| `GET` | `/api/player/state` | Restore player state by email |
+| `GET` | `/api/campaigns/active` | Active campaign configuration |
+| `GET` | `/api/organizations/domains` | Organization domain mappings |
+| `POST` | `/api/portal-api/request-otp` | Send admin login or step-up OTP |
+| `POST` | `/api/portal-api/verify-otp` | Verify admin OTP and issue a session or step-up token |
+| `GET` | `/api/portal-api/dashboard` | Admin metrics, using admin JWT or `X-Admin-Key` |
+| `GET` | `/api/portal-api/export` | CSV export, using admin JWT or `X-Admin-Key` |
+| `GET` | `/api/portal-api/admins` | List bootstrap and portal-managed admins |
+| `POST` | `/api/portal-api/admins` | Add/reactivate portal-managed admin; requires step-up OTP |
+| `DELETE` | `/api/portal-api/admins/{email}` | Disable portal-managed admin; requires step-up OTP |
+
+The admin portal is available at `#/admin/login` in the frontend. Login uses the email allow-list from `ADMIN_EMAILS` plus active rows in `admin_users`. In production, OTP delivery requires `ACS_CONNECTION_STRING` and `ACS_EMAIL_SENDER`; if delivery fails after an OTP is stored, that OTP is invalidated before the API returns an error.
 
 ## Data & persistence
 
-- **Server-side**: game sessions, tile events, and keyword submissions are stored in Azure SQL. The leaderboard is shared across all players.
+- **Server-side**: game sessions, tile events, keyword submissions, campaign/admin metadata, and portal-managed admin users are stored in Azure SQL. The leaderboard is shared across all players.
 - **Client-side**: active board state (cleared tiles, earned keywords, challenge progress) and player profile are stored in the browser's `localStorage`.
 
 ## Specs & change history

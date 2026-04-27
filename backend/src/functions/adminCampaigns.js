@@ -161,8 +161,8 @@ async function resetLeaderboard(request, context) {
   };
 }
 
-app.http('adminListCampaigns', { methods: ['GET'], authLevel: 'anonymous', route: 'admin/campaigns', handler: listCampaigns });
-app.http('adminCreateCampaign', { methods: ['POST'], authLevel: 'anonymous', route: 'admin/campaigns', handler: createCampaign });
-app.http('adminUpdateCampaignSettings', { methods: ['PUT'], authLevel: 'anonymous', route: 'admin/campaigns/{id}/settings', handler: updateCampaignSettings });
-app.http('adminClearCampaignData', { methods: ['POST'], authLevel: 'anonymous', route: 'admin/campaigns/{id}/clear', handler: clearCampaignData });
-app.http('adminResetLeaderboard', { methods: ['POST'], authLevel: 'anonymous', route: 'admin/campaigns/{id}/reset-leaderboard', handler: resetLeaderboard });
+app.http('adminListCampaigns', { methods: ['GET'], authLevel: 'anonymous', route: 'portal-api/campaigns', handler: listCampaigns });
+app.http('adminCreateCampaign', { methods: ['POST'], authLevel: 'anonymous', route: 'portal-api/campaigns', handler: createCampaign });
+app.http('adminUpdateCampaignSettings', { methods: ['PUT'], authLevel: 'anonymous', route: 'portal-api/campaigns/{id}/settings', handler: updateCampaignSettings });
+app.http('adminClearCampaignData', { methods: ['POST'], authLevel: 'anonymous', route: 'portal-api/campaigns/{id}/clear', handler: clearCampaignData });
+app.http('adminResetLeaderboard', { methods: ['POST'], authLevel: 'anonymous', route: 'portal-api/campaigns/{id}/reset-leaderboard', handler: resetLeaderboard });

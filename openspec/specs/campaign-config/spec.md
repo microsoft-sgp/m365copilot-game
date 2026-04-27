@@ -28,32 +28,32 @@ The system SHALL expose `GET /api/campaigns/active` to return the active campaig
 - **THEN** the system MUST return HTTP 404 with `{ ok: false, message: "No active campaign" }`
 
 ### Requirement: Admin campaign list endpoint
-The system SHALL expose `GET /api/admin/campaigns` to list all campaigns with summary statistics, protected by admin authentication.
+The system SHALL expose `GET /api/portal-api/campaigns` to list all campaigns with summary statistics, protected by admin authentication.
 
 #### Scenario: List all campaigns
 - **GIVEN** the admin is authenticated
-- **WHEN** `GET /api/admin/campaigns` is called
+- **WHEN** `GET /api/portal-api/campaigns` is called
 - **THEN** the system MUST return all campaigns with their settings and summary stats (total players, total sessions, total submissions per campaign)
 
 ### Requirement: Admin campaign settings update endpoint
-The system SHALL expose `PUT /api/admin/campaigns/:id/settings` to update campaign configuration, protected by admin authentication.
+The system SHALL expose `PUT /api/portal-api/campaigns/:id/settings` to update campaign configuration, protected by admin authentication.
 
 #### Scenario: Update campaign settings
 - **GIVEN** the admin is authenticated and a campaign exists
-- **WHEN** `PUT /api/admin/campaigns/:id/settings` is called with `{ displayName, totalPacks, totalWeeks, copilotUrl, isActive }`
+- **WHEN** `PUT /api/portal-api/campaigns/:id/settings` is called with `{ displayName, totalPacks, totalWeeks, copilotUrl, isActive }`
 - **THEN** the system MUST update the campaign record and return `{ ok: true }`
 
 #### Scenario: Setting a campaign as active deactivates others
 - **GIVEN** campaign A is currently active
-- **WHEN** the admin sets campaign B as active via `PUT /api/admin/campaigns/B/settings` with `{ isActive: true }`
+- **WHEN** the admin sets campaign B as active via `PUT /api/portal-api/campaigns/B/settings` with `{ isActive: true }`
 - **THEN** the system MUST set campaign A's `is_active` to 0 and campaign B's to 1
 
 ### Requirement: Admin campaign creation endpoint
-The system SHALL expose `POST /api/admin/campaigns` to create a new campaign, protected by admin authentication.
+The system SHALL expose `POST /api/portal-api/campaigns` to create a new campaign, protected by admin authentication.
 
 #### Scenario: Create a new campaign
 - **GIVEN** the admin is authenticated
-- **WHEN** `POST /api/admin/campaigns` is called with `{ id, displayName, totalPacks, totalWeeks, copilotUrl }`
+- **WHEN** `POST /api/portal-api/campaigns` is called with `{ id, displayName, totalPacks, totalWeeks, copilotUrl }`
 - **THEN** the system MUST insert a new campaign record and return `{ ok: true }`
 
 #### Scenario: Duplicate campaign ID

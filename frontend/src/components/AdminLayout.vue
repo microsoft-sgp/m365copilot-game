@@ -7,6 +7,7 @@ const AdminDashboard = defineAsyncComponent(() => import('./AdminDashboard.vue')
 const AdminOrganizations = defineAsyncComponent(() => import('./AdminOrganizations.vue'));
 const AdminCampaigns = defineAsyncComponent(() => import('./AdminCampaigns.vue'));
 const AdminPlayers = defineAsyncComponent(() => import('./AdminPlayers.vue'));
+const AdminAccess = defineAsyncComponent(() => import('./AdminAccess.vue'));
 const AdminDangerZone = defineAsyncComponent(() => import('./AdminDangerZone.vue'));
 
 const activeView = ref('dashboard');
@@ -16,6 +17,7 @@ const navItems = [
   { id: 'organizations', label: '🏢 Organizations' },
   { id: 'campaigns', label: '🎮 Campaigns' },
   { id: 'players', label: '👤 Players' },
+  { id: 'admins', label: 'Admins' },
   { id: 'danger', label: '⚠️ Danger Zone' },
 ];
 </script>
@@ -48,6 +50,7 @@ const navItems = [
     <AdminOrganizations v-else-if="activeView === 'organizations'" />
     <AdminCampaigns v-else-if="activeView === 'campaigns'" />
     <AdminPlayers v-else-if="activeView === 'players'" />
+    <AdminAccess v-else-if="activeView === 'admins'" />
     <AdminDangerZone v-else-if="activeView === 'danger'" />
   </div>
 </template>

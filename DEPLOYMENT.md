@@ -31,10 +31,11 @@ This guide walks you through deploying the entire Copilot Chat Bingo application
 | **Resource Group** | Container that holds all your resources | Free |
 | **Azure SQL Server + Database** | Stores players, sessions, submissions, leaderboard | Basic (5 DTU) — ~$5/mo |
 | **Storage Account** | Required by Azure Functions for internal state | Standard LRS — pennies/mo |
-| **Azure Functions App** | Hosts the Node.js API (7 endpoints) | Consumption plan — free tier covers most usage |
+| **Azure Communication Services + Email** | Sends admin OTP codes for portal login and sensitive admin changes | Usage-based — tiny for event-scale OTP traffic |
+| **Azure Functions App** | Hosts the Node.js API | Consumption plan — free tier covers most usage |
 | **Azure Static Web App** | Hosts the Vue 3 frontend with global CDN and free TLS | Free tier |
 
-Total estimated cost: **~$5–7/month** (the SQL database is the only paid component; everything else fits in free tiers for typical event usage).
+Total estimated cost: **~$5–7/month plus small email usage charges**. For typical event usage, the SQL database is still the main cost driver.
 
 ---
 
@@ -45,6 +46,7 @@ You need:
 1. An **Azure subscription** — [create a free account](https://azure.microsoft.com/free/) if you don't have one (includes $200 credit).
 2. A computer with **Node.js 20.x** installed — [download Node.js](https://nodejs.org/).
 3. A **terminal** — Terminal.app (macOS), Windows Terminal, or any shell.
+4. An admin email address that can receive OTP messages. For production, you also need an Azure Communication Services Email sender address, either from an Azure-managed domain or a verified custom domain.
 
 ---
 
@@ -176,7 +178,7 @@ az sql server firewall-rule create \
 az sql db create \
   --resource-group rg-bingo \
   --server sql-bingo-server \
-  --name bingodb \
+  --name bingo_db \
   --edition Basic \
   --capacity 5
 ```
@@ -186,7 +188,7 @@ az sql db create \
 You will need this for the Function App configuration. Your connection string is:
 
 ```
-Server=tcp:sql-bingo-server.database.windows.net,1433;Initial Catalog=bingodb;User ID=bingoadmin;Password=<YourStrongPassword123!>;Encrypt=true;TrustServerCertificate=false;
+Server=tcp:sql-bingo-server.database.windows.net,1433;Initial Catalog=bingo_db;User ID=bingoadmin;Password=<YourStrongPassword123!>;Encrypt=true;TrustServerCertificate=false;
 ```
 
 Replace `sql-bingo-server` with your actual server name and the password with the one you chose.
@@ -195,18 +197,20 @@ Replace `sql-bingo-server` with your actual server name and the password with th
 
 ## Step 5 — Run the database migrations
 
-The database needs five SQL scripts to create the tables, seed organization data, add campaign/admin support, add progression-scoring storage, and add pack-assignment lifecycle storage.
+The database needs six SQL scripts to create the tables, seed organization data, add campaign/admin support, add progression-scoring storage, add pack-assignment lifecycle storage, and add portal-managed admin users.
 
 ### Option A — Azure Portal Query Editor (easiest, no extra tools)
 
 1. Go to [portal.azure.com](https://portal.azure.com).
-2. Navigate to **Resource groups → rg-bingo → bingodb** (the database, not the server).
+2. Navigate to **Resource groups → rg-bingo → bingo_db** (the database, not the server).
 3. In the left menu, click **Query editor (preview)**.
 4. Log in with the SQL admin username (`bingoadmin`) and password.
 5. Paste the contents of `database/001-create-tables.sql` into the editor and click **Run**.
 6. Paste the contents of `database/002-seed-organizations.sql` into the editor and click **Run**.
-7. Paste the contents of `database/004-add-progression-scores.sql` into the editor and click **Run**.
-8. Paste the contents of `database/005-pack-assignment-lifecycle.sql` into the editor and click **Run**.
+7. Paste the contents of `database/003-add-admin-and-campaigns.sql` into the editor and click **Run**.
+8. Paste the contents of `database/004-add-progression-scores.sql` into the editor and click **Run**.
+9. Paste the contents of `database/005-pack-assignment-lifecycle.sql` into the editor and click **Run**.
+10. Paste the contents of `database/006-admin-users.sql` into the editor and click **Run**.
 
 ### Option B — sqlcmd (command line)
 
@@ -218,28 +222,40 @@ The database needs five SQL scripts to create the tables, seed organization data
 
 # Run the migration scripts
 sqlcmd -S sql-bingo-server.database.windows.net \
-       -d bingodb \
-       -U bingoadmin \
-       -P '<YourStrongPassword123!>' \
-       -i database/001-create-tables.sql
+  -d bingo_db \
+  -U bingoadmin \
+  -P '<YourStrongPassword123!>' \
+  -i database/001-create-tables.sql
 
 sqlcmd -S sql-bingo-server.database.windows.net \
-       -d bingodb \
-       -U bingoadmin \
-       -P '<YourStrongPassword123!>' \
-       -i database/002-seed-organizations.sql
+  -d bingo_db \
+  -U bingoadmin \
+  -P '<YourStrongPassword123!>' \
+  -i database/002-seed-organizations.sql
 
 sqlcmd -S sql-bingo-server.database.windows.net \
-  -d bingodb \
+  -d bingo_db \
+  -U bingoadmin \
+  -P '<YourStrongPassword123!>' \
+  -i database/003-add-admin-and-campaigns.sql
+
+sqlcmd -S sql-bingo-server.database.windows.net \
+  -d bingo_db \
   -U bingoadmin \
   -P '<YourStrongPassword123!>' \
   -i database/004-add-progression-scores.sql
 
 sqlcmd -S sql-bingo-server.database.windows.net \
-  -d bingodb \
+  -d bingo_db \
   -U bingoadmin \
   -P '<YourStrongPassword123!>' \
   -i database/005-pack-assignment-lifecycle.sql
+
+sqlcmd -S sql-bingo-server.database.windows.net \
+  -d bingo_db \
+  -U bingoadmin \
+  -P '<YourStrongPassword123!>' \
+  -i database/006-admin-users.sql
 ```
 
 ### Option C — Azure Data Studio (GUI)
@@ -285,30 +301,43 @@ az functionapp create \
 
 > **Note:** The function app name must be globally unique (it becomes part of the URL). If `func-bingo-api` is taken, try `func-bingo-api-yourname`.
 
-### 7b. Configure app settings
+### 7b. Create or identify the ACS Email sender
 
-Set the SQL connection string and admin key:
+Admin portal login depends on email OTP delivery. In production, configure Azure Communication Services Email before setting Function App settings.
+
+1. In [portal.azure.com](https://portal.azure.com), create an **Azure Communication Services** resource in `rg-bingo`.
+2. Open the Communication Services resource and create or connect an **Email Communication Service**.
+3. For the fastest event setup, add an Azure-managed email domain. For branded mail, connect a custom domain and complete the required DNS verification.
+4. Copy the sender address, such as `DoNotReply@<your-verified-email-domain>`. This becomes `ACS_EMAIL_SENDER`.
+5. In the Communication Services resource, open **Keys** and copy a connection string. This becomes `ACS_CONNECTION_STRING`.
+
+> **Important:** OTP email sending fails in production if either `ACS_CONNECTION_STRING` or `ACS_EMAIL_SENDER` is missing. The backend invalidates any OTP row whose email send fails, so users must request a fresh code after a provider or configuration issue is fixed.
+
+### 7c. Configure app settings
+
+Set the SQL connection string, admin secrets, and ACS Email settings:
 
 ```bash
 az functionapp config appsettings set \
   --name func-bingo-api \
   --resource-group rg-bingo \
   --settings \
-    "SQL_CONNECTION_STRING=Server=tcp:sql-bingo-server.database.windows.net,1433;Initial Catalog=bingodb;User ID=bingoadmin;Password=<YourStrongPassword123!>;Encrypt=true;TrustServerCertificate=false;" \
+    "SQL_CONNECTION_STRING=Server=tcp:sql-bingo-server.database.windows.net,1433;Initial Catalog=bingo_db;User ID=bingoadmin;Password=<YourStrongPassword123!>;Encrypt=true;TrustServerCertificate=false;" \
     "ADMIN_KEY=<pick-a-strong-secret-for-admin-access>" \
     "JWT_SECRET=<random-64-character-string-for-jwt-signing>" \
     "ADMIN_EMAILS=admin1@example.com,admin2@example.com" \
-    "SMTP_CONNECTION=<your-smtp-or-acs-connection-string>" \
+    "ACS_CONNECTION_STRING=<your-azure-communication-services-connection-string>" \
+    "ACS_EMAIL_SENDER=DoNotReply@<your-verified-email-domain>" \
     "LEADERBOARD_SOURCE=progression" \
     "ENABLE_PACK_ASSIGNMENT_LIFECYCLE=true"
 ```
 
-> **Important:** Replace the password and choose strong values for `ADMIN_KEY` and `JWT_SECRET`. The admin key is used for CLI/API access to admin endpoints. `JWT_SECRET` signs admin portal session tokens. `ADMIN_EMAILS` is a comma-separated list of emails allowed to log into the admin portal via OTP. `SMTP_CONNECTION` configures the email service for sending OTP codes (Azure Communication Services or SMTP). Keep all secrets confidential.
+> **Important:** Replace the password and choose strong values for `ADMIN_KEY` and `JWT_SECRET`. The admin key is used for CLI/API access to admin endpoints. `JWT_SECRET` signs admin portal session tokens. `ADMIN_EMAILS` is a comma-separated bootstrap/break-glass list of emails allowed to log into the admin portal via OTP; portal-managed admins are stored in the database. `ACS_CONNECTION_STRING` and `ACS_EMAIL_SENDER` configure Azure Communication Services Email for sending OTP codes. Keep all secrets confidential.
 
   > **Scoring source toggle:** `LEADERBOARD_SOURCE=progression` enables verified gameplay progression scoring. Set `LEADERBOARD_SOURCE=submissions` to temporarily roll back to legacy submission-based leaderboard aggregation.
   > **Pack lifecycle toggle:** `ENABLE_PACK_ASSIGNMENT_LIFECYCLE=true` enables server-authoritative pack assignment and 7-week completion rotation. Set `ENABLE_PACK_ASSIGNMENT_LIFECYCLE=false` to temporarily roll back to legacy manual pack selection behavior.
 
-### 7c. Deploy the backend code
+### 7d. Deploy the backend code
 
 ```bash
 cd backend
@@ -318,7 +347,7 @@ func azure functionapp publish func-bingo-api
 
 This packages your backend code and uploads it to Azure. It takes about a minute. When done, you will see output listing all the deployed function endpoints.
 
-### 7d. Verify the API is running
+### 7e. Verify the API is running
 
 ```bash
 curl https://func-bingo-api.azurewebsites.net/api/leaderboard?campaign=APR26
@@ -429,7 +458,17 @@ Open your Static Web App URL in a browser and check:
 | 5 | Verify progression scoring | Clear a line and confirm `POST` to `/api/events` with `line_won` and leaderboard refresh |
 | 6 | Leaderboard | Visit the Activity tab — leaderboard and timeline show score events |
 | 7 | No console errors | Browser DevTools → Console shows no errors |
-| 8 | Admin dashboard | `curl -H "X-Admin-Key: <your-key>" https://func-bingo-api.azurewebsites.net/api/admin/dashboard?campaign=APR26` returns engagement data |
+| 8 | Admin dashboard | `curl -H "X-Admin-Key: <your-key>" https://func-bingo-api.azurewebsites.net/api/portal-api/dashboard?campaign=APR26` returns engagement data |
+| 9 | Admin OTP login | Visit `https://<your-swa-name>.azurestaticapps.net/#/admin/login`, request a code for an email in `ADMIN_EMAILS`, and verify the portal opens |
+| 10 | Admin access management | In **Admin Access**, confirm bootstrap admins are read-only and adding/disabling a portal-managed admin requires re-entering an OTP |
+
+### Admin access runbook
+
+- Keep at least one known-good email in `ADMIN_EMAILS` as bootstrap/break-glass access.
+- Use the portal **Admin Access** view for day-to-day admin additions and removals.
+- Bootstrap admins are managed in Function App settings, so they cannot be removed from the portal.
+- Portal-managed admin changes require a fresh OTP sent to the acting admin and scoped to the exact add/remove action.
+- If ACS Email has an outage or is misconfigured, allow-listed admins receive a provider failure instead of being sent to an OTP entry screen with no code.
 
 ### Progression scoring cutover and rollback runbook
 
@@ -560,8 +599,9 @@ For a typical event (hundreds of players over a few days):
 | Azure SQL Database | Basic (5 DTU) | ~$5 |
 | Azure Functions | Consumption (pay-per-execution) | Free (1M executions/mo included) |
 | Storage Account | Standard LRS | < $0.10 |
+| Azure Communication Services Email | Usage-based | Small, depends on OTP volume |
 | Azure Static Web Apps | Free | $0 |
-| **Total** | | **~$5/month** |
+| **Total** | | **~$5/month plus email usage** |
 
 > After the event, you can [tear down](#tearing-it-down) the resources to stop all charges immediately.
 
@@ -590,6 +630,24 @@ az functionapp config appsettings list \
 ```
 
 Verify `SQL_CONNECTION_STRING` has the correct server name, database name, username, and password. Also confirm the firewall rule from Step 4b was created.
+
+### Admin OTP request returns "Could not send verification code"
+
+The email provider failed after the admin email was accepted. Check these settings on the Function App:
+
+```bash
+az functionapp config appsettings list \
+  --name func-bingo-api \
+  --resource-group rg-bingo \
+  --query "[?name=='ACS_CONNECTION_STRING' || name=='ACS_EMAIL_SENDER' || name=='ADMIN_EMAILS']" \
+  --output table
+```
+
+Confirm `ACS_CONNECTION_STRING` is from the Communication Services resource, `ACS_EMAIL_SENDER` exactly matches a verified sender address, and the requesting email is in `ADMIN_EMAILS` or active in the portal-managed admin list. After fixing settings, request a new OTP; failed-send OTPs are invalidated and cannot be reused.
+
+### Admin can log in but cannot add or disable admins
+
+Admin add/remove operations require a fresh OTP step-up from the Admin Access view. Request the step-up code, enter it before it expires, and retry the change. Bootstrap admins from `ADMIN_EMAILS` are read-only in the portal and must be changed through Function App settings.
 
 ### API returns 404 for all routes
 
@@ -675,7 +733,7 @@ This deletes the SQL server, database, function app, storage account, and static
 |---|---|---|
 | Resource Group | `rg-bingo` | Yes |
 | SQL Server | `sql-bingo-server` | Yes (globally unique) |
-| SQL Database | `bingodb` | Yes |
+| SQL Database | `bingo_db` | Yes |
 | Storage Account | `stbingofunc` | Yes (globally unique, lowercase, no hyphens) |
 | Function App | `func-bingo-api` | Yes (globally unique) |
 | Static Web App | `swa-bingo` | Yes |

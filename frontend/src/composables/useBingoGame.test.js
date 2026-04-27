@@ -120,6 +120,38 @@ describe('useBingoGame.startBoard', () => {
     expect(state.gameSessionId).toBe(789);
   });
 
+  it('starts with a server-assigned pack when no client pack is available yet', async () => {
+    apiCreateSession.mockResolvedValue({
+      ok: true,
+      data: {
+        gameSessionId: 456,
+        packId: 88,
+        activeAssignment: {
+          assignmentId: 9,
+          packId: 88,
+          cycleNumber: 1,
+          rotated: false,
+          completedPackId: null,
+        },
+      },
+    });
+
+    const { startBoard, state } = useBingoGame();
+    const result = await startBoard({ name: 'Ada', email: 'ada@example.com' });
+
+    expect(apiCreateSession).toHaveBeenCalledWith({
+      sessionId: 'test-session',
+      playerName: 'Ada',
+      email: 'ada@example.com',
+    });
+    expect(result).toEqual({ ok: true, packId: 88 });
+    expect(state.boardActive).toBe(true);
+    expect(state.packId).toBe(88);
+    expect(state.assignedPackId).toBe(88);
+    expect(state.assignmentCycle).toBe(1);
+    expect(state.gameSessionId).toBe(456);
+  });
+
   it('continues when apiCreateSession rejects', async () => {
     apiCreateSession.mockRejectedValue(new Error('network'));
     const { startBoard, state } = useBingoGame();

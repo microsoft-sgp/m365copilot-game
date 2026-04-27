@@ -6,7 +6,7 @@ vi.mock('../lib/db.js', () => ({ getPool: vi.fn() }));
 import { getPool } from '../lib/db.js';
 import { handler } from './adminDashboard.js';
 
-describe('GET /admin/dashboard', () => {
+describe('GET /portal-api/dashboard', () => {
   let prev;
 
   beforeEach(() => {

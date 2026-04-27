@@ -9,7 +9,7 @@ vi.mock('../lib/db.js', () => ({
 
 const { handler } = await import('./verifyOtp.js');
 
-describe('POST /api/admin/verify-otp', () => {
+describe('POST /api/portal-api/verify-otp', () => {
   let prevEmails, prevSecret;
 
   beforeEach(() => {
@@ -27,19 +27,21 @@ describe('POST /api/admin/verify-otp', () => {
   });
 
   it('returns 400 for missing fields', async () => {
+    mockPool = createMockPool([[]]);
     const req = fakeRequest({ body: { email: 'admin@test.com' } });
     const res = await handler(req, { log: vi.fn() });
     expect(res.status).toBe(400);
   });
 
   it('returns 401 for non-admin email', async () => {
+    mockPool = createMockPool([[]]);
     const req = fakeRequest({ body: { email: 'nobody@test.com', code: '123456' } });
     const res = await handler(req, { log: vi.fn() });
     expect(res.status).toBe(401);
   });
 
   it('returns 401 for invalid code', async () => {
-    mockPool = createMockPool([[]]);
+    mockPool = createMockPool([[], []]);
     const req = fakeRequest({ body: { email: 'admin@test.com', code: '000000' } });
     const res = await handler(req, { log: vi.fn() });
     expect(res.status).toBe(401);
@@ -48,6 +50,7 @@ describe('POST /api/admin/verify-otp', () => {
 
   it('returns 401 for already-used OTP', async () => {
     mockPool = createMockPool([
+      [],
       [{ id: 1, expires_at: new Date(Date.now() + 60000).toISOString(), used: true }],
     ]);
     const req = fakeRequest({ body: { email: 'admin@test.com', code: '123456' } });
@@ -58,6 +61,7 @@ describe('POST /api/admin/verify-otp', () => {
 
   it('returns 401 for expired OTP', async () => {
     mockPool = createMockPool([
+      [],
       [{ id: 1, expires_at: new Date(Date.now() - 60000).toISOString(), used: false }],
     ]);
     const req = fakeRequest({ body: { email: 'admin@test.com', code: '123456' } });
@@ -68,6 +72,7 @@ describe('POST /api/admin/verify-otp', () => {
 
   it('returns JWT for valid OTP', async () => {
     mockPool = createMockPool([
+      [],
       [{ id: 1, expires_at: new Date(Date.now() + 300000).toISOString(), used: false }],
       { recordset: [], rowsAffected: [1] }, // UPDATE used = 1
     ]);
@@ -76,5 +81,26 @@ describe('POST /api/admin/verify-otp', () => {
     expect(res.jsonBody.ok).toBe(true);
     expect(res.jsonBody.token).toBeDefined();
     expect(res.jsonBody.token.split('.')).toHaveLength(3);
+  });
+
+  it('returns short-lived step-up token for admin-management verification', async () => {
+    mockPool = createMockPool([
+      [],
+      [{ id: 1, expires_at: new Date(Date.now() + 300000).toISOString(), used: false }],
+      { recordset: [], rowsAffected: [1] },
+    ]);
+    const req = fakeRequest({
+      body: {
+        email: 'admin@test.com',
+        code: '123456',
+        purpose: 'admin-management',
+        action: 'add-admin',
+        targetEmail: 'new@test.com',
+      },
+    });
+    const res = await handler(req, { log: vi.fn() });
+    expect(res.jsonBody.ok).toBe(true);
+    expect(res.jsonBody.stepUpToken).toBeDefined();
+    expect(res.jsonBody.token).toBeUndefined();
   });
 });

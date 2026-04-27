@@ -1,0 +1,64 @@
+output "resource_group_name" {
+  description = "Resource group containing the app resources."
+  value       = azurerm_resource_group.main.name
+}
+
+output "function_app_name" {
+  description = "Azure Function App name for backend deployment."
+  value       = azurerm_function_app_flex_consumption.api.name
+}
+
+output "function_app_url" {
+  description = "Backend Function App base URL."
+  value       = "https://${azurerm_function_app_flex_consumption.api.default_hostname}"
+}
+
+output "api_base_url" {
+  description = "Frontend VITE_API_BASE value for build/deploy."
+  value       = "https://${azurerm_function_app_flex_consumption.api.default_hostname}/api"
+}
+
+output "static_web_app_name" {
+  description = "Azure Static Web App name for frontend deployment."
+  value       = azurerm_static_web_app.frontend.name
+}
+
+output "static_web_app_url" {
+  description = "Frontend Static Web App URL."
+  value       = "https://${azurerm_static_web_app.frontend.default_host_name}"
+}
+
+output "sql_server_fqdn" {
+  description = "Azure SQL server fully qualified domain name."
+  value       = azurerm_mssql_server.main.fully_qualified_domain_name
+}
+
+output "sql_database_name" {
+  description = "Azure SQL database name."
+  value       = azurerm_mssql_database.app.name
+}
+
+output "function_sql_identity_name" {
+  description = "User-assigned managed identity name granted database access by the migration runner."
+  value       = azurerm_user_assigned_identity.functions.name
+}
+
+output "function_sql_identity_client_id" {
+  description = "Client ID used by the Function App for Azure SQL managed identity authentication."
+  value       = azurerm_user_assigned_identity.functions.client_id
+}
+
+output "key_vault_name" {
+  description = "Key Vault containing generated app secrets."
+  value       = azurerm_key_vault.main.name
+}
+
+output "acs_email_sender" {
+  description = "Sender address configured for admin OTP email."
+  value       = local.acs_email_sender_address
+}
+
+output "azure_portal_resource_group_url" {
+  description = "Azure Portal link to the resource group."
+  value       = "https://portal.azure.com/#@/resource/subscriptions/${var.subscription_id}/resourceGroups/${azurerm_resource_group.main.name}/overview"
+}

@@ -24,6 +24,7 @@ services:
       SQL_CONNECTION_STRING: "Server=tcp:db,1433;Initial Catalog=master;User ID=sa;Password=BingoTest123!;Encrypt=false;TrustServerCertificate=true;"
       SA_PASSWORD: "BingoTest123!"
       DB_HOST: db
+      DB_NAME: bingo_db
 
   backend:
     build:
@@ -35,7 +36,7 @@ services:
       db-init:
         condition: service_completed_successfully
     environment:
-      SQL_CONNECTION_STRING: "Server=tcp:db,1433;Initial Catalog=bingodb;User ID=sa;Password=BingoTest123!;Encrypt=false;TrustServerCertificate=true;"
+      SQL_CONNECTION_STRING: "Server=tcp:db,1433;Initial Catalog=bingo_db;User ID=sa;Password=BingoTest123!;Encrypt=false;TrustServerCertificate=true;"
       ADMIN_KEY: "smoke-test-admin-key"
       JWT_SECRET: "smoke-test-jwt-secret-key-at-least-32-chars-long"
       ADMIN_EMAILS: "admin@test.com"

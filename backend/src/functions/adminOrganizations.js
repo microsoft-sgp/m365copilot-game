@@ -154,9 +154,9 @@ async function removeDomain(request, context) {
   return { jsonBody: { ok: true } };
 }
 
-app.http('adminListOrganizations', { methods: ['GET'], authLevel: 'anonymous', route: 'admin/organizations', handler: listOrganizations });
-app.http('adminCreateOrganization', { methods: ['POST'], authLevel: 'anonymous', route: 'admin/organizations', handler: createOrganization });
-app.http('adminUpdateOrganization', { methods: ['PUT'], authLevel: 'anonymous', route: 'admin/organizations/{id}', handler: updateOrganization });
-app.http('adminDeleteOrganization', { methods: ['DELETE'], authLevel: 'anonymous', route: 'admin/organizations/{id}', handler: deleteOrganization });
-app.http('adminAddDomain', { methods: ['POST'], authLevel: 'anonymous', route: 'admin/organizations/{id}/domains', handler: addDomain });
-app.http('adminRemoveDomain', { methods: ['DELETE'], authLevel: 'anonymous', route: 'admin/organizations/{id}/domains/{domainId}', handler: removeDomain });
+app.http('adminListOrganizations', { methods: ['GET'], authLevel: 'anonymous', route: 'portal-api/organizations', handler: listOrganizations });
+app.http('adminCreateOrganization', { methods: ['POST'], authLevel: 'anonymous', route: 'portal-api/organizations', handler: createOrganization });
+app.http('adminUpdateOrganization', { methods: ['PUT'], authLevel: 'anonymous', route: 'portal-api/organizations/{id}', handler: updateOrganization });
+app.http('adminDeleteOrganization', { methods: ['DELETE'], authLevel: 'anonymous', route: 'portal-api/organizations/{id}', handler: deleteOrganization });
+app.http('adminAddDomain', { methods: ['POST'], authLevel: 'anonymous', route: 'portal-api/organizations/{id}/domains', handler: addDomain });
+app.http('adminRemoveDomain', { methods: ['DELETE'], authLevel: 'anonymous', route: 'portal-api/organizations/{id}/domains/{domainId}', handler: removeDomain });

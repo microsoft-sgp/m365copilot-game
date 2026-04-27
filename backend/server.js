@@ -79,12 +79,12 @@ app.get('/api/organizations/domains', adapt({ handler: getOrgDomains }));
 app.get('/api/player/state', adapt({ handler: getPlayerState }));
 
 // Admin auth
-app.post('/api/admin/request-otp', adapt({ handler: requestOtp }));
-app.post('/api/admin/verify-otp', adapt({ handler: verifyOtp }));
+app.post('/api/portal-api/request-otp', adapt({ handler: requestOtp }));
+app.post('/api/portal-api/verify-otp', adapt({ handler: verifyOtp }));
 
 // Admin dashboard & export
-app.get('/api/admin/dashboard', adapt({ handler: adminDashboard }));
-app.get('/api/admin/export', adapt({ handler: exportCsv }));
+app.get('/api/portal-api/dashboard', adapt({ handler: adminDashboard }));
+app.get('/api/portal-api/export', adapt({ handler: exportCsv }));
 
 // We need to extract the individual handlers from the multi-handler files
 // Since they use app.http() which is Azure Functions specific, we'll re-implement routing
@@ -322,25 +322,25 @@ async function adminSubmissionHandler() {
 }
 
 // Register admin org routes
-app.get('/api/admin/organizations', await adminOrgHandler('GET', false, false));
-app.post('/api/admin/organizations', await adminOrgHandler('POST', false, false));
-app.put('/api/admin/organizations/:id', await adminOrgHandler('PUT', true, false));
-app.delete('/api/admin/organizations/:id', await adminOrgHandler('DELETE', true, false));
-app.post('/api/admin/organizations/:id/domains', await adminOrgHandler('POST', true, false));
-app.delete('/api/admin/organizations/:id/domains/:domainId', await adminOrgHandler('DELETE', true, true));
+app.get('/api/portal-api/organizations', await adminOrgHandler('GET', false, false));
+app.post('/api/portal-api/organizations', await adminOrgHandler('POST', false, false));
+app.put('/api/portal-api/organizations/:id', await adminOrgHandler('PUT', true, false));
+app.delete('/api/portal-api/organizations/:id', await adminOrgHandler('DELETE', true, false));
+app.post('/api/portal-api/organizations/:id/domains', await adminOrgHandler('POST', true, false));
+app.delete('/api/portal-api/organizations/:id/domains/:domainId', await adminOrgHandler('DELETE', true, true));
 
 // Register admin campaign routes
-app.get('/api/admin/campaigns', await adminCampaignHandler('GET'));
-app.post('/api/admin/campaigns', await adminCampaignHandler('POST'));
-app.put('/api/admin/campaigns/:id/settings', await adminCampaignHandler('PUT'));
-app.post('/api/admin/campaigns/:id/clear', await adminCampaignHandler('POST', 'clear'));
-app.post('/api/admin/campaigns/:id/reset-leaderboard', await adminCampaignHandler('POST', 'reset-leaderboard'));
+app.get('/api/portal-api/campaigns', await adminCampaignHandler('GET'));
+app.post('/api/portal-api/campaigns', await adminCampaignHandler('POST'));
+app.put('/api/portal-api/campaigns/:id/settings', await adminCampaignHandler('PUT'));
+app.post('/api/portal-api/campaigns/:id/clear', await adminCampaignHandler('POST', 'clear'));
+app.post('/api/portal-api/campaigns/:id/reset-leaderboard', await adminCampaignHandler('POST', 'reset-leaderboard'));
 
 // Register admin player routes
-app.get('/api/admin/players', await adminPlayerHandler('GET', true));
-app.get('/api/admin/players/:id', await adminPlayerHandler('GET', false));
-app.delete('/api/admin/players/:id', await adminPlayerHandler('DELETE', false));
-app.delete('/api/admin/submissions/:id', await adminSubmissionHandler());
+app.get('/api/portal-api/players', await adminPlayerHandler('GET', true));
+app.get('/api/portal-api/players/:id', await adminPlayerHandler('GET', false));
+app.delete('/api/portal-api/players/:id', await adminPlayerHandler('DELETE', false));
+app.delete('/api/portal-api/submissions/:id', await adminSubmissionHandler());
 
 const PORT = process.env.PORT || 7071;
 app.listen(PORT, '0.0.0.0', () => {

@@ -79,6 +79,6 @@ export const handler = async (request, context) => {
 app.http('exportCsv', {
   methods: ['GET'],
   authLevel: 'anonymous',
-  route: 'admin/export',
+  route: 'portal-api/export',
   handler,
 });

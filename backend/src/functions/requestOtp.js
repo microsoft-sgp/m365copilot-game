@@ -2,10 +2,12 @@ import { app } from '@azure/functions';
 import { randomInt } from 'node:crypto';
 import sql from 'mssql';
 import { getPool } from '../lib/db.js';
-import { hashOtp, getAdminEmails } from '../lib/adminAuth.js';
+import { hashOtp, getEffectiveAdminEmails, normalizeEmail } from '../lib/adminAuth.js';
+import { sendAdminOtpEmail } from '../lib/email.js';
 
 export const handler = async (request, context) => {
-  const adminEmails = getAdminEmails();
+  const pool = await getPool();
+  const adminEmails = await getEffectiveAdminEmails(pool);
   if (adminEmails.length === 0) {
     return {
       status: 500,
@@ -14,7 +16,7 @@ export const handler = async (request, context) => {
   }
 
   const body = await request.json();
-  const email = (body.email || '').trim().toLowerCase();
+  const email = normalizeEmail(body.email);
 
   if (!email || !email.includes('@')) {
     return {
@@ -29,8 +31,6 @@ export const handler = async (request, context) => {
   if (!adminEmails.includes(email)) {
     return successResponse;
   }
-
-  const pool = await getPool();
 
   // Rate limit: 1 OTP per 60 seconds per email
   const recent = await pool
@@ -58,24 +58,30 @@ export const handler = async (request, context) => {
   const codeHash = hashOtp(code);
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-  await pool
+  const insertResult = await pool
     .request()
     .input('email', sql.NVarChar(320), email)
     .input('codeHash', sql.NVarChar(128), codeHash)
     .input('expiresAt', sql.DateTime2, expiresAt)
     .query(`
       INSERT INTO admin_otps (email, code_hash, expires_at)
+      OUTPUT inserted.id
       VALUES (@email, @codeHash, @expiresAt);
     `);
 
-  // Send OTP email via configured service
-  // For now, log the code in non-production environments for testing
-  if (process.env.NODE_ENV !== 'production') {
-    context.log(`[DEV] Admin OTP for ${email}: ${code}`);
-  }
+  const emailResult = await sendAdminOtpEmail(email, code, context);
+  if (!emailResult.ok) {
+    const otpId = insertResult.recordset[0].id;
+    await pool
+      .request()
+      .input('id', sql.Int, otpId)
+      .query('UPDATE admin_otps SET used = 1 WHERE id = @id;');
 
-  // TODO: Integrate email sending (Azure Communication Services or SMTP)
-  // await sendOtpEmail(email, code);
+    return {
+      status: 503,
+      jsonBody: { ok: false, message: 'Could not send verification code. Please try again later.' },
+    };
+  }
 
   return successResponse;
 };
@@ -83,6 +89,6 @@ export const handler = async (request, context) => {
 app.http('requestOtp', {
   methods: ['POST'],
   authLevel: 'anonymous',
-  route: 'admin/request-otp',
+  route: 'portal-api/request-otp',
   handler,
 });

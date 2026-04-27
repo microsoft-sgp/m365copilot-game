@@ -4,13 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Azure Functions API backend for the Copilot Chat Bingo game.",
-  "main": "src/functions/*.js",
+  "main": "src/index.js",
   "scripts": {
     "start": "func start",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@azure/communication-email": "^1.0.0",
     "@azure/functions": "^4.0.0",
     "jsonwebtoken": "^9.0.0",
     "mssql": "^11.0.0"

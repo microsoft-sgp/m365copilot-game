@@ -7,34 +7,34 @@ Defines the admin dashboard and CSV export endpoints for campaign administrators
 ## Requirements
 
 ### Requirement: Admin dashboard endpoint
-The system SHALL expose `GET /api/admin/dashboard` to return campaign gameplay and scoring data sourced from progression-based scoring records, protected by JWT-based authentication or the static admin key.
+The system SHALL expose `GET /api/portal-api/dashboard` to return campaign gameplay and scoring data sourced from progression-based scoring records, protected by JWT-based authentication or the static admin key.
 
 #### Scenario: Authorized admin views dashboard data (JWT)
 - **GIVEN** the request includes a valid `Authorization: Bearer <jwt>` header with a non-expired admin JWT
-- **WHEN** the admin sends `GET /api/admin/dashboard?campaign=APR26`
+- **WHEN** the admin sends `GET /api/portal-api/dashboard?campaign=APR26`
 - **THEN** the system MUST return dashboard summaries and lists consistent with progression-based leaderboard scoring
 
 #### Scenario: Authorized admin views dashboard data (legacy key)
 - **GIVEN** the request includes a valid `X-Admin-Key` header matching the configured admin password
-- **WHEN** the admin sends `GET /api/admin/dashboard?campaign=APR26`
+- **WHEN** the admin sends `GET /api/portal-api/dashboard?campaign=APR26`
 - **THEN** the system MUST return the same progression-consistent dashboard data (backward compatible)
 
 #### Scenario: Unauthorized access attempt
 - **GIVEN** the request has neither a valid JWT nor a valid `X-Admin-Key` header
-- **WHEN** the admin sends `GET /api/admin/dashboard`
+- **WHEN** the admin sends `GET /api/portal-api/dashboard`
 - **THEN** the system MUST return HTTP 401 with `{ ok: false, message: "Unauthorized" }`
 
 ### Requirement: CSV export endpoint
-The system SHALL expose `GET /api/admin/export` to download campaign scoring data consistent with progression-based leaderboard records, protected by JWT-based authentication or the static admin key.
+The system SHALL expose `GET /api/portal-api/export` to download campaign scoring data consistent with progression-based leaderboard records, protected by JWT-based authentication or the static admin key.
 
 #### Scenario: Authorized CSV export (JWT)
 - **GIVEN** the request includes a valid admin JWT
-- **WHEN** the admin sends `GET /api/admin/export?campaign=APR26`
+- **WHEN** the admin sends `GET /api/portal-api/export?campaign=APR26`
 - **THEN** the system MUST return a CSV file containing progression-scoring-compatible rows for campaign reporting
 
 #### Scenario: Authorized CSV export (legacy key)
 - **GIVEN** the request includes a valid `X-Admin-Key` header
-- **WHEN** the admin sends `GET /api/admin/export?campaign=APR26`
+- **WHEN** the admin sends `GET /api/portal-api/export?campaign=APR26`
 - **THEN** the system MUST return the same progression-consistent CSV file (backward compatible)
 
 ### Requirement: Dashboard parity with player leaderboard
@@ -64,96 +64,96 @@ The system SHALL read the admin password from an Azure Functions App Setting (en
 - **THEN** the system MUST validate the email against this allow-list
 
 ### Requirement: Admin organization CRUD endpoints
-The system SHALL expose CRUD endpoints for organizations and domain mappings under `/api/admin/organizations`, protected by admin authentication.
+The system SHALL expose CRUD endpoints for organizations and domain mappings under `/api/portal-api/organizations`, protected by admin authentication.
 
 #### Scenario: List organizations
 - **GIVEN** the admin is authenticated
-- **WHEN** `GET /api/admin/organizations` is called
+- **WHEN** `GET /api/portal-api/organizations` is called
 - **THEN** the system MUST return all organizations with their id, name, and associated domain mappings
 
 #### Scenario: Create organization
 - **GIVEN** the admin is authenticated
-- **WHEN** `POST /api/admin/organizations` is called with `{ name }`
+- **WHEN** `POST /api/portal-api/organizations` is called with `{ name }`
 - **THEN** the system MUST insert a new organization and return `{ ok: true, id: <new-id> }`
 
 #### Scenario: Update organization
 - **GIVEN** the admin is authenticated and the organization exists
-- **WHEN** `PUT /api/admin/organizations/:id` is called with `{ name }`
+- **WHEN** `PUT /api/portal-api/organizations/:id` is called with `{ name }`
 - **THEN** the system MUST update the organization name and return `{ ok: true }`
 
 #### Scenario: Delete organization
 - **GIVEN** the admin is authenticated and the organization has no submissions
-- **WHEN** `DELETE /api/admin/organizations/:id` is called
+- **WHEN** `DELETE /api/portal-api/organizations/:id` is called
 - **THEN** the system MUST delete the organization and its domain mappings and return `{ ok: true }`
 
 #### Scenario: Add domain mapping
 - **GIVEN** the admin is authenticated
-- **WHEN** `POST /api/admin/organizations/:id/domains` is called with `{ domain }`
+- **WHEN** `POST /api/portal-api/organizations/:id/domains` is called with `{ domain }`
 - **THEN** the system MUST insert a new org_domains record and return `{ ok: true }`
 
 #### Scenario: Remove domain mapping
 - **GIVEN** the admin is authenticated
-- **WHEN** `DELETE /api/admin/organizations/:id/domains/:domainId` is called
+- **WHEN** `DELETE /api/portal-api/organizations/:id/domains/:domainId` is called
 - **THEN** the system MUST delete the org_domains record and return `{ ok: true }`
 
 ### Requirement: Admin campaign management endpoints
-The system SHALL expose CRUD endpoints for campaigns under `/api/admin/campaigns`, protected by admin authentication.
+The system SHALL expose CRUD endpoints for campaigns under `/api/portal-api/campaigns`, protected by admin authentication.
 
 #### Scenario: List campaigns
 - **GIVEN** the admin is authenticated
-- **WHEN** `GET /api/admin/campaigns` is called
+- **WHEN** `GET /api/portal-api/campaigns` is called
 - **THEN** the system MUST return all campaigns with settings and summary stats
 
 #### Scenario: Create campaign
 - **GIVEN** the admin is authenticated
-- **WHEN** `POST /api/admin/campaigns` is called with campaign settings
+- **WHEN** `POST /api/portal-api/campaigns` is called with campaign settings
 - **THEN** the system MUST insert a new campaign record and return `{ ok: true }`
 
 #### Scenario: Update campaign settings
 - **GIVEN** the admin is authenticated
-- **WHEN** `PUT /api/admin/campaigns/:id/settings` is called with updated values
+- **WHEN** `PUT /api/portal-api/campaigns/:id/settings` is called with updated values
 - **THEN** the system MUST update the campaign and return `{ ok: true }`
 
 ### Requirement: Admin player management endpoints
-The system SHALL expose endpoints for player search, detail view, and management under `/api/admin/players`, protected by admin authentication.
+The system SHALL expose endpoints for player search, detail view, and management under `/api/portal-api/players`, protected by admin authentication.
 
 #### Scenario: Search players
 - **GIVEN** the admin is authenticated
-- **WHEN** `GET /api/admin/players?q=<query>` is called
+- **WHEN** `GET /api/portal-api/players?q=<query>` is called
 - **THEN** the system MUST return matching players (by email or name, case-insensitive, limit 50)
 
 #### Scenario: Get player detail
 - **GIVEN** the admin is authenticated
-- **WHEN** `GET /api/admin/players/:id` is called
+- **WHEN** `GET /api/portal-api/players/:id` is called
 - **THEN** the system MUST return the player with all game sessions and submissions
 
 #### Scenario: Delete player
 - **GIVEN** the admin is authenticated
-- **WHEN** `DELETE /api/admin/players/:id` is called
+- **WHEN** `DELETE /api/portal-api/players/:id` is called
 - **THEN** the system MUST delete the player and cascade to sessions, events, and submissions, and return `{ ok: true }`
 
 ### Requirement: Admin submission revocation endpoint
-The system SHALL expose `DELETE /api/admin/submissions/:id` to revoke a keyword submission, protected by admin authentication.
+The system SHALL expose `DELETE /api/portal-api/submissions/:id` to revoke a keyword submission, protected by admin authentication.
 
 #### Scenario: Revoke submission
 - **GIVEN** the admin is authenticated and the submission exists
-- **WHEN** `DELETE /api/admin/submissions/:id` is called
+- **WHEN** `DELETE /api/portal-api/submissions/:id` is called
 - **THEN** the system MUST delete the submission record and return `{ ok: true }`
 
 #### Scenario: Revoke nonexistent submission
 - **GIVEN** the submission ID does not exist
-- **WHEN** `DELETE /api/admin/submissions/:id` is called
+- **WHEN** `DELETE /api/portal-api/submissions/:id` is called
 - **THEN** the system MUST return HTTP 404 with `{ ok: false, message: "Submission not found" }`
 
 ### Requirement: Admin campaign data clearing endpoints
-The system SHALL expose endpoints for campaign data operations under `/api/admin/campaigns/:id/`, protected by admin authentication.
+The system SHALL expose endpoints for campaign data operations under `/api/portal-api/campaigns/:id/`, protected by admin authentication.
 
 #### Scenario: Clear campaign data
 - **GIVEN** the admin is authenticated
-- **WHEN** `POST /api/admin/campaigns/:id/clear` is called
+- **WHEN** `POST /api/portal-api/campaigns/:id/clear` is called
 - **THEN** the system MUST delete all tile_events, game_sessions, and submissions for that campaign (preserving players and organizations) and return counts of deleted records
 
 #### Scenario: Reset leaderboard
 - **GIVEN** the admin is authenticated
-- **WHEN** `POST /api/admin/campaigns/:id/reset-leaderboard` is called
+- **WHEN** `POST /api/portal-api/campaigns/:id/reset-leaderboard` is called
 - **THEN** the system MUST delete all submissions for that campaign and return the count of deleted submissions

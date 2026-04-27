@@ -1,10 +1,11 @@
 import { app } from '@azure/functions';
 import sql from 'mssql';
 import { getPool } from '../lib/db.js';
-import { hashOtp, signAdminToken, getAdminEmails } from '../lib/adminAuth.js';
+import { hashOtp, signAdminStepUpToken, signAdminToken, getEffectiveAdminEmails, normalizeEmail } from '../lib/adminAuth.js';
 
 export const handler = async (request, context) => {
-  const adminEmails = getAdminEmails();
+  const pool = await getPool();
+  const adminEmails = await getEffectiveAdminEmails(pool);
   if (adminEmails.length === 0) {
     return {
       status: 500,
@@ -13,8 +14,11 @@ export const handler = async (request, context) => {
   }
 
   const body = await request.json();
-  const email = (body.email || '').trim().toLowerCase();
+  const email = normalizeEmail(body.email);
   const code = (body.code || '').trim();
+  const purpose = (body.purpose || '').trim();
+  const action = (body.action || '').trim();
+  const targetEmail = normalizeEmail(body.targetEmail);
 
   if (!email || !code) {
     return {
@@ -30,7 +34,6 @@ export const handler = async (request, context) => {
     };
   }
 
-  const pool = await getPool();
   const codeHash = hashOtp(code);
 
   // Find matching, unused, non-expired OTP
@@ -73,7 +76,18 @@ export const handler = async (request, context) => {
     .input('id', sql.Int, otp.id)
     .query('UPDATE admin_otps SET used = 1 WHERE id = @id;');
 
-  // Generate JWT
+  if (purpose === 'admin-management') {
+    if (!['add-admin', 'remove-admin'].includes(action) || !targetEmail) {
+      return {
+        status: 400,
+        jsonBody: { ok: false, message: 'Admin management action and target email are required' },
+      };
+    }
+    return {
+      jsonBody: { ok: true, stepUpToken: signAdminStepUpToken(email, { action, targetEmail }) },
+    };
+  }
+
   const token = signAdminToken(email);
 
   return {
@@ -84,6 +98,6 @@ export const handler = async (request, context) => {
 app.http('verifyOtp', {
   methods: ['POST'],
   authLevel: 'anonymous',
-  route: 'admin/verify-otp',
+  route: 'portal-api/verify-otp',
   handler,
 });

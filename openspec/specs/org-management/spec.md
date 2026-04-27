@@ -7,19 +7,19 @@ Defines organization and domain mapping management via admin API endpoints, publ
 ## Requirements
 
 ### Requirement: Admin organization list endpoint
-The system SHALL expose `GET /api/admin/organizations` to list all organizations with their email domain mappings, protected by admin authentication.
+The system SHALL expose `GET /api/portal-api/organizations` to list all organizations with their email domain mappings, protected by admin authentication.
 
 #### Scenario: List all organizations with domains
 - **GIVEN** the admin is authenticated
-- **WHEN** `GET /api/admin/organizations` is called
+- **WHEN** `GET /api/portal-api/organizations` is called
 - **THEN** the system MUST return all organizations with their id, name, and an array of associated email domains
 
 ### Requirement: Admin organization creation endpoint
-The system SHALL expose `POST /api/admin/organizations` to create a new organization, protected by admin authentication.
+The system SHALL expose `POST /api/portal-api/organizations` to create a new organization, protected by admin authentication.
 
 #### Scenario: Create a new organization
 - **GIVEN** the admin is authenticated
-- **WHEN** `POST /api/admin/organizations` is called with `{ name }`
+- **WHEN** `POST /api/portal-api/organizations` is called with `{ name }`
 - **THEN** the system MUST insert a new organization record and return `{ ok: true, id: <new-id> }`
 
 #### Scenario: Duplicate organization name
@@ -28,19 +28,19 @@ The system SHALL expose `POST /api/admin/organizations` to create a new organiza
 - **THEN** the system MUST return HTTP 409 with `{ ok: false, message: "Organization already exists" }`
 
 ### Requirement: Admin organization update endpoint
-The system SHALL expose `PUT /api/admin/organizations/:id` to update an organization name, protected by admin authentication.
+The system SHALL expose `PUT /api/portal-api/organizations/:id` to update an organization name, protected by admin authentication.
 
 #### Scenario: Update organization name
 - **GIVEN** the admin is authenticated and the organization exists
-- **WHEN** `PUT /api/admin/organizations/:id` is called with `{ name }`
+- **WHEN** `PUT /api/portal-api/organizations/:id` is called with `{ name }`
 - **THEN** the system MUST update the organization name and return `{ ok: true }`
 
 ### Requirement: Admin organization deletion endpoint
-The system SHALL expose `DELETE /api/admin/organizations/:id` to remove an organization, protected by admin authentication.
+The system SHALL expose `DELETE /api/portal-api/organizations/:id` to remove an organization, protected by admin authentication.
 
 #### Scenario: Delete organization with no submissions
 - **GIVEN** the organization has no associated submissions
-- **WHEN** `DELETE /api/admin/organizations/:id` is called
+- **WHEN** `DELETE /api/portal-api/organizations/:id` is called
 - **THEN** the system MUST delete the organization and its domain mappings and return `{ ok: true }`
 
 #### Scenario: Delete organization with existing submissions
@@ -53,7 +53,7 @@ The system SHALL expose endpoints to add and remove email domain mappings for an
 
 #### Scenario: Add a domain mapping
 - **GIVEN** the admin is authenticated and the organization exists
-- **WHEN** `POST /api/admin/organizations/:id/domains` is called with `{ domain }`
+- **WHEN** `POST /api/portal-api/organizations/:id/domains` is called with `{ domain }`
 - **THEN** the system MUST insert a new org_domains record and return `{ ok: true }`
 
 #### Scenario: Duplicate domain mapping
@@ -63,7 +63,7 @@ The system SHALL expose endpoints to add and remove email domain mappings for an
 
 #### Scenario: Remove a domain mapping
 - **GIVEN** the admin is authenticated and the domain mapping exists
-- **WHEN** `DELETE /api/admin/organizations/:id/domains/:domainId` is called
+- **WHEN** `DELETE /api/portal-api/organizations/:id/domains/:domainId` is called
 - **THEN** the system MUST delete the org_domains record and return `{ ok: true }`
 
 ### Requirement: Public organization domain map endpoint
@@ -103,9 +103,9 @@ The system SHALL provide an admin view for managing organizations and their doma
 #### Scenario: Admin adds a new organization
 - **GIVEN** the admin is on the organization management view
 - **WHEN** the admin clicks "Add Organization", enters a name, and submits
-- **THEN** the system MUST call `POST /api/admin/organizations` and refresh the list
+- **THEN** the system MUST call `POST /api/portal-api/organizations` and refresh the list
 
 #### Scenario: Admin adds a domain to an organization
 - **GIVEN** the admin is editing an organization
 - **WHEN** the admin enters a new domain and clicks "Add Domain"
-- **THEN** the system MUST call `POST /api/admin/organizations/:id/domains` and refresh the domain list
+- **THEN** the system MUST call `POST /api/portal-api/organizations/:id/domains` and refresh the domain list

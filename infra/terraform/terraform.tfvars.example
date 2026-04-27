@@ -1,0 +1,20 @@
+subscription_id     = "<your-subscription-id>"
+resource_group_name = "rg-m365copilot-game-dev"
+resource_group_location = "koreacentral"
+location            = "eastus2"
+sql_location        = "koreacentral"
+environment         = "dev"
+name_prefix         = "m365copilot-game"
+
+# Replace with real bootstrap admin emails before production use.
+admin_emails = [
+  "admin@test.com",
+]
+
+# Optional: allow a workstation to run sqlcmd migrations directly.
+# sql_allowed_ip_ranges = {
+#   my_workstation = {
+#     start_ip_address = "203.0.113.10"
+#     end_ip_address   = "203.0.113.10"
+#   }
+# }
