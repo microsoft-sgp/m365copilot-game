@@ -1,3 +1,9 @@
 # Covered by root .gitignore:
 # node_modules/
 # local.settings.json
+
+local.settings.json
+local.settings.*.json
+*.publishsettings
+*.pubxml
+*.pubxml.user
