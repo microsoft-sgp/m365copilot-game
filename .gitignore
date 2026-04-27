@@ -26,6 +26,25 @@ __azurite_*
 __blobstorage__/
 __queuestorage__/
 
+# Terraform local state / secrets
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/.terraform.tfstate.lock.info
+**/*.tfvars
+**/*.tfvars.json
+!**/*.tfvars.example
+**/tfplan
+**/*.tfplan
+**/*.tfplan.*
+**/.tfplan*
+**/crash.log
+**/crash.*.log
+**/override.tf
+**/override.tf.json
+**/*_override.tf
+**/*_override.tf.json
+
 # Editor / IDE
 .vscode/*
 !.vscode/extensions.json
