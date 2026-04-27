@@ -13,12 +13,12 @@ const allowedOrigins = (process.env.CORS_ORIGINS || '')
   .filter(Boolean);
 
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
+  const requestOrigin = req.headers.origin;
   if (allowedOrigins.length === 0) {
     // Dev fallback: allow all (no CORS_ORIGINS configured)
     res.header('Access-Control-Allow-Origin', '*');
-  } else if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
+  } else if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    res.header('Access-Control-Allow-Origin', requestOrigin);
     res.header('Vary', 'Origin');
   }
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Key');
