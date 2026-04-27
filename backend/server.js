@@ -6,9 +6,21 @@ import { getPool } from './src/lib/db.js';
 const app = express();
 app.use(express.json());
 
-// CORS for frontend
+// CORS for frontend — restrict to explicitly allowed origins in production
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  if (allowedOrigins.length === 0) {
+    // Dev fallback: allow all (no CORS_ORIGINS configured)
+    res.header('Access-Control-Allow-Origin', '*');
+  } else if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Vary', 'Origin');
+  }
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Key');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -41,7 +53,7 @@ function adapt(handlerModule) {
       }
     } catch (err) {
       console.error('Handler error:', err);
-      res.status(500).json({ ok: false, message: err.message });
+      res.status(500).json({ ok: false, message: 'Internal server error' });
     }
   };
 }
@@ -175,7 +187,7 @@ async function adminOrgHandler(method, hasId, hasDomainId) {
       res.status(404).json({ ok: false, message: 'Not found' });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ ok: false, message: err.message });
+      res.status(500).json({ ok: false, message: 'Internal server error' });
     }
   };
 }
@@ -241,7 +253,7 @@ async function adminCampaignHandler(method, action) {
       res.status(404).json({ ok: false, message: 'Not found' });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ ok: false, message: err.message });
+      res.status(500).json({ ok: false, message: 'Internal server error' });
     }
   };
 }
@@ -288,7 +300,7 @@ async function adminPlayerHandler(method, isList) {
       res.status(404).json({ ok: false, message: 'Not found' });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ ok: false, message: err.message });
+      res.status(500).json({ ok: false, message: 'Internal server error' });
     }
   };
 }
@@ -316,7 +328,7 @@ async function adminSubmissionHandler() {
       return res.json({ ok: true });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ ok: false, message: err.message });
+      res.status(500).json({ ok: false, message: 'Internal server error' });
     }
   };
 }

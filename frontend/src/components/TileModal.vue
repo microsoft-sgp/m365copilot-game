@@ -185,12 +185,12 @@ function verify() {
           v-if="result.kind"
           class="verify-result"
           :class="result.kind"
-          v-html="
-            result.kind === 'ok'
-              ? '✅ Verified!'
-              : result.messages.map((m) => `❌ ${m}`).join('<br/>')
-          "
-        ></div>
+        >
+          <span v-if="result.kind === 'ok'">✅ Verified!</span>
+          <template v-else>
+            <div v-for="msg in result.messages" :key="msg">❌ {{ msg }}</div>
+          </template>
+        </div>
       </div>
     </div>
   </div>

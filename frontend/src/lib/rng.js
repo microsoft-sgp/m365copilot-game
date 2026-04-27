@@ -30,7 +30,6 @@ export function seededShuffle(arr, rng) {
 
 export function genId(n = 16) {
   const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let r = '';
-  for (let i = 0; i < n; i++) r += c[Math.floor(Math.random() * c.length)];
-  return r;
+  const values = crypto.getRandomValues(new Uint8Array(n));
+  return Array.from(values, (v) => c[v % c.length]).join('');
 }

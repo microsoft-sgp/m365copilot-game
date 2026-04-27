@@ -1,7 +1,10 @@
 import sql from 'mssql';
 import { readFileSync } from 'fs';
 
-const SA_PASSWORD = process.env.SA_PASSWORD || 'BingoTest123!';
+const SA_PASSWORD = process.env.SA_PASSWORD;
+if (!SA_PASSWORD) {
+  throw new Error('SA_PASSWORD environment variable is required');
+}
 const DB_HOST = process.env.DB_HOST || 'db';
 const DB_NAME = process.env.DB_NAME || 'bingo_db';
 

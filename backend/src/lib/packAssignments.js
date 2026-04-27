@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import sql from 'mssql';
 
 const DEFAULT_CAMPAIGN = {
@@ -39,7 +40,7 @@ function getPackCapacity(totalPacks) {
 
 function chooseRandomPack(candidates) {
   if (candidates.length === 0) return 1;
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  return candidates[randomInt(0, candidates.length)];
 }
 
 function choosePack(totalPacks, activePackRows = []) {

@@ -6,7 +6,7 @@ export async function sendAdminOtpEmail(email, code, context = console) {
 
   if (!connectionString || !senderAddress) {
     if (process.env.NODE_ENV !== 'production') {
-      context.log?.(`[DEV] Admin OTP for ${email}: ${code}`);
+      context.log?.('[DEV] ACS Email not configured — OTP not sent (check server logs for manual testing)');
       return { ok: true, skipped: true };
     }
     return { ok: false, error: 'ACS Email is not configured' };
