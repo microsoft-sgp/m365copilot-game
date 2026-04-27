@@ -4,6 +4,17 @@ A browser-based Bingo game for Microsoft 365 Copilot Chat events. Players receiv
 
 ![Copilot Chat Bingo application UI](docs/images/app-ui.svg)
 
+## Open source and support
+
+This repository is shared as an open-source sample for organizations and facilitators running Microsoft 365 Copilot adoption events. It is not an official Microsoft support channel unless maintainers state otherwise.
+
+- Contributions: see [CONTRIBUTING.md](CONTRIBUTING.md).
+- Community expectations: see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+- Security vulnerabilities: do not open public issues; follow [SECURITY.md](SECURITY.md).
+- Support boundaries and help: see [SUPPORT.md](SUPPORT.md).
+- Azure deployment: start with [DEPLOYMENT.md](DEPLOYMENT.md), or use the repeatable Terraform path in [infra/terraform/README.md](infra/terraform/README.md).
+- License and trademark notes: see [License and trademarks](#license-and-trademarks).
+
 ## What it does
 
 Copilot Chat Bingo turns event participation into a lightweight challenge loop: players receive a server-assigned pack, complete Copilot Chat tasks, submit proof for each tile, earn line keywords, and submit those keywords to a shared leaderboard. Facilitators use the admin portal to manage campaigns, organizations, players, exports, and admin access.
@@ -178,7 +189,7 @@ Never commit local secrets or generated deployment files. The repository ignores
 
 ## Deploy to Azure
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for a complete step-by-step guide covering:
+See [DEPLOYMENT.md](DEPLOYMENT.md) for a complete step-by-step guide covering the manual Azure CLI path. For repeatable deployments with managed identities, Key Vault references, and Terraform-managed infrastructure, use [infra/terraform/README.md](infra/terraform/README.md).
 
 1. Creating an Azure SQL Database and running migrations
 2. Deploying the Azure Functions API
@@ -213,6 +224,18 @@ The admin portal is available at `#/admin/login` in the frontend. Login uses the
 - **Server-side**: game sessions, tile events, keyword submissions, campaign/admin metadata, and portal-managed admin users are stored in Azure SQL. The leaderboard is shared across all players.
 - **Client-side**: active board state (cleared tiles, earned keywords, challenge progress) and player profile are stored in the browser's `localStorage`.
 
+## Data handling and privacy
+
+Deployers are responsible for the privacy, consent, retention, access control, and compliance obligations for their event or organization. A production deployment can store or process:
+
+- Player names and email addresses collected during onboarding
+- Gameplay progress, tile events, earned keywords, leaderboard scores, and campaign participation records
+- Admin email addresses, admin access records, and OTP metadata
+- CSV exports that can include player names, email addresses, organization mappings, and score activity
+- Function App, browser, database, and deployment logs that may contain operational identifiers
+
+Protect exported CSV files, logs, Terraform state, local settings, app settings, and deployment credentials according to your organization's data-handling policies. Do not commit production secrets or attendee data to the repository.
+
 ## Specs & change history
 
 This repository uses OpenSpec for spec-driven development.
@@ -222,6 +245,10 @@ This repository uses OpenSpec for spec-driven development.
 
 When proposing a behavior change, add a new entry under `openspec/changes/` with a proposal, design, tasks, and a delta spec. After implementation, archive the change and sync the main spec.
 
-## License
+## License and trademarks
 
-See [LICENSE](LICENSE).
+This project is licensed under the MIT license. See [LICENSE](LICENSE).
+
+Release review: before publishing the repository publicly, maintainers should confirm whether the copyright holder in [LICENSE](LICENSE) should remain `Microsoft Singapore` or use another Microsoft legal entity.
+
+Microsoft, Microsoft 365, and Copilot are trademarks or registered trademarks of Microsoft Corporation in the United States and other countries. Use of those names in this repository is for descriptive purposes and does not grant trademark rights or imply product support beyond the terms stated in this repository. The software is provided as-is under the license terms.

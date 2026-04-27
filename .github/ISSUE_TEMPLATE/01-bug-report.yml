@@ -1,0 +1,100 @@
+name: Bug report
+description: Report a reproducible problem in the app, setup, deployment, or admin portal.
+title: "[Bug]: "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Copilot Chat Bingo. Do not include secrets, deployment tokens, connection strings, player exports, or attendee personal data in public issues.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the project is affected?
+      options:
+        - Frontend game experience
+        - Admin portal
+        - Backend API
+        - Database migrations
+        - Docker/local setup
+        - Azure deployment
+        - Terraform infrastructure
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: setup-path
+    attributes:
+      label: Setup path
+      description: How are you running the project?
+      options:
+        - Docker Compose local stack
+        - Manual local backend/frontend dev servers
+        - Manual Azure CLI deployment
+        - Terraform Azure deployment
+        - GitHub Actions deployment
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Provide the release, branch, or commit SHA you are using.
+      placeholder: main at abc1234
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, browser, Node.js version, Azure region, and relevant tool versions.
+      placeholder: macOS 15, Node 20.x, Chrome/Edge, Azure Functions Core Tools v4, Terraform 1.x
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest set of steps that reproduces the problem.
+      placeholder: |
+        1. Start the app with ...
+        2. Open ...
+        3. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and screenshots
+      description: Paste sanitized logs or attach screenshots. Remove secrets, tokens, connection strings, player emails, and CSV data.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched existing issues before opening this report.
+          required: true
+        - label: I removed secrets, tokens, connection strings, and personal data from this issue.
+          required: true
+        - label: I agree to follow this project's Code of Conduct.
+          required: true

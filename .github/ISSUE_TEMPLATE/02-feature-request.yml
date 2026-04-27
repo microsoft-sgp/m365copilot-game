@@ -1,0 +1,72 @@
+name: Feature request
+description: Suggest an improvement for adoption events, gameplay, administration, deployment, or docs.
+title: "[Feature]: "
+labels: [enhancement, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Larger behavior changes may need an OpenSpec proposal before implementation. Please avoid sharing attendee personal data or private deployment details.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Adoption event workflow
+        - Player game experience
+        - Admin portal
+        - Reporting/export
+        - Local setup
+        - Azure deployment
+        - Terraform infrastructure
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What problem or opportunity does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What should users, facilitators, or maintainers be able to do after this change?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds or alternate designs have you considered?
+    validations:
+      required: false
+  - type: textarea
+    id: event-context
+    attributes:
+      label: Adoption event context
+      description: Describe the event size, audience, device constraints, admin workflow, or deployment model if relevant.
+    validations:
+      required: false
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Are you willing to contribute this change?
+      options:
+        - Yes, I can open a pull request
+        - Maybe, with maintainer guidance
+        - No, I am only suggesting the idea
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched existing issues before opening this request.
+          required: true
+        - label: I agree to follow this project's Code of Conduct.
+          required: true

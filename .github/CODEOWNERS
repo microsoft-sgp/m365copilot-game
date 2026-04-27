@@ -1,0 +1,9 @@
+# CODEOWNERS
+#
+# Replace the commented placeholder below with the GitHub team or users that
+# maintain this repository before enabling branch protection with required code
+# owner review. Teams must have explicit write access to the repository.
+#
+# Example:
+# * @your-org/m365copilot-game-maintainers
+# /.github/CODEOWNERS @your-org/m365copilot-game-maintainers

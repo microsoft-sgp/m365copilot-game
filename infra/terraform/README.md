@@ -15,6 +15,10 @@ This folder provisions the Azure resources needed by Copilot Chat Bingo.
 
 Terraform provisions cloud resources only. Application publishing and SQL schema migrations are separate steps after `terraform apply`.
 
+This is the recommended path for repeatable Azure deployments. The manual guide in [../../DEPLOYMENT.md](../../DEPLOYMENT.md) remains useful for learning the deployment pieces, but Terraform is the safer path when you want managed identities, Key Vault references, reproducible resource names, and drift-aware changes.
+
+Before running a production or event deployment, review your organization's privacy, consent, retention, access-control, and export-handling requirements. The app can store player names, player emails, gameplay progress, admin emails, OTP metadata, and CSV exports.
+
 ## Prerequisites
 
 - Azure CLI authenticated to the subscription you set in `terraform.tfvars`
@@ -130,12 +134,14 @@ Open the frontend URL:
 terraform -chdir=infra/terraform output -raw static_web_app_url
 ```
 
-Admin login is available at `#/admin/login`. The initial bootstrap admin list comes from `admin_emails` in `terraform.tfvars`.
+Open the frontend, complete onboarding with a test name and email address, and confirm the API assigns a pack and renders the 3x3 board. Admin login is available at `#/admin/login`. The initial bootstrap admin list comes from `admin_emails` in `terraform.tfvars`.
 
 ## Notes
 
 - Key Vault purge protection is enabled. Deleting and recreating the same Key Vault name may require purge permissions and retention waiting time.
 - Terraform source does not contain literal secret values or deployment-token outputs.
 - Terraform state can still contain generated secret material and provider-returned credentials. Never commit `*.tfstate`, `*.tfvars`, plan files, or generated plan summaries; use a secure remote backend before team or production use.
+- Key Vault stores generated app secrets that are referenced by Function App settings. Keep production secrets and deployment tokens out of source control and public issue/PR content.
+- CSV exports and deployment logs can include personal or operational data. Handle them according to your organization's policies.
 - Storage shared-key access is disabled by policy. Terraform uses Azure AD storage operations, and the Function App deployment storage uses managed identity.
 - Azure SQL is deployed in `koreacentral` because SQL provisioning is restricted in the app region; app resources remain in `eastus2`.

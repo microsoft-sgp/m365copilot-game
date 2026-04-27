@@ -2,6 +2,10 @@
 
 This guide walks you through deploying the entire Copilot Chat Bingo application to Azure — from zero to a working public URL. No prior Azure experience is assumed.
 
+For repeatable deployments, prefer the Terraform path in [infra/terraform/README.md](infra/terraform/README.md). This manual Azure CLI guide is useful for learning the moving parts or creating a small standalone deployment. Avoid mixing manual resources into a Terraform-managed environment unless you also import or codify those resources.
+
+Before using the app with real attendees, review your organization's privacy, consent, retention, access-control, and export-handling requirements. The app can store player names, player emails, gameplay progress, admin emails, OTP metadata, and CSV exports.
+
 ## Contents
 
 - [What you will create](#what-you-will-create)
@@ -32,7 +36,7 @@ This guide walks you through deploying the entire Copilot Chat Bingo application
 | **Azure SQL Server + Database** | Stores players, sessions, submissions, leaderboard | Basic (5 DTU) — ~$5/mo |
 | **Storage Account** | Required by Azure Functions for internal state | Standard LRS — pennies/mo |
 | **Azure Communication Services + Email** | Sends admin OTP codes for portal login and sensitive admin changes | Usage-based — tiny for event-scale OTP traffic |
-| **Azure Functions App** | Hosts the Node.js API | Consumption plan — free tier covers most usage |
+| **Azure Functions App** | Hosts the Node.js API | Consumption plan in this manual guide; Terraform uses Flex Consumption |
 | **Azure Static Web App** | Hosts the Vue 3 frontend with global CDN and free TLS | Free tier |
 
 Total estimated cost: **~$5–7/month plus small email usage charges**. For typical event usage, the SQL database is still the main cost driver.
@@ -390,9 +394,9 @@ VITE_API_BASE=https://func-bingo-api.azurewebsites.net/api npm run build
 
 > **Important:** Replace `func-bingo-api` with your actual Function App name from Step 7a.
 
-### 8c. Create the SPA fallback config
+### 8c. Confirm the SPA fallback config
 
-Create a file at `frontend/public/staticwebapp.config.json` so that page refreshes don't return 404 (Vite copies everything in `public/` into `dist/` on every build):
+The repository includes `frontend/public/staticwebapp.config.json` so that page refreshes don't return 404. Vite copies everything in `public/` into `dist/` on every build. The file should contain:
 
 ```json
 {
@@ -406,7 +410,7 @@ Create a file at `frontend/public/staticwebapp.config.json` so that page refresh
 }
 ```
 
-If you already built before adding this file, rebuild or manually copy it into `frontend/dist/`.
+If you already built before pulling the latest repository changes, rebuild so the file is copied into `frontend/dist/`.
 
 ### 8d. Deploy with the SWA CLI
 
@@ -414,14 +418,12 @@ If you already built before adding this file, rebuild or manually copy it into `
 # Install the Static Web Apps CLI globally
 npm install -g @azure/static-web-apps-cli
 
-# Get the deployment token
-SWA_TOKEN=$(az staticwebapp secrets list \
+# Get the deployment token and deploy the built frontend.
+SWA_CLI_DEPLOYMENT_TOKEN="$(az staticwebapp secrets list \
   --name swa-bingo \
   --resource-group rg-bingo \
-  --query 'properties.apiKey' -o tsv)
-
-# Deploy the built frontend
-swa deploy frontend/dist --deployment-token "$SWA_TOKEN"
+  --query 'properties.apiKey' -o tsv)" \
+swa deploy frontend/dist --deployment-token "$SWA_CLI_DEPLOYMENT_TOKEN"
 ```
 
 ### 8e. Get your site URL
@@ -459,9 +461,9 @@ Open your Static Web App URL in a browser and check:
 | # | What to check | Expected result |
 |---|---|---|
 | 1 | App loads | You see the **Game**, **Keywords**, **Activity**, and **Help** tabs |
-| 2 | Start a game | Complete onboarding identity (name + email), pick a pack (e.g. `42`), the 3×3 board appears |
-| 3 | Quick Pick | Generates a random pack between 1–999 |
-| 4 | Page reload | Board, cleared tiles, and keywords are restored |
+| 2 | Start a game | Complete onboarding identity (name + email); the API assigns a pack and the 3×3 board appears |
+| 3 | Assigned pack persists | Reload the page and confirm the same assigned pack is restored |
+| 4 | Progress persists | Cleared tiles, earned keywords, and challenge progress are restored |
 | 5 | Verify progression scoring | Clear a line and confirm `POST` to `/api/events` with `line_won` and leaderboard refresh |
 | 6 | Leaderboard | Visit the Activity tab — leaderboard and timeline show score events |
 | 7 | No console errors | Browser DevTools → Console shows no errors |
@@ -594,6 +596,8 @@ jobs:
      --resource-group rg-bingo \
      --query 'properties.apiKey' -o tsv
    ```
+
+Protect GitHub Actions secrets, deployment tokens, publish profiles, Terraform state, generated plans, and CSV exports according to your organization's security and data-handling policies.
 
 ---
 

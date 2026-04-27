@@ -1,0 +1,61 @@
+name: Documentation or setup issue
+description: Report confusing docs, setup gaps, deployment steps, or configuration examples.
+title: "[Docs/Setup]: "
+labels: [documentation, triage]
+body:
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic
+      options:
+        - README
+        - Local Docker Compose setup
+        - Manual local development
+        - Deployment guide
+        - Terraform guide
+        - Database migrations
+        - Azure Communication Services Email
+        - Admin portal setup
+        - Security or data-handling guidance
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: file
+    attributes:
+      label: File or section
+      description: Link or name the file/section that was confusing or incorrect.
+      placeholder: DEPLOYMENT.md Step 8
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is unclear or incorrect?
+      description: Describe the gap, stale wording, failed command, missing prerequisite, or broken link.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Suggested correction
+      description: If you know the fix, describe what the docs should say.
+    validations:
+      required: false
+  - type: textarea
+    id: command-output
+    attributes:
+      label: Sanitized command output
+      description: Paste output if a setup command failed. Remove secrets, connection strings, tokens, and personal data.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmation
+      options:
+        - label: I removed secrets, tokens, connection strings, and personal data from this issue.
+          required: true
+        - label: I agree to follow this project's Code of Conduct.
+          required: true
