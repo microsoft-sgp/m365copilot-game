@@ -72,18 +72,3 @@ output "azure_portal_resource_group_url" {
   description = "Azure Portal link to the resource group."
   value       = "https://portal.azure.com/#@/resource/subscriptions/${var.subscription_id}/resourceGroups/${azurerm_resource_group.main.name}/overview"
 }
-
-output "waf_public_ip" {
-  description = "Public IP address of the Application Gateway WAF v2 (null when enable_waf = false)."
-  value       = var.enable_waf ? azurerm_public_ip.appgw[0].ip_address : null
-}
-
-output "waf_url" {
-  description = "Public HTTP URL exposed by the Application Gateway WAF v2 (null when enable_waf = false)."
-  value       = var.enable_waf ? "http://${azurerm_public_ip.appgw[0].ip_address}" : null
-}
-
-output "waf_policy_name" {
-  description = "Name of the WAF policy attached to the Application Gateway (null when enable_waf = false)."
-  value       = var.enable_waf ? azurerm_web_application_firewall_policy.main[0].name : null
-}
