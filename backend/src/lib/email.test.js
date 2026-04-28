@@ -38,7 +38,7 @@ describe('sendAdminOtpEmail', () => {
       'endpoint=https://example.communication.azure.com/;accesskey=test';
     process.env.ACS_EMAIL_SENDER = 'DoNotReply@example.com';
     beginSendMock.mockResolvedValue({
-      pollUntilDone: vi.fn(async () => ({ status: 'Succeeded' })),
+      pollUntilDone: vi.fn(async () => ({ status: 'Succeeded', id: 'op-123' })),
     });
 
     const result = await sendAdminOtpEmail('admin@test.com', '123456', {
@@ -47,6 +47,8 @@ describe('sendAdminOtpEmail', () => {
     });
 
     expect(result.ok).toBe(true);
+    expect(typeof result.latencyMs).toBe('number');
+    expect(result.messageId).toBe('op-123');
     expect(EmailClientMock).toHaveBeenCalledWith(process.env.ACS_CONNECTION_STRING);
     expect(beginSendMock.mock.calls[0][0].senderAddress).toBe('DoNotReply@example.com');
     expect(beginSendMock.mock.calls[0][0].recipients.to[0].address).toBe('admin@test.com');
@@ -65,6 +67,39 @@ describe('sendAdminOtpEmail', () => {
 
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/Failed/);
+    expect(result.status).toBe('non_succeeded');
+    expect(result.acsStatus).toBe('Failed');
+    expect(typeof result.latencyMs).toBe('number');
+  });
+
+  it('reports thrown exception with status and latency', async () => {
+    process.env.ACS_CONNECTION_STRING =
+      'endpoint=https://example.communication.azure.com/;accesskey=test';
+    process.env.ACS_EMAIL_SENDER = 'DoNotReply@example.com';
+    beginSendMock.mockRejectedValue(new TypeError('boom'));
+
+    const result = await sendAdminOtpEmail('admin@test.com', '123456', {
+      log: vi.fn(),
+      error: vi.fn(),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe('exception');
+    expect(result.errorName).toBe('TypeError');
+    expect(typeof result.latencyMs).toBe('number');
+  });
+
+  it('reports not_configured in production with latencyMs 0', async () => {
+    process.env.NODE_ENV = 'production';
+    const result = await sendAdminOtpEmail('admin@test.com', '123456', {
+      log: vi.fn(),
+      error: vi.fn(),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe('not_configured');
+    expect(result.error).toBe('ACS Email is not configured');
+    expect(result.latencyMs).toBe(0);
   });
 
   it('allows local development without ACS configuration', async () => {
@@ -74,6 +109,7 @@ describe('sendAdminOtpEmail', () => {
 
     expect(result.ok).toBe(true);
     expect(result.skipped).toBe(true);
+    expect(typeof result.latencyMs).toBe('number');
     expect(context.log).toHaveBeenCalled();
   });
 });

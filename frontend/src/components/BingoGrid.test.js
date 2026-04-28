@@ -50,10 +50,11 @@ describe('BingoGrid', () => {
     expect(w.emitted('open-tile')).toEqual([[3]]);
   });
 
-  it('uses responsive grid columns (2-col compact, 3-col expanded)', () => {
+  it('uses a single 3-column grid layout on all screen sizes', () => {
     const w = mount(BingoGrid);
     const grid = w.find('div');
-    expect(grid.classes()).toContain('grid-cols-2');
-    expect(grid.classes()).toContain('sm:grid-cols-3');
+    expect(grid.classes()).toContain('grid-cols-3');
+    expect(grid.classes()).not.toContain('grid-cols-2');
+    expect(grid.classes()).not.toContain('sm:grid-cols-3');
   });
 });

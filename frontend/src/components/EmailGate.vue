@@ -43,7 +43,9 @@ function submit() {
 <template>
   <div class="flex min-h-[60vh] items-center justify-center px-5">
     <div class="glass mx-auto w-full max-w-[440px] rounded-[14px] p-8 text-center">
-      <h1 class="text-gradient mb-2 text-headline-sm font-black">🎮 Copilot Chat Bingo</h1>
+      <h1 class="text-gradient mb-2 text-headline-sm font-black">
+        🎮 Copilot Chat Bingo
+      </h1>
       <p class="mb-6 text-sm text-on-surface-variant">
         Enter your identity to play. Your progress and score will be tied to verified gameplay so
         you can resume on any device.
@@ -58,7 +60,7 @@ function submit() {
           placeholder="e.g. Alex"
           maxlength="40"
           @keyup.enter="submit"
-        />
+        >
       </div>
 
       <div class="mb-4 text-left">
@@ -69,11 +71,19 @@ function submit() {
           type="email"
           placeholder="you@university.edu.sg"
           @keyup.enter="submit"
-        />
-        <div v-if="error" class="mt-1 text-label-md text-error">{{ error }}</div>
+        >
+        <div
+          v-if="error"
+          class="mt-1 text-label-md text-error"
+        >
+          {{ error }}
+        </div>
       </div>
 
-      <div v-if="requiresOrganization" class="mb-4 text-left">
+      <div
+        v-if="requiresOrganization"
+        class="mb-4 text-left"
+      >
         <label class="field-label">Company / School / Organization</label>
         <input
           v-model="organization"
@@ -82,10 +92,15 @@ function submit() {
           placeholder="e.g. Contoso"
           maxlength="100"
           @keyup.enter="submit"
-        />
+        >
       </div>
 
-      <button class="btn btn-primary w-full" @click="submit">Continue →</button>
+      <button
+        class="btn btn-primary w-full"
+        @click="submit"
+      >
+        Continue →
+      </button>
 
       <div class="mt-6 border-t border-outline-variant pt-4">
         <button

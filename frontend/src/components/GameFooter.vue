@@ -32,12 +32,18 @@ onUnmounted(() => stop());
       data-testid="health-status"
       :data-status="status"
     >
-      <span class="inline-block h-2 w-2 rounded-full" :class="dotClass" aria-hidden="true"></span>
+      <span
+        class="inline-block h-2 w-2 rounded-full"
+        :class="dotClass"
+        aria-hidden="true"
+      />
       <span>{{ label }}</span>
     </div>
     <div class="text-label-md tracking-[0.5px] text-on-surface-variant">
       Designed by Microsoft Student Ambassadors
     </div>
-    <div class="mt-1 text-label-sm text-primary/70">Powered by Microsoft</div>
+    <div class="mt-1 text-label-sm text-primary/70">
+      Powered by Microsoft
+    </div>
   </footer>
 </template>

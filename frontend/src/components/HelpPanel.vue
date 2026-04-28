@@ -5,7 +5,9 @@ import { COPILOT_URL } from '../data/constants.js';
 <template>
   <div class="mx-auto max-w-[640px]">
     <div class="glass rounded-[14px] p-6">
-      <h2 class="text-gradient mb-1 text-title-lg font-black">How to Play</h2>
+      <h2 class="text-gradient mb-1 text-title-lg font-black">
+        How to Play
+      </h2>
       <p class="mb-3.5 text-sm text-on-surface-variant">
         Complete Copilot Chat tasks on your 3×3 board, verify your answers, and earn keywords when
         you complete a Bingo line.

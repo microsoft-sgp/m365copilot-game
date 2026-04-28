@@ -43,7 +43,7 @@ function copyKw() {
             animationDuration: c.duration + 's',
             animationDelay: c.delay + 's',
           }"
-        ></div>
+        />
       </div>
       <span class="mb-3 block text-[56px]">🎉</span>
       <div class="text-gradient mb-1.5 text-headline-sm font-black">
@@ -57,9 +57,19 @@ function copyKw() {
       >
         {{ data.kw }}
       </div>
-      <button class="btn btn-ghost btn-sm mb-2.5" @click="copyKw">📋 Copy Keyword</button>
-      <br />
-      <button class="btn btn-primary btn-sm" @click="emit('close')">Keep Playing →</button>
+      <button
+        class="btn btn-ghost btn-sm mb-2.5"
+        @click="copyKw"
+      >
+        📋 Copy Keyword
+      </button>
+      <br>
+      <button
+        class="btn btn-primary btn-sm"
+        @click="emit('close')"
+      >
+        Keep Playing →
+      </button>
       <p class="mt-3 text-label-sm text-on-surface-variant">
         ⚠️ Prototype: keyword generated client-side with session nonce. Not tamper-proof.
       </p>

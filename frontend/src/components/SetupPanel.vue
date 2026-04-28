@@ -54,25 +54,42 @@ async function launch() {
 
 <template>
   <div class="glass mx-auto max-w-[560px] rounded-[14px] p-6">
-    <h2 class="text-gradient mb-1 text-title-lg font-black">Start Your Board</h2>
+    <h2 class="text-gradient mb-1 text-title-lg font-black">
+      Start Your Board
+    </h2>
     <p class="mb-[18px] text-label-lg text-on-surface-variant">
       Your pack is assigned automatically for fairness across devices.
     </p>
 
     <div class="mb-4 rounded-[12px] border border-outline-variant bg-surface-container p-4">
-      <div class="field-label mb-2">Assigned Pack</div>
+      <div class="field-label mb-2">
+        Assigned Pack
+      </div>
       <div class="text-title-lg font-black text-primary">
         #{{ String(assignedPack || 0).padStart(3, '0') }}
       </div>
-      <p class="mt-2 text-label-md text-on-surface-variant">{{ statusText }}</p>
-      <p class="mt-1 text-label-sm text-on-surface-variant">{{ cycleText }}</p>
+      <p class="mt-2 text-label-md text-on-surface-variant">
+        {{ statusText }}
+      </p>
+      <p class="mt-1 text-label-sm text-on-surface-variant">
+        {{ cycleText }}
+      </p>
     </div>
 
     <div class="mt-4 flex flex-wrap gap-2.5">
-      <button class="btn btn-primary" :disabled="launching" @click="launch">
+      <button
+        class="btn btn-primary"
+        :disabled="launching"
+        @click="launch"
+      >
         {{ launching ? 'Starting...' : '🚀 Launch Board' }}
       </button>
     </div>
-    <p v-if="error" class="mt-2 text-xs text-error">{{ error }}</p>
+    <p
+      v-if="error"
+      class="mt-2 text-xs text-error"
+    >
+      {{ error }}
+    </p>
   </div>
 </template>

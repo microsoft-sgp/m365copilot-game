@@ -120,7 +120,10 @@ function onBackToGame() {
   <div class="relative z-[1]">
     <!-- Admin views -->
     <template v-if="view === 'admin-login'">
-      <AdminLogin @authenticated="onAdminLoggedIn" @back="onBackToGame" />
+      <AdminLogin
+        @authenticated="onAdminLoggedIn"
+        @back="onBackToGame"
+      />
     </template>
     <template v-else-if="view === 'admin'">
       <AdminLayout @logout="onAdminLogout" />
@@ -130,7 +133,10 @@ function onBackToGame() {
     <template v-else>
       <!-- Email gate -->
       <template v-if="!identityReady">
-        <EmailGate @continue="onEmailContinue" @admin="onAdminNav" />
+        <EmailGate
+          @continue="onEmailContinue"
+          @admin="onAdminNav"
+        />
         <GameFooter />
       </template>
 
@@ -139,16 +145,28 @@ function onBackToGame() {
         <TopBar />
         <AppTabs v-model="activeTab" />
 
-        <section v-show="activeTab === 'game'" class="px-5 py-5 pb-20 sm:pb-5">
+        <section
+          v-show="activeTab === 'game'"
+          class="px-5 py-5 pb-20 sm:pb-5"
+        >
           <GameTab />
         </section>
-        <section v-show="activeTab === 'keywords'" class="px-5 py-5 pb-20 sm:pb-5">
+        <section
+          v-show="activeTab === 'keywords'"
+          class="px-5 py-5 pb-20 sm:pb-5"
+        >
           <KeywordsPanel />
         </section>
-        <section v-show="activeTab === 'activity'" class="px-5 py-5 pb-20 sm:pb-5">
+        <section
+          v-show="activeTab === 'activity'"
+          class="px-5 py-5 pb-20 sm:pb-5"
+        >
           <MyActivityPanel />
         </section>
-        <section v-show="activeTab === 'help'" class="px-5 py-5 pb-20 sm:pb-5">
+        <section
+          v-show="activeTab === 'help'"
+          class="px-5 py-5 pb-20 sm:pb-5"
+        >
           <HelpPanel />
         </section>
         <GameFooter />

@@ -19,7 +19,7 @@ function copy(code) {
       class="my-5 flex items-center gap-2 text-label-lg font-bold uppercase tracking-[2px] text-on-surface-variant"
     >
       My Earned Keywords
-      <span class="h-px flex-1 bg-outline-variant"></span>
+      <span class="h-px flex-1 bg-outline-variant" />
     </div>
 
     <div v-if="!state.keywords.length">
@@ -28,7 +28,10 @@ function copy(code) {
       </p>
     </div>
 
-    <div v-else class="flex max-h-[300px] flex-col gap-2 overflow-y-auto">
+    <div
+      v-else
+      class="flex max-h-[300px] flex-col gap-2 overflow-y-auto"
+    >
       <div
         v-for="k in state.keywords"
         :key="k.code"
@@ -40,7 +43,12 @@ function copy(code) {
         <div class="text-label-sm text-on-surface-variant">
           Pack {{ pad(k.packId) }} · {{ k.lineId }} · {{ fmt(k.ts) }}
         </div>
-        <button class="btn btn-ghost btn-xs" @click="copy(k.code)">📋</button>
+        <button
+          class="btn btn-ghost btn-xs"
+          @click="copy(k.code)"
+        >
+          📋
+        </button>
       </div>
     </div>
   </div>

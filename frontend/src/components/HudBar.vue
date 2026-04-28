@@ -24,14 +24,20 @@ const motivation = computed(() => {
       </div>
     </div>
     <div class="flex flex-col items-center gap-0.5">
-      <div class="text-gradient text-title-lg font-black">{{ linesWon }}</div>
-      <div class="text-label-sm uppercase tracking-[0.5px] text-on-surface-variant">Lines Won</div>
+      <div class="text-gradient text-title-lg font-black">
+        {{ linesWon }}
+      </div>
+      <div class="text-label-sm uppercase tracking-[0.5px] text-on-surface-variant">
+        Lines Won
+      </div>
     </div>
     <div class="flex flex-col items-center gap-0.5">
       <div class="text-gradient text-title-lg font-black">
         {{ keywordCount }}
       </div>
-      <div class="text-label-sm uppercase tracking-[0.5px] text-on-surface-variant">Keywords</div>
+      <div class="text-label-sm uppercase tracking-[0.5px] text-on-surface-variant">
+        Keywords
+      </div>
     </div>
     <div class="flex min-w-[160px] flex-1 flex-col justify-center gap-1">
       <div class="flex justify-between text-xs text-on-surface-variant">
@@ -39,7 +45,10 @@ const motivation = computed(() => {
         <span>{{ boardProgress }}%</span>
       </div>
       <div class="progress-track">
-        <div class="progress-fill" :style="{ width: boardProgress + '%' }"></div>
+        <div
+          class="progress-fill"
+          :style="{ width: boardProgress + '%' }"
+        />
       </div>
       <div class="mt-0.5 text-label-sm text-on-surface-variant/80">
         {{ motivation }}

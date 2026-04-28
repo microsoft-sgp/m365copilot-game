@@ -13,7 +13,10 @@ const progressPct = computed(() => Math.round((done.value / TOTAL_WEEKS) * 100))
 </script>
 
 <template>
-  <div v-if="cp" class="glass mb-4 rounded-[14px] px-5 py-4">
+  <div
+    v-if="cp"
+    class="glass mb-4 rounded-[14px] px-5 py-4"
+  >
     <h4 class="mb-2.5 text-xs font-bold uppercase tracking-[1px] text-primary">
       7-Week Challenge Progress
     </h4>
@@ -32,16 +35,17 @@ const progressPct = computed(() => Math.round((done.value / TOTAL_WEEKS) * 100))
     </div>
     <div class="flex flex-col gap-1">
       <div class="flex justify-between text-xs text-on-surface-variant">
-        <span
-          >Completed: {{ done }}/{{ TOTAL_WEEKS }} • {{ left }} week{{
-            left !== 1 ? 's' : ''
-          }}
-          left</span
-        >
+        <span>Completed: {{ done }}/{{ TOTAL_WEEKS }} • {{ left }} week{{
+          left !== 1 ? 's' : ''
+        }}
+          left</span>
         <span>Week {{ cp.currentWeek }}</span>
       </div>
       <div class="progress-track">
-        <div class="progress-fill" :style="{ width: progressPct + '%' }"></div>
+        <div
+          class="progress-fill"
+          :style="{ width: progressPct + '%' }"
+        />
       </div>
     </div>
   </div>

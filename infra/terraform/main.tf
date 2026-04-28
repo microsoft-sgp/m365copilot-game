@@ -43,6 +43,11 @@ locals {
   acs_name               = substr("acs-${local.resource_prefix}-${local.suffix}", 0, 63)
   acs_email_name         = substr("acs-email-${local.resource_prefix}-${local.suffix}", 0, 63)
   redis_name             = substr("redis-${local.resource_prefix}-${local.suffix}", 0, 63)
+  appgw_vnet_name        = substr("vnet-${local.resource_prefix}-${local.suffix}", 0, 64)
+  appgw_subnet_name      = "snet-appgw"
+  appgw_pip_name         = substr("pip-appgw-${local.resource_prefix}-${local.suffix}", 0, 80)
+  appgw_name             = substr("appgw-${local.resource_prefix}-${local.suffix}", 0, 80)
+  waf_policy_name        = substr("waf-${local.resource_prefix}-${local.suffix}", 0, 128)
 
   acs_email_sender_address = "${var.acs_sender_username}@${azurerm_email_communication_service_domain.admin_otp.from_sender_domain}"
   allowed_origins = distinct(concat(
@@ -51,7 +56,13 @@ locals {
   ))
 
   app_settings = {
-    AzureWebJobsFeatureFlags          = "EnableWorkerIndexing"
+    AzureWebJobsFeatureFlags = "EnableWorkerIndexing"
+    # The Functions host talks to the storage account using the
+    # user-assigned managed identity. The provider sets
+    # AzureWebJobsStorage__accountName / __credential automatically when
+    # storage_uses_managed_identity = true; we only need to point the host
+    # at the specific UAMI to use.
+    AzureWebJobsStorage__clientId     = azurerm_user_assigned_identity.functions.client_id
     SQL_SERVER_FQDN                   = azurerm_mssql_server.main.fully_qualified_domain_name
     SQL_DATABASE_NAME                 = azurerm_mssql_database.app.name
     SQL_AUTHENTICATION                = "azure-active-directory-msi-app-service"
@@ -110,7 +121,7 @@ resource "azurerm_storage_account" "functions" {
   account_replication_type        = "LRS"
   min_tls_version                 = "TLS1_2"
   allow_nested_items_to_be_public = false
-  shared_access_key_enabled       = true
+  shared_access_key_enabled       = false
   tags                            = local.tags
 }
 
@@ -119,6 +130,59 @@ resource "azurerm_user_assigned_identity" "functions" {
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location
   tags                = local.tags
+}
+
+resource "azurerm_role_assignment" "function_storage_blob_data_owner" {
+  scope                = azurerm_storage_account.functions.id
+  role_definition_name = "Storage Blob Data Owner"
+  principal_id         = azurerm_user_assigned_identity.functions.principal_id
+}
+
+resource "azurerm_role_assignment" "function_system_storage_blob_data_owner" {
+  scope                = azurerm_storage_account.functions.id
+  role_definition_name = "Storage Blob Data Owner"
+  principal_id         = azurerm_linux_function_app.api.identity[0].principal_id
+}
+
+# Queue + Table data plane roles for the Functions host. The blob data
+# owner role only covers blobs, so these are required when AzureWebJobsStorage
+# is configured with managed identity (`AzureWebJobsStorage__credential`).
+resource "azurerm_role_assignment" "function_storage_queue_data_contributor" {
+  scope                = azurerm_storage_account.functions.id
+  role_definition_name = "Storage Queue Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.functions.principal_id
+}
+
+resource "azurerm_role_assignment" "function_storage_table_data_contributor" {
+  scope                = azurerm_storage_account.functions.id
+  role_definition_name = "Storage Table Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.functions.principal_id
+}
+
+resource "azurerm_role_assignment" "function_system_storage_queue_data_contributor" {
+  scope                = azurerm_storage_account.functions.id
+  role_definition_name = "Storage Queue Data Contributor"
+  principal_id         = azurerm_linux_function_app.api.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "function_system_storage_table_data_contributor" {
+  scope                = azurerm_storage_account.functions.id
+  role_definition_name = "Storage Table Data Contributor"
+  principal_id         = azurerm_linux_function_app.api.identity[0].principal_id
+}
+
+resource "azurerm_storage_container" "function_packages" {
+  name                  = "function-packages"
+  storage_account_id    = azurerm_storage_account.functions.id
+  container_access_type = "private"
+
+  depends_on = [azurerm_role_assignment.deployer_storage_blob_data_owner]
+}
+
+resource "azurerm_role_assignment" "deployer_storage_blob_data_owner" {
+  scope                = azurerm_storage_account.functions.id
+  role_definition_name = "Storage Blob Data Owner"
+  principal_id         = data.azurerm_client_config.current.object_id
 }
 
 resource "azurerm_key_vault" "main" {
@@ -323,7 +387,7 @@ resource "azurerm_linux_function_app" "api" {
   location                      = var.location
   service_plan_id               = azurerm_service_plan.functions.id
   storage_account_name          = azurerm_storage_account.functions.name
-  storage_account_access_key    = azurerm_storage_account.functions.primary_access_key
+  storage_uses_managed_identity = true
   https_only                    = true
   public_network_access_enabled = true
   app_settings                  = local.app_settings
@@ -338,12 +402,13 @@ resource "azurerm_linux_function_app" "api" {
     application_insights_connection_string = azurerm_application_insights.api.connection_string
     minimum_tls_version                    = "1.2"
     scm_minimum_tls_version                = "1.2"
-    pre_warmed_instance_count              = var.function_pre_warmed_instance_count
+    always_on                              = true
     ftps_state                             = "Disabled"
     http2_enabled                          = true
+    pre_warmed_instance_count              = var.function_pre_warmed_instance_count
 
     application_stack {
-      node_version = "24"
+      node_version = "22"
     }
 
     cors {
@@ -357,6 +422,9 @@ resource "azurerm_linux_function_app" "api" {
     azurerm_key_vault_secret.admin_key,
     azurerm_key_vault_secret.jwt_secret,
     azurerm_key_vault_secret.redis_connection_string,
+    azurerm_role_assignment.function_storage_blob_data_owner,
+    azurerm_role_assignment.function_storage_queue_data_contributor,
+    azurerm_role_assignment.function_storage_table_data_contributor,
   ]
 }
 
@@ -370,3 +438,147 @@ resource "azurerm_key_vault_access_policy" "function_secrets" {
     "List",
   ]
 }
+
+# ---------------------------------------------------------------------------
+# Application Gateway WAF v2 in front of the frontend Linux Web App.
+# Deploys a public-facing WAF (OWASP CRS 3.2 in Prevention mode) that
+# terminates HTTP at port 80 and forwards to the App Service over HTTPS.
+# Toggle off via `enable_waf = false` for cost-sensitive dev environments.
+# ---------------------------------------------------------------------------
+
+resource "azurerm_virtual_network" "appgw" {
+  count               = var.enable_waf ? 1 : 0
+  name                = local.appgw_vnet_name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = var.location
+  address_space       = [var.appgw_vnet_address_space]
+  tags                = local.tags
+}
+
+resource "azurerm_subnet" "appgw" {
+  count                = var.enable_waf ? 1 : 0
+  name                 = local.appgw_subnet_name
+  resource_group_name  = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.appgw[0].name
+  address_prefixes     = [var.appgw_subnet_address_prefix]
+}
+
+resource "azurerm_public_ip" "appgw" {
+  count               = var.enable_waf ? 1 : 0
+  name                = local.appgw_pip_name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = var.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  zones               = var.appgw_availability_zones
+  tags                = local.tags
+}
+
+resource "azurerm_web_application_firewall_policy" "main" {
+  count               = var.enable_waf ? 1 : 0
+  name                = local.waf_policy_name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = var.location
+  tags                = local.tags
+
+  policy_settings {
+    enabled                     = true
+    mode                        = var.waf_mode
+    request_body_check          = true
+    file_upload_limit_in_mb     = 100
+    max_request_body_size_in_kb = 128
+  }
+
+  managed_rules {
+    managed_rule_set {
+      type    = "OWASP"
+      version = "3.2"
+    }
+  }
+}
+
+resource "azurerm_application_gateway" "main" {
+  count               = var.enable_waf ? 1 : 0
+  name                = local.appgw_name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = var.location
+  http2_enabled       = true
+  firewall_policy_id  = azurerm_web_application_firewall_policy.main[0].id
+  zones               = var.appgw_availability_zones
+  tags                = local.tags
+
+  sku {
+    name = "WAF_v2"
+    tier = "WAF_v2"
+  }
+
+  autoscale_configuration {
+    min_capacity = var.appgw_min_capacity
+    max_capacity = var.appgw_max_capacity
+  }
+
+  gateway_ip_configuration {
+    name      = "appgw-ipconfig"
+    subnet_id = azurerm_subnet.appgw[0].id
+  }
+
+  frontend_port {
+    name = "http"
+    port = 80
+  }
+
+  frontend_ip_configuration {
+    name                 = "public"
+    public_ip_address_id = azurerm_public_ip.appgw[0].id
+  }
+
+  backend_address_pool {
+    name  = "frontend-pool"
+    fqdns = [azurerm_linux_web_app.frontend.default_hostname]
+  }
+
+  probe {
+    name                                      = "frontend-probe"
+    protocol                                  = "Https"
+    path                                      = "/"
+    interval                                  = 30
+    timeout                                   = 30
+    unhealthy_threshold                       = 3
+    pick_host_name_from_backend_http_settings = true
+
+    match {
+      status_code = ["200-399"]
+    }
+  }
+
+  backend_http_settings {
+    name                                = "frontend-https"
+    cookie_based_affinity               = "Disabled"
+    port                                = 443
+    protocol                            = "Https"
+    request_timeout                     = 30
+    pick_host_name_from_backend_address = true
+    probe_name                          = "frontend-probe"
+  }
+
+  http_listener {
+    name                           = "http-listener"
+    frontend_ip_configuration_name = "public"
+    frontend_port_name             = "http"
+    protocol                       = "Http"
+  }
+
+  request_routing_rule {
+    name                       = "default-rule"
+    priority                   = 100
+    rule_type                  = "Basic"
+    http_listener_name         = "http-listener"
+    backend_address_pool_name  = "frontend-pool"
+    backend_http_settings_name = "frontend-https"
+  }
+
+  # Diagnostic settings can be added separately; left out of the resource to
+  # keep this module focused. Wire to azurerm_log_analytics_workspace.main if
+  # you want WAF firewall logs centralized.
+}
+

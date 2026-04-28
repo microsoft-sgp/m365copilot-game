@@ -266,7 +266,7 @@
     background: var(--color-surface-container);
     border: 1.5px solid var(--color-outline-variant);
     border-radius: var(--radius-card);
-    padding: 14px 12px;
+    padding: 10px 8px;
     cursor: pointer;
     transition: 0.2s;
     min-height: 120px;
@@ -275,6 +275,12 @@
     gap: 6px;
     position: relative;
     overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+  @media (min-width: 640px) {
+    .tile {
+      padding: 14px 12px;
+    }
   }
   .tile:hover {
     border-color: var(--color-primary);
