@@ -54,13 +54,18 @@ output "key_vault_name" {
 }
 
 output "redis_cache_name" {
-  description = "Azure Redis cache name used by the Function App cache layer."
-  value       = azurerm_redis_cache.api.name
+  description = "Azure Managed Redis name used by the Function App cache layer."
+  value       = azurerm_managed_redis.api.name
+}
+
+output "managed_redis_name" {
+  description = "Azure Managed Redis name used by the Function App cache layer."
+  value       = azurerm_managed_redis.api.name
 }
 
 output "redis_hostname" {
-  description = "Azure Redis hostname. Connection secrets are stored in Key Vault and not output."
-  value       = azurerm_redis_cache.api.hostname
+  description = "Azure Managed Redis hostname. Connection secrets are stored in Key Vault and not output."
+  value       = azurerm_managed_redis.api.hostname
 }
 
 output "acs_email_sender" {

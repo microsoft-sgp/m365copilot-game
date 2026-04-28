@@ -60,21 +60,27 @@ The system SHALL render the tab navigation as a fixed bottom bar on compact scre
 - **WHEN** the player scrolls to the bottom of any tab's content
 - **THEN** the content MUST have sufficient bottom padding to prevent the last content items from being hidden behind the fixed bottom bar
 
-### Requirement: Bingo grid adapts columns to screen width
+### Requirement: Bingo grid renders as a 3×3 layout on all screen sizes
 
-The system SHALL render the bingo grid in 2 columns on compact screens and 3 columns on expanded screens.
+The system SHALL render the bingo grid as a fixed 3-column layout on every supported viewport, producing a 3×3 arrangement of the 9 tiles. On compact screens (<640px), the system SHALL apply tightened tile padding and grid gap so the grid fits a 375px viewport without horizontal overflow, and SHALL apply `overflow-wrap: anywhere` to tile content so long single words cannot force horizontal overflow.
 
-#### Scenario: Grid renders 2 columns on compact
+#### Scenario: Grid renders 3 columns on compact
 
-- **GIVEN** a player has an active board and views the game on a compact screen
+- **GIVEN** a player has an active board and views the game on a compact screen (<640px)
 - **WHEN** the BingoGrid component renders
-- **THEN** the tiles MUST render in a 2-column layout with the 9th tile centered in the last row
+- **THEN** the tiles MUST render in a 3-column layout with no special-case orphan tile handling
 
 #### Scenario: Grid renders 3 columns on expanded
 
 - **GIVEN** a player has an active board and views the game on an expanded screen (>=640px)
 - **WHEN** the BingoGrid component renders
 - **THEN** the tiles MUST render in the standard 3×3 grid layout
+
+#### Scenario: No horizontal overflow with longest task bank content on 375px
+
+- **GIVEN** a player views the game on a 375px-wide device with any tile in the task bank
+- **WHEN** the BingoGrid renders the 3-column layout
+- **THEN** the grid MUST NOT produce horizontal scrollbars or overflow beyond the viewport width, even for the longest titles ("Stakeholder Email", "Competitive Analysis") and tags ("Decision Making")
 
 ### Requirement: Tile modal fills viewport on compact screens
 

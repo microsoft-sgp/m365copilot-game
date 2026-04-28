@@ -83,6 +83,12 @@ type StartBoardArgs = {
   organization?: string;
 };
 
+type AssignmentResult = {
+  ok: boolean;
+  packId?: number;
+  message?: string;
+};
+
 function freshState(): GameState {
   return {
     sessionId: '',
@@ -177,7 +183,7 @@ export function useBingoGame() {
     state.completedPackId = assignment.completedPackId ?? null;
   }
 
-  async function startBoard({ name, packId, email, organization }: StartBoardArgs = {}) {
+  function applyIdentity({ name, email, organization }: StartBoardArgs = {}) {
     const canonicalName = state.playerName || (name || '').trim() || 'Player';
     if (!state.playerName && canonicalName) {
       state.playerName = canonicalName;
@@ -189,6 +195,52 @@ export function useBingoGame() {
         saveString(STORAGE_KEYS.organization, state.organization);
       }
     }
+    return canonicalName;
+  }
+
+  function applySessionPayload(data?: CreateSessionPayload | null): number {
+    if (!data) return 0;
+    if (data.activeAssignment) {
+      applyAssignment(data.activeAssignment);
+    }
+    if (data.gameSessionId) {
+      state.gameSessionId = data.gameSessionId;
+    }
+    const assignedPackId = Number(data.packId || data.activeAssignment?.packId || 0);
+    if (assignedPackId > 0) {
+      state.assignedPackId = assignedPackId;
+      saveString(STORAGE_KEYS.lastPack, String(assignedPackId));
+    }
+    return assignedPackId;
+  }
+
+  async function ensurePackAssignment(args: StartBoardArgs = {}): Promise<AssignmentResult> {
+    const canonicalName = applyIdentity(args);
+    const currentPackId = Number(state.assignedPackId || state.packId || 0);
+    if (currentPackId > 0) return { ok: true, packId: currentPackId };
+
+    try {
+      const sessionPayload: Record<string, unknown> = {
+        sessionId: state.sessionId,
+        playerName: canonicalName,
+        email: state.email,
+      };
+      if (state.organization) sessionPayload.organization = state.organization;
+
+      const res = (await apiCreateSession(sessionPayload)) as ApiResponse<CreateSessionPayload>;
+      if (res.ok && res.data) {
+        const assignedPackId = applySessionPayload(res.data);
+        if (assignedPackId > 0) return { ok: true, packId: assignedPackId };
+      }
+    } catch {
+      // API unavailable — launch can retry assignment when the player taps the button.
+    }
+
+    return { ok: false, message: 'Unable to resolve your assigned pack. Please try again.' };
+  }
+
+  async function startBoard({ name, packId, email, organization }: StartBoardArgs = {}) {
+    const canonicalName = applyIdentity({ name, email, organization });
 
     let resolvedPackId = Number(packId || state.assignedPackId || state.packId || 0);
     let resolvedGameSessionId = state.gameSessionId;
@@ -230,11 +282,11 @@ export function useBingoGame() {
 
       const res = (await apiCreateSession(sessionPayload)) as ApiResponse<CreateSessionPayload>;
       if (res.ok && res.data) {
-        if (res.data.activeAssignment) {
-          applyAssignment(res.data.activeAssignment);
-        }
+        const assignedPackId = applySessionPayload(res.data);
         if (res.data.packId) {
           resolvedPackId = Number(res.data.packId);
+        } else if (assignedPackId > 0) {
+          resolvedPackId = assignedPackId;
         }
         if (res.data.gameSessionId) {
           resolvedGameSessionId = res.data.gameSessionId;
@@ -435,6 +487,7 @@ export function useBingoGame() {
     keywordCount,
     boardProgress,
     startBoard,
+    ensurePackAssignment,
     resetBoard,
     verifyTile,
     hydrateFromServer,

@@ -49,13 +49,13 @@ flowchart LR
 
 | Layer               | Responsibility                                                                                                                        |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Vue SPA             | Player onboarding, board play, keyword submission, activity view, and admin portal screens.                                           |
+| Vue SPA             | Player onboarding, board play, keyword submission, activity view, and admin portal screens; Terraform hosts it on Linux App Service, while the manual guide can use Static Web Apps. |
 | Azure Functions API | HTTP endpoints for sessions, tile events, submissions, leaderboard, campaign config, admin auth, and admin operations.                |
 | Azure SQL           | Durable storage for game state, progression scoring, organization mappings, campaign settings, OTP hashes, and portal-managed admins. |
 | Azure Managed Redis | Optional cache-aside layer for active campaign config, organization domains, and leaderboard responses.                               |
 | ACS Email           | Production delivery for admin OTP login and sensitive admin-management step-up verification.                                          |
 | Key Vault           | Holds generated app secrets referenced by Function App settings.                                                                      |
-| Terraform           | Provisions Azure infrastructure; local state, tfvars, and plans are intentionally ignored.                                            |
+| Terraform           | Provisions Azure infrastructure in Korea Central for regional resources; Azure Communication Services is the only global control-plane exception. |
 
 ## App flow
 

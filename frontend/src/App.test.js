@@ -21,7 +21,10 @@ const stubs = {
   GameTab: { template: '<div data-test="gametab" />' },
   KeywordsPanel: { template: '<div />' },
   MyActivityPanel: { template: '<div />' },
-  HelpPanel: { template: '<div />' },
+  HelpPanel: {
+    template: '<button data-test="help-admin" @click="$emit(\'admin\')" />',
+    emits: ['admin'],
+  },
   EmailGate: {
     template:
       "<button data-test=\"email-continue\" @click=\"$emit('continue', { email: 'ada@nus.edu.sg', name: 'Ada', organization: 'NUS' })\" />",
@@ -61,6 +64,19 @@ describe('App routing', () => {
     expect(wrapper.find('[data-test="topbar"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="apptabs"]').exists()).toBe(true);
     expect(localStorage.getItem('copilot_bingo_email')).toBe('ada@nus.edu.sg');
+  });
+
+  it('opens admin login from the in-game help panel', async () => {
+    const wrapper = mount(App, { global: { stubs } });
+    await flushPromises();
+    await wrapper.find('[data-test="email-continue"]').trigger('click');
+    await flushPromises();
+
+    await wrapper.find('[data-test="help-admin"]').trigger('click');
+    await flushPromises();
+
+    expect(window.location.hash).toBe('#/admin/login');
+    expect(wrapper.find('[data-test="admin-login"]').exists()).toBe(true);
   });
 
   it('routes to admin login when hash is #/admin/login', async () => {

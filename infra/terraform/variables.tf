@@ -11,21 +11,36 @@ variable "resource_group_name" {
 }
 
 variable "location" {
-  description = "Primary Azure region for app resources. Korea Central is the default. Azure Communication Services intentionally uses a different region (see communication_data_location)."
+  description = "Primary Azure region for all regional app resources. Must remain Korea Central; Azure Communication Services resources are globally scoped and use communication_data_location for data residency."
   type        = string
   default     = "koreacentral"
+
+  validation {
+    condition     = lower(var.location) == "koreacentral"
+    error_message = "location must be koreacentral so all regional app resources deploy to Korea Central."
+  }
 }
 
 variable "resource_group_location" {
-  description = "Azure region metadata for the resource group. Use the existing resource group's location when deploying into one."
+  description = "Azure region metadata for the resource group. Must remain Korea Central for this deployment."
   type        = string
   default     = "koreacentral"
+
+  validation {
+    condition     = lower(var.resource_group_location) == "koreacentral"
+    error_message = "resource_group_location must be koreacentral."
+  }
 }
 
 variable "sql_location" {
-  description = "Azure region for Azure SQL resources. This can differ from app resources when SQL provisioning is restricted in the app region."
+  description = "Azure region for Azure SQL resources. Must remain Korea Central alongside the app resources."
   type        = string
   default     = "koreacentral"
+
+  validation {
+    condition     = lower(var.sql_location) == "koreacentral"
+    error_message = "sql_location must be koreacentral so Azure SQL stays in Korea Central."
+  }
 }
 
 variable "environment" {
@@ -137,42 +152,49 @@ variable "cache_ttl_leaderboard_seconds" {
 }
 
 variable "redis_sku_name" {
-  description = "Azure Cache for Redis SKU name used by the API cache layer."
+  description = "Azure Managed Redis SKU name used by the API cache layer."
   type        = string
-  default     = "Basic"
+  default     = "Balanced_B0"
 
   validation {
-    condition     = contains(["Basic", "Standard", "Premium"], var.redis_sku_name)
-    error_message = "redis_sku_name must be Basic, Standard, or Premium."
+    condition     = can(regex("^(Balanced_B|ComputeOptimized_X|FlashOptimized_A)[0-9]+$", var.redis_sku_name))
+    error_message = "redis_sku_name must be an Azure Managed Redis SKU such as Balanced_B0, Balanced_B3, ComputeOptimized_X3, or FlashOptimized_A250."
   }
 }
 
-variable "redis_family" {
-  description = "Azure Cache for Redis SKU family. Use C for Basic/Standard and P for Premium."
+variable "redis_clustering_policy" {
+  description = "Azure Managed Redis clustering policy. NoCluster keeps compatibility with the app's single-endpoint Redis client."
   type        = string
-  default     = "C"
+  default     = "NoCluster"
+
+  validation {
+    condition     = contains(["EnterpriseCluster", "OSSCluster", "NoCluster"], var.redis_clustering_policy)
+    error_message = "redis_clustering_policy must be EnterpriseCluster, OSSCluster, or NoCluster."
+  }
 }
 
-variable "redis_capacity" {
-  description = "Azure Cache for Redis capacity. Basic/Standard C0 is suitable for dev/test."
-  type        = number
-  default     = 0
-}
-
-variable "redis_version" {
-  description = "Redis engine version requested for the managed cache."
+variable "redis_eviction_policy" {
+  description = "Azure Managed Redis eviction policy for cache-aside entries."
   type        = string
-  default     = "6"
-}
+  default     = "AllKeysLRU"
 
-variable "redis_maxmemory_policy" {
-  description = "Redis eviction policy for cache-aside entries."
-  type        = string
-  default     = "allkeys-lru"
+  validation {
+    condition = contains([
+      "AllKeysLFU",
+      "AllKeysLRU",
+      "AllKeysRandom",
+      "VolatileLRU",
+      "VolatileLFU",
+      "VolatileTTL",
+      "VolatileRandom",
+      "NoEviction",
+    ], var.redis_eviction_policy)
+    error_message = "redis_eviction_policy must be a valid Azure Managed Redis eviction policy."
+  }
 }
 
 variable "redis_public_network_access_enabled" {
-  description = "Whether the Redis cache allows public network access. Keep false only when private networking is configured."
+  description = "Whether Azure Managed Redis allows public network access. Keep false only when private networking is configured."
   type        = bool
   default     = true
 }
@@ -199,18 +221,30 @@ variable "sql_allowed_ip_ranges" {
 }
 
 variable "function_plan_sku_name" {
-  description = "App Service plan SKU for the Function App. EP1/EP2/EP3 are Functions Elastic Premium SKUs."
+  description = "App Service plan SKU for the Function App. EP1/EP2/EP3 are Functions Elastic Premium SKUs; P*v3/P*v4 are dedicated App Service SKUs for subscriptions without Elastic Premium quota."
   type        = string
   default     = "EP1"
 
   validation {
-    condition     = contains(["EP1", "EP2", "EP3"], var.function_plan_sku_name)
-    error_message = "function_plan_sku_name must be an Elastic Premium SKU (EP1, EP2, or EP3)."
+    condition = contains([
+      "EP1",
+      "EP2",
+      "EP3",
+      "P0v3",
+      "P1v3",
+      "P2v3",
+      "P3v3",
+      "P0v4",
+      "P1v4",
+      "P2v4",
+      "P3v4",
+    ], var.function_plan_sku_name)
+    error_message = "function_plan_sku_name must be EP1, EP2, EP3, or a supported Premium v3/v4 dedicated App Service SKU such as P0v3."
   }
 }
 
 variable "function_pre_warmed_instance_count" {
-  description = "Pre-warmed instance count for the Functions Premium plan. Keep at least 1 to mitigate cold starts."
+  description = "Pre-warmed instance count for Elastic Premium Function plans. Ignored for dedicated App Service SKUs such as P0v3."
   type        = number
   default     = 1
 }
@@ -222,7 +256,7 @@ variable "frontend_app_service_sku_name" {
 }
 
 variable "communication_data_location" {
-  description = "Data location for Azure Communication Services and Email resources."
+  description = "Data location for globally scoped Azure Communication Services and Email resources."
   type        = string
   default     = "United States"
 }

@@ -64,7 +64,7 @@ describe('SetupPanel', () => {
     expect(state.packId).toBe(42);
   });
 
-  it('requests first assignment from the server when no pack has hydrated yet', async () => {
+  it('requests first assignment from the server when the setup panel appears', async () => {
     localStorage.setItem('copilot_bingo_email', 'ada@example.com');
     const { state } = useBingoGame();
     state.assignedPackId = 0;
@@ -85,10 +85,6 @@ describe('SetupPanel', () => {
     });
 
     const w = mount(SetupPanel);
-    await w
-      .findAll('button')
-      .find((b) => b.text().includes('Launch Board'))
-      .trigger('click');
     await flushPromises();
 
     expect(apiCreateSession).toHaveBeenCalledWith({
@@ -96,13 +92,22 @@ describe('SetupPanel', () => {
       playerName: 'Ada',
       email: 'ada@example.com',
     });
+    expect(state.boardActive).toBe(false);
+    expect(w.text()).toContain('#088');
+
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Launch Board'))
+      .trigger('click');
+    await flushPromises();
+
     expect(state.boardActive).toBe(true);
     expect(state.packId).toBe(88);
     expect(state.assignedPackId).toBe(88);
     expect(state.gameSessionId).toBe(123);
   });
 
-  it('includes stored organization when launching a public-email player', async () => {
+  it('includes stored organization when assigning a public-email player', async () => {
     localStorage.setItem('copilot_bingo_email', 'alex@gmail.com');
     localStorage.setItem('copilot_bingo_organization', 'Contoso');
     const { state } = useBingoGame();
@@ -124,10 +129,6 @@ describe('SetupPanel', () => {
     });
 
     const w = mount(SetupPanel);
-    await w
-      .findAll('button')
-      .find((button) => button.text().includes('Launch Board'))
-      .trigger('click');
     await flushPromises();
 
     expect(apiCreateSession).toHaveBeenCalledWith({
@@ -136,6 +137,15 @@ describe('SetupPanel', () => {
       email: 'alex@gmail.com',
       organization: 'Contoso',
     });
+  });
+
+  it('does not render #000 while assignment is pending', () => {
+    const { state } = useBingoGame();
+    state.assignedPackId = 0;
+    localStorage.removeItem('copilot_bingo_last_pack');
+    const w = mount(SetupPanel);
+    expect(w.text()).toContain('#---');
+    expect(w.text()).not.toContain('#000');
   });
 
   it('shows assignment rotation copy when server marks rotated assignment', () => {

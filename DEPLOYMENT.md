@@ -4,6 +4,8 @@ This guide walks you through deploying the entire Copilot Chat Bingo application
 
 For repeatable deployments, prefer the Terraform path in [infra/terraform/README.md](infra/terraform/README.md). This manual Azure CLI guide is useful for learning the moving parts or creating a small standalone deployment. Avoid mixing manual resources into a Terraform-managed environment unless you also import or codify those resources.
 
+The current deployment standard is Korea Central for all regional Azure resources. Azure Communication Services is the only global control-plane exception; its email `data_location` is a data-residency setting, not the app deployment region.
+
 Before using the app with real attendees, review your organization's privacy, consent, retention, access-control, and export-handling requirements. The app can store player names, player emails, gameplay progress, admin emails, OTP metadata, and CSV exports.
 
 ## Contents
@@ -37,7 +39,7 @@ Before using the app with real attendees, review your organization's privacy, co
 | **Azure Cache for Redis**                | Cache-aside layer for public config and leaderboard API responses  | Basic C0 for dev/test; use Standard/Premium for production resilience  |
 | **Storage Account**                      | Required by Azure Functions for internal state                     | Standard LRS — pennies/mo                                              |
 | **Azure Communication Services + Email** | Sends admin OTP codes for portal login and sensitive admin changes | Usage-based — tiny for event-scale OTP traffic                         |
-| **Azure Functions App**                  | Hosts the Node.js API                                              | Consumption plan in this manual guide; Terraform uses Flex Consumption |
+| **Azure Functions App**                  | Hosts the Node.js API                                              | Consumption plan in this manual guide; Terraform uses the plan selected in `terraform.tfvars` |
 | **Azure Static Web App**                 | Hosts the Vue 3 frontend with global CDN and free TLS              | Free tier                                                              |
 
 Total estimated cost: **~$5–7/month plus small email usage charges**. For typical event usage, the SQL database is still the main cost driver.
@@ -126,10 +128,10 @@ az account set --subscription "<subscription-name-or-id>"
 A Resource Group is a folder that holds all related Azure resources. It makes cleanup easy — deleting the group deletes everything inside it.
 
 ```bash
-az group create --name rg-bingo --location eastus2
+az group create --name rg-bingo --location koreacentral
 ```
 
-> **Tip:** You can use any [Azure region](https://azure.microsoft.com/explore/global-infrastructure/geographies/). Pick one close to your players for lower latency. Common choices: `eastus2`, `westus2`, `southeastasia`, `westeurope`.
+> **Tip:** Keep this deployment in `koreacentral` unless you are intentionally creating a separate manual environment. Azure Communication Services is the only global control-plane exception.
 
 ---
 
@@ -141,7 +143,7 @@ az group create --name rg-bingo --location eastus2
 az sql server create \
   --name sql-bingo-server \
   --resource-group rg-bingo \
-  --location eastus2 \
+  --location koreacentral \
   --admin-user bingoadmin \
   --admin-password '<YourStrongPassword123!>'
 ```
@@ -202,7 +204,7 @@ Replace `sql-bingo-server` with your actual server name and the password with th
 
 ## Step 5 — Run the database migrations
 
-The database needs seven SQL scripts to create the tables, seed organization data, add campaign/admin support, add progression-scoring storage, add pack-assignment lifecycle storage, add portal-managed admin users, and add active pack assignment lookup support.
+The database needs eight SQL scripts to create the tables, seed organization data, add campaign/admin support, add progression-scoring storage, add pack-assignment lifecycle storage, add portal-managed admin users, add active pack assignment lookup support, and persist player organization attribution.
 
 ### Option A — Azure Portal Query Editor (easiest, no extra tools)
 
@@ -217,6 +219,7 @@ The database needs seven SQL scripts to create the tables, seed organization dat
 9. Paste the contents of `database/005-pack-assignment-lifecycle.sql` into the editor and click **Run**.
 10. Paste the contents of `database/006-admin-users.sql` into the editor and click **Run**.
 11. Paste the contents of `database/007-active-pack-assignment-counts.sql` into the editor and click **Run**.
+12. Paste the contents of `database/008-player-organization-attribution.sql` into the editor and click **Run**.
 
 ### Option B — sqlcmd (command line)
 
@@ -268,6 +271,12 @@ sqlcmd -S sql-bingo-server.database.windows.net \
   -U bingoadmin \
   -P '<YourStrongPassword123!>' \
   -i database/007-active-pack-assignment-counts.sql
+
+sqlcmd -S sql-bingo-server.database.windows.net \
+  -d bingo_db \
+  -U bingoadmin \
+  -P '<YourStrongPassword123!>' \
+  -i database/008-player-organization-attribution.sql
 ```
 
 ### Option C — Azure Data Studio (GUI)
@@ -286,7 +295,7 @@ Azure Functions needs a Storage Account to manage its internal state (triggers, 
 az storage account create \
   --name stbingofunc \
   --resource-group rg-bingo \
-  --location eastus2 \
+  --location koreacentral \
   --sku Standard_LRS \
   --kind StorageV2
 ```
@@ -304,7 +313,7 @@ az functionapp create \
   --name func-bingo-api \
   --resource-group rg-bingo \
   --storage-account stbingofunc \
-  --consumption-plan-location eastus2 \
+  --consumption-plan-location koreacentral \
   --runtime node \
   --runtime-version 20 \
   --functions-version 4 \
@@ -325,6 +334,8 @@ Admin portal login depends on email OTP delivery. In production, configure Azure
 
 > **Important:** OTP email sending fails in production if either `ACS_CONNECTION_STRING` or `ACS_EMAIL_SENDER` is missing. The backend invalidates any OTP row whose email send fails, so users must request a fresh code after a provider or configuration issue is fixed.
 
+> **Region note:** Azure Communication Services is globally scoped. Choose the email data location required by your tenancy; the Terraform template defaults `communication_data_location` to `United States` while all regional app resources remain in Korea Central.
+
 ### 7c. Create Redis cache
 
 Redis is used as a disposable cache-aside layer. Azure SQL remains the source of truth, and the API falls back to SQL if Redis is unavailable.
@@ -333,7 +344,7 @@ Redis is used as a disposable cache-aside layer. Azure SQL remains the source of
 az redis create \
   --name redis-bingo-api \
   --resource-group rg-bingo \
-  --location eastus2 \
+  --location koreacentral \
   --sku Basic \
   --vm-size c0 \
   --minimum-tls-version 1.2
@@ -414,7 +425,7 @@ Azure Static Web Apps gives you a global CDN, free TLS certificate, and PR previ
 az staticwebapp create \
   --name swa-bingo \
   --resource-group rg-bingo \
-  --location eastus2 \
+  --location koreacentral \
   --sku Free
 ```
 

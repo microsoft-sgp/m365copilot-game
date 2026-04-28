@@ -61,6 +61,51 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe('useBingoGame.ensurePackAssignment', () => {
+  it('stores a server-assigned pack without activating the board', async () => {
+    apiCreateSession.mockResolvedValue({
+      ok: true,
+      data: {
+        gameSessionId: 456,
+        packId: 88,
+        activeAssignment: {
+          assignmentId: 9,
+          packId: 88,
+          cycleNumber: 1,
+          rotated: false,
+          completedPackId: null,
+        },
+      },
+    });
+
+    const { ensurePackAssignment, state } = useBingoGame();
+    const result = await ensurePackAssignment({ name: 'Ada', email: 'ada@example.com' });
+
+    expect(apiCreateSession).toHaveBeenCalledWith({
+      sessionId: 'test-session',
+      playerName: 'Ada',
+      email: 'ada@example.com',
+    });
+    expect(result).toEqual({ ok: true, packId: 88 });
+    expect(state.boardActive).toBe(false);
+    expect(state.packId).toBe(0);
+    expect(state.assignedPackId).toBe(88);
+    expect(state.assignmentCycle).toBe(1);
+    expect(state.gameSessionId).toBe(456);
+    expect(localStorage.getItem('copilot_bingo_last_pack')).toBe('88');
+  });
+
+  it('does not call the API when an assignment is already available', async () => {
+    const { ensurePackAssignment, state } = useBingoGame();
+    state.assignedPackId = 42;
+
+    const result = await ensurePackAssignment({ name: 'Ada', email: 'ada@example.com' });
+
+    expect(result).toEqual({ ok: true, packId: 42 });
+    expect(apiCreateSession).not.toHaveBeenCalled();
+  });
+});
+
 describe('useBingoGame.startBoard', () => {
   it('populates tiles and marks the board active', () => {
     const { startBoard, state } = useBingoGame();

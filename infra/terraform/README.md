@@ -6,12 +6,12 @@ This folder provisions the Azure resources needed by Copilot Chat Bingo.
 
 - Resource group `rg-m365copilot-game-dev` in `koreacentral`
 - Linux Azure App Service hosting the Vue frontend (built static assets)
-- Linux Azure Function App on a Functions Premium (Elastic Premium / EP) plan for the Node.js API
+- Linux Azure Function App on a configurable Linux App Service plan for the Node.js API
 - Storage Account required by Azure Functions
 - Azure SQL Server and `bingo_db` database (Korea Central)
-- Azure Redis cache for cache-aside API responses
+- Azure Managed Redis for cache-aside API responses
 - Azure Communication Services and Email Communication Service with an Azure-managed sender domain
-  - ACS `data_location` defaults to `United States` because the service is not available in every region; this is an intentional regional exception to the Korea Central default.
+  - Azure Communication Services resources are globally scoped by Azure. Their `data_location` defaults to `United States` for data residency and is the only non-Korea Central deployment exception.
 - Key Vault for generated app secrets
 - Log Analytics workspace and Application Insights
 
@@ -51,13 +51,13 @@ cp terraform.tfvars.example terraform.tfvars
 
 Edit `terraform.tfvars` and replace `admin@test.com` with one or more real bootstrap admin emails.
 
-This deployment uses the existing `rg-m365copilot-game-dev` resource group in `koreacentral`. All app resources (Function App, App Service, SQL, Redis, Storage, Key Vault, App Insights) are deployed to `koreacentral`. Azure Communication Services keeps its `data_location` outside Korea Central (default `United States`) because the service is not available in every region.
+This deployment uses the existing `rg-m365copilot-game-dev` resource group in `koreacentral`. All regional resources (Function App, App Service, SQL, Managed Redis, Storage, Key Vault, App Insights) are deployed to `koreacentral`. Azure Communication Services is the only global control-plane exception; its `data_location` defaults to `United States` for data residency.
 
 If you want to run SQL migrations from your workstation, add your public IP to `sql_allowed_ip_ranges`.
 
 Terraform includes the generated frontend App Service hostname in the Function App CORS allow-list automatically and sets credentialed admin cookies to `Secure` and `SameSite=None` for the App Service to Function App cross-origin deployment. Add any production custom frontend domains to `allowed_origins` before planning.
 
-The default Redis SKU is Basic C0 for dev/test cost control. Use `redis_sku_name`, `redis_family`, and `redis_capacity` to choose Standard or Premium for production resilience requirements.
+The default Azure Managed Redis SKU is `Balanced_B0` for dev/test cost control. Use `redis_sku_name` to choose a larger Balanced, ComputeOptimized, or FlashOptimized SKU for production throughput and resilience requirements. The default database uses encrypted client traffic, `NoCluster` for compatibility with the app's single-endpoint Redis client, and `AllKeysLRU` eviction for cache-aside entries.
 
 ## Provision
 
@@ -81,7 +81,7 @@ npm ci
 func azure functionapp publish $(terraform -chdir=../infra/terraform output -raw function_app_name) --javascript
 ```
 
-Azure Functions Core Tools deploys the backend to the Premium-plan Function App. The deployment uses the standard zip deploy / run-from-package flow.
+Azure Functions Core Tools deploys the backend to the Linux Function App. The deployment uses the standard zip deploy / run-from-package flow.
 
 ## Run SQL Migrations
 
@@ -94,6 +94,7 @@ Use the backend migration runner to apply these files against the provisioned da
 5. `database/005-pack-assignment-lifecycle.sql`
 6. `database/006-admin-users.sql`
 7. `database/007-active-pack-assignment-counts.sql`
+8. `database/008-player-organization-attribution.sql`
 
 Run the migrations with Microsoft Entra authentication and grant the Function App managed identity database access:
 
@@ -109,7 +110,7 @@ The SQL server is configured for Microsoft Entra-only authentication to satisfy 
 
 ## Deploy Frontend
 
-The frontend is hosted on a Linux App Service running Node 20 with `pm2 serve` for SPA routing. Build locally, then publish the `dist/` folder as a zip:
+The frontend is hosted on a Linux App Service running Node 24 with `pm2 serve` for SPA routing. Build locally, then publish the `dist/` folder as a zip:
 
 ```bash
 cd frontend
@@ -172,4 +173,4 @@ To test admin cookies, open browser DevTools after OTP login and confirm the API
 - Key Vault stores generated app secrets that are referenced by Function App settings. Keep production secrets and deployment tokens out of source control and public issue/PR content.
 - CSV exports and deployment logs can include personal or operational data. Handle them according to your organization's policies.
 - Storage shared-key access is disabled by policy. Terraform uses Azure AD storage operations, and the Function App deployment storage uses managed identity.
-- Azure SQL is deployed in `koreacentral` alongside app resources. Azure Communication Services intentionally uses a non-Korea `data_location` (default `United States`) because the service is not available in every region.
+- Azure SQL is deployed in `koreacentral` alongside app resources. Azure Communication Services is the only global resource exception and uses `data_location` (default `United States`) for data residency.

@@ -167,7 +167,7 @@ function onBackToGame() {
           v-show="activeTab === 'help'"
           class="px-5 py-5 pb-20 sm:pb-5"
         >
-          <HelpPanel />
+          <HelpPanel @admin="onAdminNav" />
         </section>
         <GameFooter />
       </template>

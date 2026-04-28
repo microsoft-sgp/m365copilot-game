@@ -53,11 +53,10 @@ locals {
   app_settings = {
     AzureWebJobsFeatureFlags = "EnableWorkerIndexing"
     # The Functions host talks to the storage account using the
-    # user-assigned managed identity. The provider sets
-    # AzureWebJobsStorage__accountName / __credential automatically when
-    # storage_uses_managed_identity = true; we only need to point the host
-    # at the specific UAMI to use.
+    # user-assigned managed identity.
+    AzureWebJobsStorage__credential   = "managedidentity"
     AzureWebJobsStorage__clientId     = azurerm_user_assigned_identity.functions.client_id
+    WEBSITE_RUN_FROM_PACKAGE          = "1"
     SQL_SERVER_FQDN                   = azurerm_mssql_server.main.fully_qualified_domain_name
     SQL_DATABASE_NAME                 = azurerm_mssql_database.app.name
     SQL_AUTHENTICATION                = "azure-active-directory-msi-app-service"
@@ -285,21 +284,19 @@ resource "azurerm_communication_service_email_domain_association" "admin_otp" {
   email_service_domain_id  = azurerm_email_communication_service_domain.admin_otp.id
 }
 
-resource "azurerm_redis_cache" "api" {
-  name                          = local.redis_name
-  resource_group_name           = azurerm_resource_group.main.name
-  location                      = var.location
-  capacity                      = var.redis_capacity
-  family                        = var.redis_family
-  sku_name                      = var.redis_sku_name
-  minimum_tls_version           = "1.2"
-  non_ssl_port_enabled          = false
-  public_network_access_enabled = var.redis_public_network_access_enabled
-  redis_version                 = var.redis_version
-  tags                          = local.tags
+resource "azurerm_managed_redis" "api" {
+  name                  = local.redis_name
+  resource_group_name   = azurerm_resource_group.main.name
+  location              = var.location
+  sku_name              = var.redis_sku_name
+  public_network_access = var.redis_public_network_access_enabled ? "Enabled" : "Disabled"
+  tags                  = local.tags
 
-  redis_configuration {
-    maxmemory_policy = var.redis_maxmemory_policy
+  default_database {
+    access_keys_authentication_enabled = true
+    client_protocol                    = "Encrypted"
+    clustering_policy                  = var.redis_clustering_policy
+    eviction_policy                    = var.redis_eviction_policy
   }
 }
 
@@ -324,7 +321,7 @@ resource "azurerm_key_vault_secret" "acs_connection_string" {
 
 resource "azurerm_key_vault_secret" "redis_connection_string" {
   name         = "redis-connection-string"
-  value        = azurerm_redis_cache.api.primary_connection_string
+  value        = "rediss://:${urlencode(azurerm_managed_redis.api.default_database[0].primary_access_key)}@${azurerm_managed_redis.api.hostname}:${azurerm_managed_redis.api.default_database[0].port}"
   key_vault_id = azurerm_key_vault.main.id
   content_type = "connection-string"
 }
@@ -400,7 +397,7 @@ resource "azurerm_linux_function_app" "api" {
     always_on                              = true
     ftps_state                             = "Disabled"
     http2_enabled                          = true
-    pre_warmed_instance_count              = var.function_pre_warmed_instance_count
+    pre_warmed_instance_count              = startswith(var.function_plan_sku_name, "EP") ? var.function_pre_warmed_instance_count : null
 
     application_stack {
       node_version = "22"

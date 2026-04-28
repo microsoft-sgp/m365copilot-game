@@ -1,17 +1,22 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { TOTAL_PACKS, STORAGE_KEYS } from '../data/constants.js';
 import { loadString } from '../lib/storage.js';
 import { useBingoGame } from '../composables/useBingoGame.js';
 
-const { startBoard, state } = useBingoGame();
+const { ensurePackAssignment, startBoard, state } = useBingoGame();
 
 const error = ref('');
+const assigning = ref(false);
 const launching = ref(false);
 
 const assignedPack = computed(
   () => state.assignedPackId || Number(loadString(STORAGE_KEYS.lastPack) || 0),
 );
+const assignedPackLabel = computed(() => {
+  if (!assignedPack.value) return '#---';
+  return `#${String(assignedPack.value).padStart(3, '0')}`;
+});
 const cycleText = computed(() => {
   if (!state.assignmentCycle) return 'Cycle information will appear after assignment sync.';
   return `Cycle ${state.assignmentCycle}`;
@@ -24,6 +29,28 @@ const statusText = computed(() => {
     return 'Your assigned pack is locked for this challenge cycle.';
   }
   return 'Fetching your assigned pack...';
+});
+
+async function syncAssignment() {
+  if (assignedPack.value || assigning.value) return;
+  const name = loadString(STORAGE_KEYS.playerName);
+  const email = loadString(STORAGE_KEYS.email);
+  const organization = loadString(STORAGE_KEYS.organization);
+  if (!name || !email) return;
+
+  assigning.value = true;
+  try {
+    const result = await ensurePackAssignment({ name, email, organization });
+    if (!result?.ok && !assignedPack.value) {
+      error.value = result?.message || 'Unable to resolve your assigned pack. Please try again.';
+    }
+  } finally {
+    assigning.value = false;
+  }
+}
+
+onMounted(() => {
+  void syncAssignment();
 });
 
 async function launch() {
@@ -66,7 +93,7 @@ async function launch() {
         Assigned Pack
       </div>
       <div class="text-title-lg font-black text-primary">
-        #{{ String(assignedPack || 0).padStart(3, '0') }}
+        {{ assignedPackLabel }}
       </div>
       <p class="mt-2 text-label-md text-on-surface-variant">
         {{ statusText }}
@@ -79,10 +106,10 @@ async function launch() {
     <div class="mt-4 flex flex-wrap gap-2.5">
       <button
         class="btn btn-primary"
-        :disabled="launching"
+        :disabled="assigning || launching"
         @click="launch"
       >
-        {{ launching ? 'Starting...' : '🚀 Launch Board' }}
+        {{ assigning ? 'Assigning...' : launching ? 'Starting...' : '🚀 Launch Board' }}
       </button>
     </div>
     <p

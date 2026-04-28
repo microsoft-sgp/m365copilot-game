@@ -1,11 +1,12 @@
-subscription_id         = "8b14080f-2d4f-4817-8b92-b0d85a6cc993"
-resource_group_name     = "rg-m365copilot-game-dev"
-resource_group_location = "koreacentral"
-location                = "koreacentral"
-sql_location            = "koreacentral"
-environment             = "dev"
-name_prefix             = "m365copilot-game"
-default_campaign_id     = "APR26"
+subscription_id             = "8b14080f-2d4f-4817-8b92-b0d85a6cc993"
+resource_group_name         = "rg-m365copilot-game-dev"
+resource_group_location     = "koreacentral"
+location                    = "koreacentral"
+sql_location                = "koreacentral"
+communication_data_location = "United States"
+environment                 = "dev"
+name_prefix                 = "m365copilot-game"
+default_campaign_id         = "APR26"
 
 # Replace with real bootstrap admin emails before production use.
 admin_emails = [
@@ -25,29 +26,31 @@ admin_emails = [
 # admin_refresh_ttl_seconds = 604800
 # admin_step_up_ttl_seconds = 300
 
-# Functions Premium plan defaults. EP1 is the smallest Elastic Premium SKU.
+# Functions plan defaults. EP1 is the smallest Elastic Premium SKU. If your
+# subscription has no Elastic Premium quota, use a dedicated Premium v3/v4 SKU
+# with available quota, such as P0v3.
 # function_plan_sku_name             = "EP1"
 # function_pre_warmed_instance_count = 1
 
-# Frontend App Service plan SKU. B1 is suitable for dev/test; use P1v3 or
-# higher for production.
+# Frontend App Service plan SKU. B1 is suitable for dev/test when quota is
+# available; use P0v3/P1v3 or higher when Basic VM quota is unavailable.
 # frontend_app_service_sku_name = "B1"
 
-# Redis cache defaults. Basic C0 is suitable for dev/test; use Standard or
-# Premium for production resilience requirements.
-# redis_sku_name = "Basic"
-# redis_family   = "C"
-# redis_capacity = 0
+# Azure Managed Redis defaults. Balanced_B0 is the smallest managed SKU for
+# dev/test; choose a larger Balanced, ComputeOptimized, or FlashOptimized SKU
+# for production throughput and resilience requirements.
+# redis_sku_name         = "Balanced_B0"
+# redis_clustering_policy = "NoCluster"
+# redis_eviction_policy   = "AllKeysLRU"
 
 # Cache TTL defaults in seconds.
 # cache_ttl_active_campaign_seconds = 60
 # cache_ttl_org_domains_seconds     = 300
 # cache_ttl_leaderboard_seconds     = 30
 
-# Azure Communication Services data location is intentionally NOT in
-# Korea Central (regional availability exception). United States is the
-# default; change only if your tenancy requires another region.
-# communication_data_location = "United States"
+# Azure Communication Services resources are globally scoped by Azure. The
+# data_location value is data residency, not the regional deployment location;
+# change only if your tenancy requires another supported ACS data location.
 
 # Optional: allow a workstation to run sqlcmd migrations directly.
 # sql_allowed_ip_ranges = {
