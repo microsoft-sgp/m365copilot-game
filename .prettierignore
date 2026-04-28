@@ -1,0 +1,14 @@
+backend/dist/
+backend/node_modules/
+backend/coverage/
+frontend/dist/
+frontend/node_modules/
+frontend/coverage/
+infra/terraform/.terraform/
+openspec/changes/archive/
+*.tfstate
+*.tfplan
+coverage/
+node_modules/
+playwright-report/
+test-results/

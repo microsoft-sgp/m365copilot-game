@@ -70,7 +70,7 @@ describe('POST /api/portal-api/verify-otp', () => {
     expect(res.jsonBody.message).toMatch(/expired/i);
   });
 
-  it('returns JWT for valid OTP', async () => {
+  it('sets access and refresh cookies for valid OTP without returning token strings', async () => {
     mockPool = createMockPool([
       [],
       [{ id: 1, expires_at: new Date(Date.now() + 300000).toISOString(), used: false }],
@@ -79,11 +79,13 @@ describe('POST /api/portal-api/verify-otp', () => {
     const req = fakeRequest({ body: { email: 'admin@test.com', code: '123456' } });
     const res = await handler(req, { log: vi.fn() });
     expect(res.jsonBody.ok).toBe(true);
-    expect(res.jsonBody.token).toBeDefined();
-    expect(res.jsonBody.token.split('.')).toHaveLength(3);
+    expect(res.jsonBody.token).toBeUndefined();
+    expect(res.cookies.map((cookie) => cookie.name)).toEqual(['admin_access', 'admin_refresh']);
+    expect(res.cookies.every((cookie) => cookie.httpOnly)).toBe(true);
+    expect(res.cookies.every((cookie) => cookie.path === '/api/portal-api')).toBe(true);
   });
 
-  it('returns short-lived step-up token for admin-management verification', async () => {
+  it('sets a short-lived step-up cookie for admin-management verification', async () => {
     mockPool = createMockPool([
       [],
       [{ id: 1, expires_at: new Date(Date.now() + 300000).toISOString(), used: false }],
@@ -100,8 +102,10 @@ describe('POST /api/portal-api/verify-otp', () => {
     });
     const res = await handler(req, { log: vi.fn() });
     expect(res.jsonBody.ok).toBe(true);
-    expect(res.jsonBody.stepUpToken).toBeDefined();
+    expect(res.jsonBody.stepUpToken).toBeUndefined();
     expect(res.jsonBody.token).toBeUndefined();
+    expect(res.cookies).toHaveLength(1);
+    expect(res.cookies[0]).toMatchObject({ name: 'admin_step_up', httpOnly: true });
   });
 
   it('returns 500 when ADMIN_EMAILS is not configured', async () => {

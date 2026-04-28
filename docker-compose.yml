@@ -2,12 +2,12 @@ services:
   db:
     image: mcr.microsoft.com/azure-sql-edge:latest
     environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "BingoTest123!"
+      ACCEPT_EULA: 'Y'
+      MSSQL_SA_PASSWORD: 'BingoTest123!'
     ports:
-      - "1433:1433"
+      - '1433:1433'
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/1433' || exit 1"]
+      test: ['CMD-SHELL', "bash -c 'echo > /dev/tcp/localhost/1433' || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -21,34 +21,48 @@ services:
       db:
         condition: service_healthy
     environment:
-      SQL_CONNECTION_STRING: "Server=tcp:db,1433;Initial Catalog=master;User ID=sa;Password=BingoTest123!;Encrypt=false;TrustServerCertificate=true;"
-      SA_PASSWORD: "BingoTest123!"
+      SQL_CONNECTION_STRING: 'Server=tcp:db,1433;Initial Catalog=master;User ID=sa;Password=BingoTest123!;Encrypt=false;TrustServerCertificate=true;'
+      SA_PASSWORD: 'BingoTest123!'
       DB_HOST: db
       DB_NAME: bingo_db
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "7071:7071"
+      - '7071:7071'
     depends_on:
       db-init:
         condition: service_completed_successfully
     environment:
-      SQL_CONNECTION_STRING: "Server=tcp:db,1433;Initial Catalog=bingo_db;User ID=sa;Password=BingoTest123!;Encrypt=false;TrustServerCertificate=true;"
-      ADMIN_KEY: "smoke-test-admin-key"
-      JWT_SECRET: "smoke-test-jwt-secret-key-at-least-32-chars-long"
-      ADMIN_EMAILS: "admin@test.com"
-      NODE_ENV: "development"
+      SQL_CONNECTION_STRING: 'Server=tcp:db,1433;Initial Catalog=bingo_db;User ID=sa;Password=BingoTest123!;Encrypt=false;TrustServerCertificate=true;'
+      ADMIN_KEY: 'smoke-test-admin-key'
+      JWT_SECRET: 'smoke-test-jwt-secret-key-at-least-32-chars-long'
+      ADMIN_EMAILS: 'admin@test.com'
+      REDIS_CONNECTION_STRING: 'redis://redis:6379'
+      ALLOWED_ORIGINS: 'http://localhost:8080,http://localhost:5173'
+      ADMIN_COOKIE_SECURE: 'false'
+      ADMIN_COOKIE_SAMESITE: 'Lax'
+      NODE_ENV: 'development'
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE: "http://localhost:7071/api"
+        VITE_API_BASE: 'http://localhost:7071/api'
     ports:
-      - "8080:80"
+      - '8080:80'
     depends_on:
       - backend

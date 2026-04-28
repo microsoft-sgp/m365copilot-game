@@ -16,8 +16,7 @@ export const TASK_BANK = [
     title: 'Meeting Agenda Maker',
     tag: 'Productivity',
     prompt: `You are a meeting planner. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then generate a meeting agenda for a 30-minute team stand-up with EXACTLY 4 numbered items (1. 2. 3. 4.), each item having a short description. Format:\nVERIFY-MARKER\n1. Item: description\n2. Item: description\n3. Item: description\n4. Item: description`,
-    verify: (proof, pid, ti) =>
-      verifyStructure(proof, pid, ti, { marker: true, numberedItems: 4 }),
+    verify: (proof, pid, ti) => verifyStructure(proof, pid, ti, { marker: true, numberedItems: 4 }),
   },
   {
     title: 'SWOT Analyser',
@@ -69,8 +68,7 @@ export const TASK_BANK = [
     title: 'FAQ Creator',
     tag: 'Communication',
     prompt: `You are a content writer. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then write an FAQ section for a fictional university app with EXACTLY 5 Q&A pairs. Format each as:\nQ: [question]\nA: [answer]\nVERIFY-MARKER`,
-    verify: (proof, pid, ti) =>
-      verifyStructure(proof, pid, ti, { marker: true, qaCount: 5 }),
+    verify: (proof, pid, ti) => verifyStructure(proof, pid, ti, { marker: true, qaCount: 5 }),
   },
   {
     title: 'Action Plan Writer',
@@ -87,8 +85,7 @@ export const TASK_BANK = [
     title: 'Feedback Rewriter',
     tag: 'Communication',
     prompt: `You are an executive coach. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then rewrite this blunt feedback in a constructive tone — "Your report was late and full of errors" — as EXACTLY 3 bullet points, each starting with "•".\nVERIFY-MARKER`,
-    verify: (proof, pid, ti) =>
-      verifyStructure(proof, pid, ti, { marker: true, bullets: 3 }),
+    verify: (proof, pid, ti) => verifyStructure(proof, pid, ti, { marker: true, bullets: 3 }),
   },
   {
     title: 'Data Insight Narrator',
@@ -171,8 +168,7 @@ export const TASK_BANK = [
     title: 'Elevator Pitch',
     tag: 'Career',
     prompt: `You are a pitch coach. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then write a 30-second elevator pitch for a student presenting their final-year project on AI ethics. The pitch must be EXACTLY 3 sentences. Each sentence must start with a capital letter and end with a full stop.\nVERIFY-MARKER`,
-    verify: (proof, pid, ti) =>
-      verifyStructure(proof, pid, ti, { marker: true, sentences: 3 }),
+    verify: (proof, pid, ti) => verifyStructure(proof, pid, ti, { marker: true, sentences: 3 }),
   },
   {
     title: 'Stakeholder Email',
@@ -203,8 +199,7 @@ export const TASK_BANK = [
     title: 'Brainstorm List',
     tag: 'Creativity',
     prompt: `You are a creative consultant. Respond with the marker VERIFY-${CAMPAIGN_ID}-PACK-TILE on line 1, then brainstorm EXACTLY 8 ideas for a student hackathon theme related to sustainability. Number them 1. to 8.\nVERIFY-MARKER`,
-    verify: (proof, pid, ti) =>
-      verifyStructure(proof, pid, ti, { marker: true, numberedItems: 8 }),
+    verify: (proof, pid, ti) => verifyStructure(proof, pid, ti, { marker: true, numberedItems: 8 }),
   },
   {
     title: 'Reflection Prompt',

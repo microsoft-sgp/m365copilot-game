@@ -3,6 +3,8 @@ import { mount, flushPromises } from '@vue/test-utils';
 
 vi.mock('./lib/api.js', () => ({
   apiGetPlayerState: vi.fn().mockResolvedValue({ ok: true, data: { player: null } }),
+  apiAdminRefresh: vi.fn().mockResolvedValue({ ok: false, data: { message: 'Unauthorized' } }),
+  apiAdminLogout: vi.fn().mockResolvedValue({ ok: true, data: { ok: true } }),
 }));
 
 vi.mock('./composables/useBingoGame.js', () => ({
@@ -21,7 +23,8 @@ const stubs = {
   MyActivityPanel: { template: '<div />' },
   HelpPanel: { template: '<div />' },
   EmailGate: {
-    template: '<button data-test="email-continue" @click="$emit(\'continue\', { email: \'ada@nus.edu.sg\', name: \'Ada\', organization: \'NUS\' })" />',
+    template:
+      "<button data-test=\"email-continue\" @click=\"$emit('continue', { email: 'ada@nus.edu.sg', name: 'Ada', organization: 'NUS' })\" />",
     emits: ['continue', 'admin'],
   },
   ToastMessage: { template: '<div />' },
@@ -67,15 +70,15 @@ describe('App routing', () => {
     expect(wrapper.find('[data-test="admin-login"]').exists()).toBe(true);
   });
 
-  it('routes to admin layout when hash is #/admin and token present', async () => {
-    sessionStorage.setItem('admin_token', 'tok');
+  it('routes to admin layout when hash is #/admin and admin session hint is present', async () => {
+    sessionStorage.setItem('admin_authenticated', 'true');
     window.location.hash = '#/admin';
     const wrapper = mount(App, { global: { stubs } });
     await flushPromises();
     expect(wrapper.find('[data-test="admin-layout"]').exists()).toBe(true);
   });
 
-  it('falls back to admin login when hash is #/admin without token', async () => {
+  it('falls back to admin login when hash is #/admin without an active cookie session', async () => {
     window.location.hash = '#/admin';
     const wrapper = mount(App, { global: { stubs } });
     await flushPromises();

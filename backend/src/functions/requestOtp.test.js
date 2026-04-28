@@ -57,10 +57,7 @@ describe('POST /api/portal-api/request-otp', () => {
 
   it('rate limits to 1 OTP per 60s', async () => {
     // Recent OTP within 60s
-    mockPool = createMockPool([
-      [],
-      [{ created_at: new Date().toISOString() }],
-    ]);
+    mockPool = createMockPool([[], [{ created_at: new Date().toISOString() }]]);
     const req = fakeRequest({ body: { email: 'admin@test.com' } });
     const res = await handler(req, { log: vi.fn() });
     expect(res.status).toBe(429);
@@ -69,8 +66,8 @@ describe('POST /api/portal-api/request-otp', () => {
   it('creates OTP when no recent request exists', async () => {
     // No recent OTP, then INSERT succeeds
     mockPool = createMockPool([
-      [],          // no db-backed admins
-      [],          // no recent OTP
+      [], // no db-backed admins
+      [], // no recent OTP
       { recordset: [{ id: 10 }], rowsAffected: [1] }, // INSERT
     ]);
     const req = fakeRequest({ body: { email: 'admin@test.com' } });

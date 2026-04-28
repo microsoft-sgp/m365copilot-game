@@ -27,6 +27,7 @@ Copilot Chat Bingo turns event participation into a lightweight challenge loop: 
 - **Weekly challenges** — bonus progression tracked alongside the main board.
 - **Shared leaderboard** — keyword submissions are stored in Azure SQL and ranked per-organization across all players.
 - **OTP-protected admin portal** — Azure Communication Services Email sends admin one-time codes for portal login.
+- **Cookie-based admin sessions** — admin access, refresh, and step-up JWTs are delivered in httpOnly cookies rather than browser-accessible storage.
 - **Admin operations** — event facilitators can view engagement metrics, export CSV data, manage organizations, manage campaigns, inspect players, and perform safety actions.
 - **Admin access management** — bootstrap admins come from `ADMIN_EMAILS`; portal-managed admins are stored in Azure SQL and require a fresh OTP step-up before add/remove changes.
 - **Session continuity** — reloading the page restores the active board, cleared tiles, earned keywords, and challenge progress from `localStorage`.
@@ -40,19 +41,21 @@ flowchart LR
    admin[Event facilitator] --> frontend
    frontend --> api[Azure Functions API\nNode.js v4]
    api --> sql[(Azure SQL\nplayers, sessions, events, submissions, campaigns, admins)]
+  api --> redis[(Azure Managed Redis\ncache-aside API responses)]
    api --> acs[Azure Communication Services Email\nadmin OTP delivery]
    api --> kv[Key Vault\nadmin key, JWT secret, ACS connection string]
    api --> appi[Application Insights\ntelemetry]
 ```
 
-| Layer | Responsibility |
-| --- | --- |
-| Vue SPA | Player onboarding, board play, keyword submission, activity view, and admin portal screens. |
-| Azure Functions API | HTTP endpoints for sessions, tile events, submissions, leaderboard, campaign config, admin auth, and admin operations. |
-| Azure SQL | Durable storage for game state, progression scoring, organization mappings, campaign settings, OTP hashes, and portal-managed admins. |
-| ACS Email | Production delivery for admin OTP login and sensitive admin-management step-up verification. |
-| Key Vault | Holds generated app secrets referenced by Function App settings. |
-| Terraform | Provisions Azure infrastructure; local state, tfvars, and plans are intentionally ignored. |
+| Layer               | Responsibility                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Vue SPA             | Player onboarding, board play, keyword submission, activity view, and admin portal screens.                                           |
+| Azure Functions API | HTTP endpoints for sessions, tile events, submissions, leaderboard, campaign config, admin auth, and admin operations.                |
+| Azure SQL           | Durable storage for game state, progression scoring, organization mappings, campaign settings, OTP hashes, and portal-managed admins. |
+| Azure Managed Redis | Optional cache-aside layer for active campaign config, organization domains, and leaderboard responses.                               |
+| ACS Email           | Production delivery for admin OTP login and sensitive admin-management step-up verification.                                          |
+| Key Vault           | Holds generated app secrets referenced by Function App settings.                                                                      |
+| Terraform           | Provisions Azure infrastructure; local state, tfvars, and plans are intentionally ignored.                                            |
 
 ## App flow
 
@@ -73,7 +76,7 @@ flowchart TD
    submit --> activity[Leaderboard and activity feed refresh]
 
    adminLogin[Admin opens #/admin/login] --> otp[Request OTP]
-   otp --> session[Verify OTP and receive admin JWT]
+  otp --> session[Verify OTP and receive httpOnly admin cookies]
    session --> portal[Manage dashboard, organizations, campaigns, players, exports]
    portal --> stepup[Fresh OTP step-up for admin access changes]
 ```
@@ -84,7 +87,7 @@ flowchart TD
 
 - Node.js 20.x or later and npm 10.x
 - Docker Desktop, if you want the fastest full-stack local run
-- Azure Functions Core Tools v4, if you want to run the backend directly with `func start`
+- Azure Functions Core Tools v4, if you want to run the backend directly with `npm start`
 - Azure CLI and Terraform only when provisioning or deploying Azure infrastructure
 
 ### Option 1: run the full stack with Docker Compose
@@ -115,43 +118,72 @@ Create `backend/local.settings.json` with local-only values:
 
 ```json
 {
-   "IsEncrypted": false,
-   "Values": {
-      "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-      "FUNCTIONS_WORKER_RUNTIME": "node",
-      "SQL_CONNECTION_STRING": "Server=tcp:localhost,1433;Initial Catalog=bingo_db;User ID=sa;Password=<local-sa-password>;Encrypt=false;TrustServerCertificate=true;",
-      "ADMIN_KEY": "<local-admin-key>",
-      "JWT_SECRET": "<local-jwt-secret-at-least-32-characters>",
-      "ADMIN_EMAILS": "admin@test.com",
-      "NODE_ENV": "development"
-   }
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "SQL_CONNECTION_STRING": "Server=tcp:localhost,1433;Initial Catalog=bingo_db;User ID=sa;Password=<local-sa-password>;Encrypt=false;TrustServerCertificate=true;",
+    "ADMIN_KEY": "<local-admin-key>",
+    "JWT_SECRET": "<local-jwt-secret-at-least-32-characters>",
+    "ADMIN_EMAILS": "admin@test.com",
+    "REDIS_CONNECTION_STRING": "redis://localhost:6379",
+    "ALLOWED_ORIGINS": "http://localhost:5173,http://localhost:8080",
+    "ADMIN_COOKIE_SECURE": "false",
+    "ADMIN_COOKIE_SAMESITE": "Lax",
+    "NODE_ENV": "development"
+  }
 }
 ```
 
 If you use the root Docker Compose database for manual development, set `<local-sa-password>` to the local-only SQL password defined in [docker-compose.yml](docker-compose.yml). Do not reuse local development values in shared, staging, or production environments.
 
+Redis is optional for local development. Start the Compose `redis` service or any local Redis on port `6379` to exercise the cache path; omit `REDIS_CONNECTION_STRING` and the backend will fall back to Azure SQL reads.
+
 Then start the API and frontend in separate terminals:
 
 ```bash
 cd backend
-npm install
-func start
+npm ci
+npm start
 ```
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
 Open [http://localhost:5173](http://localhost:5173). The Vite dev server proxies `/api` to the local Functions host.
 
-### Test the app
+### Verify changes
+
+Use clean installs so local verification matches CI and deployment builds:
 
 ```bash
-cd backend && npm test
-cd ../frontend && npm test
+cd backend
+npm ci
+npm run typecheck
+npm run build
+npm run lint
+npm run format:check
+npm test
+
+cd ../frontend
+npm ci
+npm run typecheck
+npm run lint
+npm run format:check
+npm test
 ```
+
+For browser smoke coverage, run the Playwright suite from the frontend project. The suite starts Vite automatically and mocks API responses for deterministic player and admin flows:
+
+```bash
+cd frontend
+npm run e2e
+```
+
+For a full-stack manual browser pass, run the root Docker Compose stack and exercise the same player/admin flows against the local backend and database.
 
 ### Security notes for contributors
 
@@ -159,33 +191,33 @@ Never commit local secrets or generated deployment files. The repository ignores
 
 ## Project layout
 
-| Path | Description |
-| --- | --- |
-| [frontend/](frontend/) | Vue 3 + Tailwind CSS v4 single-page application. |
-| [backend/](backend/) | Azure Functions v4 (Node.js) API — sessions, events, submissions, leaderboard, admin. |
-| [database/](database/) | Azure SQL migration scripts (schema + seed data). |
-| [scripts/](scripts/) | Local Docker Compose database bootstrap scripts. |
-| [index.html](index.html) | Legacy single-file build, kept as a rollback target. |
-| [openspec/](openspec/) | Spec-driven change history. |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | **Step-by-step Azure deployment guide.** |
+| Path                           | Description                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------- |
+| [frontend/](frontend/)         | Vue 3 + Tailwind CSS v4 single-page application.                                      |
+| [backend/](backend/)           | Azure Functions v4 (Node.js) API — sessions, events, submissions, leaderboard, admin. |
+| [database/](database/)         | Azure SQL migration scripts (schema + seed data).                                     |
+| [scripts/](scripts/)           | Local Docker Compose database bootstrap scripts.                                      |
+| [index.html](index.html)       | Legacy single-file build, kept as a rollback target.                                  |
+| [openspec/](openspec/)         | Spec-driven change history.                                                           |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | **Step-by-step Azure deployment guide.**                                              |
 
 ### Frontend source
 
-| Path | Description |
-| --- | --- |
-| [frontend/src/App.vue](frontend/src/App.vue) | Root shell with tabs for Game, Keys, Activity, and Help, plus hash-routed admin views. |
-| [frontend/src/components/](frontend/src/components/) | UI components (board, panels, modals, HUD). |
-| [frontend/src/composables/](frontend/src/composables/) | Reactive game state, submissions, and toast helpers. |
-| [frontend/src/lib/](frontend/src/lib/) | Pure logic: deterministic RNG, pack generation, verification, keyword minting, API client, storage adapters. |
-| [frontend/src/data/](frontend/src/data/) | Static data: task bank, line definitions, organization map, storage key constants. |
+| Path                                                   | Description                                                                                                  |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| [frontend/src/App.vue](frontend/src/App.vue)           | Root shell with tabs for Game, Keys, Activity, and Help, plus hash-routed admin views.                       |
+| [frontend/src/components/](frontend/src/components/)   | UI components (board, panels, modals, HUD).                                                                  |
+| [frontend/src/composables/](frontend/src/composables/) | Reactive game state, submissions, and toast helpers.                                                         |
+| [frontend/src/lib/](frontend/src/lib/)                 | Pure logic: deterministic RNG, pack generation, verification, keyword minting, API client, storage adapters. |
+| [frontend/src/data/](frontend/src/data/)               | Static data: task bank, line definitions, organization map, storage key constants.                           |
 
 ### Backend source
 
-| Path | Description |
-| --- | --- |
-| [backend/src/functions/](backend/src/functions/) | HTTP-triggered Azure Functions (one file per endpoint). |
-| [backend/src/lib/](backend/src/lib/) | Shared helpers — SQL connection pool, input validation, admin auth, email delivery. |
-| [backend/host.json](backend/host.json) | Azure Functions host configuration (route prefix, logging). |
+| Path                                             | Description                                                                         |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| [backend/src/functions/](backend/src/functions/) | HTTP-triggered Azure Functions (one file per endpoint).                             |
+| [backend/src/lib/](backend/src/lib/)             | Shared helpers — SQL connection pool, input validation, admin auth, email delivery. |
+| [backend/host.json](backend/host.json)           | Azure Functions host configuration (route prefix, logging).                         |
 
 ## Deploy to Azure
 
@@ -199,23 +231,23 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for a complete step-by-step guide covering th
 
 ## API endpoints
 
-| Method | Route | Purpose |
-|---|---|---|
-| `POST` | `/api/sessions` | Create player + game session |
-| `PATCH` | `/api/sessions/{id}` | Update session progress |
-| `POST` | `/api/events` | Record tile events |
-| `POST` | `/api/submissions` | Submit keyword for leaderboard |
-| `GET` | `/api/leaderboard` | Aggregated org rankings |
-| `GET` | `/api/player/state` | Restore player state by email |
-| `GET` | `/api/campaigns/active` | Active campaign configuration |
-| `GET` | `/api/organizations/domains` | Organization domain mappings |
-| `POST` | `/api/portal-api/request-otp` | Send admin login or step-up OTP |
-| `POST` | `/api/portal-api/verify-otp` | Verify admin OTP and issue a session or step-up token |
-| `GET` | `/api/portal-api/dashboard` | Admin metrics, using admin JWT or `X-Admin-Key` |
-| `GET` | `/api/portal-api/export` | CSV export, using admin JWT or `X-Admin-Key` |
-| `GET` | `/api/portal-api/admins` | List bootstrap and portal-managed admins |
-| `POST` | `/api/portal-api/admins` | Add/reactivate portal-managed admin; requires step-up OTP |
-| `DELETE` | `/api/portal-api/admins/{email}` | Disable portal-managed admin; requires step-up OTP |
+| Method   | Route                            | Purpose                                                   |
+| -------- | -------------------------------- | --------------------------------------------------------- |
+| `POST`   | `/api/sessions`                  | Create player + game session                              |
+| `PATCH`  | `/api/sessions/{id}`             | Update session progress                                   |
+| `POST`   | `/api/events`                    | Record tile events                                        |
+| `POST`   | `/api/submissions`               | Submit keyword for leaderboard                            |
+| `GET`    | `/api/leaderboard`               | Aggregated org rankings                                   |
+| `GET`    | `/api/player/state`              | Restore player state by email                             |
+| `GET`    | `/api/campaigns/active`          | Active campaign configuration                             |
+| `GET`    | `/api/organizations/domains`     | Organization domain mappings                              |
+| `POST`   | `/api/portal-api/request-otp`    | Send admin login or step-up OTP                           |
+| `POST`   | `/api/portal-api/verify-otp`     | Verify admin OTP and issue a session or step-up token     |
+| `GET`    | `/api/portal-api/dashboard`      | Admin metrics, using admin JWT or `X-Admin-Key`           |
+| `GET`    | `/api/portal-api/export`         | CSV export, using admin JWT or `X-Admin-Key`              |
+| `GET`    | `/api/portal-api/admins`         | List bootstrap and portal-managed admins                  |
+| `POST`   | `/api/portal-api/admins`         | Add/reactivate portal-managed admin; requires step-up OTP |
+| `DELETE` | `/api/portal-api/admins/{email}` | Disable portal-managed admin; requires step-up OTP        |
 
 The admin portal is available at `#/admin/login` in the frontend. Login uses the email allow-list from `ADMIN_EMAILS` plus active rows in `admin_users`. In production, OTP delivery requires `ACS_CONNECTION_STRING` and `ACS_EMAIL_SENDER`; if delivery fails after an OTP is stored, that OTP is invalidated before the API returns an error.
 

@@ -29,19 +29,19 @@ az graph query -q "resources | where resourceGroup =~ 'rg-m365copilot-game-dev' 
 
 Resources planned:
 
-| Resource Type | Count |
-|---------------|-------|
-| `Microsoft.Resources/resourceGroups` | 1 |
-| `Microsoft.Web/staticSites` | 1 |
-| `Microsoft.Web/serverfarms` | 1 |
-| `Microsoft.Web/sites` | 1 |
-| `Microsoft.Storage/storageAccounts` | 1 |
-| `Microsoft.Sql/servers` | 1 |
-| `Microsoft.Sql/servers/databases` | 1 |
-| `Microsoft.Communication/communicationServices` | 1 |
-| `Microsoft.Communication/emailServices` | 1 |
-| `Microsoft.Communication/emailServices/domains` | 1 |
-| `Microsoft.KeyVault/vaults` | 1 |
-| `Microsoft.ManagedIdentity/userAssignedIdentities` | 1 |
-| `Microsoft.OperationalInsights/workspaces` | 1 |
-| `Microsoft.Insights/components` | 1 |
+| Resource Type                                      | Count |
+| -------------------------------------------------- | ----- |
+| `Microsoft.Resources/resourceGroups`               | 1     |
+| `Microsoft.Web/staticSites`                        | 1     |
+| `Microsoft.Web/serverfarms`                        | 1     |
+| `Microsoft.Web/sites`                              | 1     |
+| `Microsoft.Storage/storageAccounts`                | 1     |
+| `Microsoft.Sql/servers`                            | 1     |
+| `Microsoft.Sql/servers/databases`                  | 1     |
+| `Microsoft.Communication/communicationServices`    | 1     |
+| `Microsoft.Communication/emailServices`            | 1     |
+| `Microsoft.Communication/emailServices/domains`    | 1     |
+| `Microsoft.KeyVault/vaults`                        | 1     |
+| `Microsoft.ManagedIdentity/userAssignedIdentities` | 1     |
+| `Microsoft.OperationalInsights/workspaces`         | 1     |
+| `Microsoft.Insights/components`                    | 1     |

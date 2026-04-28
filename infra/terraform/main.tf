@@ -41,22 +41,39 @@ locals {
   app_insights_name      = substr("appi-${local.resource_prefix}-${local.suffix}", 0, 63)
   acs_name               = substr("acs-${local.resource_prefix}-${local.suffix}", 0, 63)
   acs_email_name         = substr("acs-email-${local.resource_prefix}-${local.suffix}", 0, 63)
+  redis_name             = substr("redis-${local.resource_prefix}-${local.suffix}", 0, 63)
 
   acs_email_sender_address = "${var.acs_sender_username}@${azurerm_email_communication_service_domain.admin_otp.from_sender_domain}"
+  allowed_origins = distinct(concat(
+    ["https://${azurerm_static_web_app.frontend.default_host_name}"],
+    var.allowed_origins,
+  ))
 
   app_settings = {
-    AzureWebJobsFeatureFlags         = "EnableWorkerIndexing"
-    SQL_SERVER_FQDN                  = azurerm_mssql_server.main.fully_qualified_domain_name
-    SQL_DATABASE_NAME                = azurerm_mssql_database.app.name
-    SQL_AUTHENTICATION               = "azure-active-directory-msi-app-service"
-    SQL_MANAGED_IDENTITY_CLIENT_ID   = azurerm_user_assigned_identity.functions.client_id
-    ADMIN_KEY                        = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.admin_key.id})"
-    JWT_SECRET                       = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.jwt_secret.id})"
-    ADMIN_EMAILS                     = join(",", var.admin_emails)
-    ACS_CONNECTION_STRING            = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.acs_connection_string.id})"
-    ACS_EMAIL_SENDER                 = local.acs_email_sender_address
-    LEADERBOARD_SOURCE               = var.leaderboard_source
-    ENABLE_PACK_ASSIGNMENT_LIFECYCLE = tostring(var.enable_pack_assignment_lifecycle)
+    AzureWebJobsFeatureFlags          = "EnableWorkerIndexing"
+    SQL_SERVER_FQDN                   = azurerm_mssql_server.main.fully_qualified_domain_name
+    SQL_DATABASE_NAME                 = azurerm_mssql_database.app.name
+    SQL_AUTHENTICATION                = "azure-active-directory-msi-app-service"
+    SQL_MANAGED_IDENTITY_CLIENT_ID    = azurerm_user_assigned_identity.functions.client_id
+    ADMIN_KEY                         = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.admin_key.id})"
+    JWT_SECRET                        = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.jwt_secret.id})"
+    ADMIN_EMAILS                      = join(",", var.admin_emails)
+    ADMIN_ACCESS_TTL_SECONDS          = tostring(var.admin_access_ttl_seconds)
+    ADMIN_REFRESH_TTL_SECONDS         = tostring(var.admin_refresh_ttl_seconds)
+    ADMIN_STEP_UP_TTL_SECONDS         = tostring(var.admin_step_up_ttl_seconds)
+    ADMIN_COOKIE_SECURE               = "true"
+    ADMIN_COOKIE_SAMESITE             = "None"
+    ADMIN_COOKIE_PATH                 = "/api/portal-api"
+    ALLOWED_ORIGINS                   = join(",", local.allowed_origins)
+    ACS_CONNECTION_STRING             = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.acs_connection_string.id})"
+    ACS_EMAIL_SENDER                  = local.acs_email_sender_address
+    REDIS_CONNECTION_STRING           = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.redis_connection_string.id})"
+    CACHE_TTL_ACTIVE_CAMPAIGN_SECONDS = tostring(var.cache_ttl_active_campaign_seconds)
+    CACHE_TTL_ORG_DOMAINS_SECONDS     = tostring(var.cache_ttl_org_domains_seconds)
+    CACHE_TTL_LEADERBOARD_SECONDS     = tostring(var.cache_ttl_leaderboard_seconds)
+    DEFAULT_CAMPAIGN_ID               = var.default_campaign_id
+    LEADERBOARD_SOURCE                = var.leaderboard_source
+    ENABLE_PACK_ASSIGNMENT_LIFECYCLE  = tostring(var.enable_pack_assignment_lifecycle)
   }
 }
 
@@ -226,6 +243,24 @@ resource "azurerm_communication_service_email_domain_association" "admin_otp" {
   email_service_domain_id  = azurerm_email_communication_service_domain.admin_otp.id
 }
 
+resource "azurerm_redis_cache" "api" {
+  name                          = local.redis_name
+  resource_group_name           = azurerm_resource_group.main.name
+  location                      = var.location
+  capacity                      = var.redis_capacity
+  family                        = var.redis_family
+  sku_name                      = var.redis_sku_name
+  minimum_tls_version           = "1.2"
+  non_ssl_port_enabled          = false
+  public_network_access_enabled = var.redis_public_network_access_enabled
+  redis_version                 = var.redis_version
+  tags                          = local.tags
+
+  redis_configuration {
+    maxmemory_policy = var.redis_maxmemory_policy
+  }
+}
+
 resource "azurerm_key_vault_secret" "admin_key" {
   name         = "admin-key"
   value        = random_password.admin_key.result
@@ -241,6 +276,13 @@ resource "azurerm_key_vault_secret" "jwt_secret" {
 resource "azurerm_key_vault_secret" "acs_connection_string" {
   name         = "acs-connection-string"
   value        = azurerm_communication_service.admin_otp.primary_connection_string
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "connection-string"
+}
+
+resource "azurerm_key_vault_secret" "redis_connection_string" {
+  name         = "redis-connection-string"
+  value        = azurerm_redis_cache.api.primary_connection_string
   key_vault_id = azurerm_key_vault.main.id
   content_type = "connection-string"
 }
@@ -301,10 +343,8 @@ resource "azurerm_function_app_flex_consumption" "api" {
     scm_minimum_tls_version                = "1.2"
 
     cors {
-      allowed_origins = [
-        "https://${azurerm_static_web_app.frontend.default_host_name}",
-      ]
-      support_credentials = false
+      allowed_origins     = local.allowed_origins
+      support_credentials = true
     }
   }
 
@@ -312,6 +352,7 @@ resource "azurerm_function_app_flex_consumption" "api" {
     azurerm_key_vault_secret.acs_connection_string,
     azurerm_key_vault_secret.admin_key,
     azurerm_key_vault_secret.jwt_secret,
+    azurerm_key_vault_secret.redis_connection_string,
     azurerm_role_assignment.function_storage_blob_data_contributor,
   ]
 }

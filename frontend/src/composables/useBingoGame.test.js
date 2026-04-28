@@ -23,11 +23,7 @@ vi.mock('../lib/packGenerator.js', () => ({
     })),
 }));
 
-import {
-  apiCreateSession,
-  apiRecordEvent,
-  apiUpdateSession,
-} from '../lib/api.js';
+import { apiCreateSession, apiRecordEvent, apiUpdateSession } from '../lib/api.js';
 import { useBingoGame } from './useBingoGame.js';
 import { LINES } from '../data/lines.js';
 import { MS_PER_WEEK } from '../data/constants.js';
@@ -337,8 +333,8 @@ describe('useBingoGame assignment hydration', () => {
     });
 
     expect(state.playerName).toBe('Ada');
-  expect(state.organization).toBe('Contoso');
-  expect(localStorage.getItem('copilot_bingo_organization')).toBe('Contoso');
+    expect(state.organization).toBe('Contoso');
+    expect(localStorage.getItem('copilot_bingo_organization')).toBe('Contoso');
     expect(state.assignedPackId).toBe(88);
     expect(state.assignmentCycle).toBe(3);
     expect(state.boardActive).toBe(false);
@@ -396,7 +392,12 @@ describe('useBingoGame.hydrateFromServer session restoration', () => {
           cleared: [true, false, true, false, false, false, false, false, false],
           wonLines: ['R1'],
           keywords: [{ code: 'WK1', packId: 7, lineId: 'W1', ts: 1 }],
-          challengeProfile: { currentWeek: 2, weeksCompleted: 1, weeklySubmissions: [1], challengeStartAt: 0 },
+          challengeProfile: {
+            currentWeek: 2,
+            weeksCompleted: 1,
+            weeklySubmissions: [1],
+            challengeStartAt: 0,
+          },
         },
       },
     });

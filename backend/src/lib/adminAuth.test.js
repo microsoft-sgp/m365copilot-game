@@ -10,13 +10,15 @@ import {
   signAdminStepUpToken,
   verifyAdminStepUpToken,
 } from './adminAuth.js';
+import { ADMIN_COOKIE_NAMES } from './adminCookies.js';
 
-function fakeRequest(headerValue, authHeader) {
+function fakeRequest(headerValue, authHeader, cookieHeader) {
   return {
     headers: {
       get: (name) => {
         if (name === 'x-admin-key') return headerValue;
         if (name === 'authorization') return authHeader || null;
+        if (name === 'cookie') return cookieHeader || null;
         return null;
       },
     },
@@ -131,9 +133,24 @@ describe('verifyAdmin (JWT + key)', () => {
     expect(result.email).toBe('admin@test.com');
   });
 
+  it('accepts valid JWT in access cookie', () => {
+    const token = signAdminToken('admin@test.com');
+    const req = fakeRequest(null, null, `${ADMIN_COOKIE_NAMES.access}=${token}`);
+    const result = verifyAdmin(req);
+    expect(result.ok).toBe(true);
+    expect(result.email).toBe('admin@test.com');
+  });
+
   it('falls back to x-admin-key when no JWT', () => {
     process.env.ADMIN_KEY = 'my-key';
     const req = fakeRequest('my-key', null);
+    const result = verifyAdmin(req);
+    expect(result.ok).toBe(true);
+  });
+
+  it('allows break-glass x-admin-key when an invalid cookie is present', () => {
+    process.env.ADMIN_KEY = 'my-key';
+    const req = fakeRequest('my-key', null, `${ADMIN_COOKIE_NAMES.access}=bad-token`);
     const result = verifyAdmin(req);
     expect(result.ok).toBe(true);
   });
@@ -146,6 +163,19 @@ describe('verifyAdmin (JWT + key)', () => {
       { expiresIn: '-1s' },
     );
     const req = fakeRequest(null, `Bearer ${token}`);
+    const result = verifyAdmin(req);
+    expect(result.ok).toBe(false);
+    expect(result.response.jsonBody.message).toBe('Token expired');
+  });
+
+  it('rejects expired JWT from access cookie', async () => {
+    const jwt = await import('jsonwebtoken');
+    const token = jwt.default.sign(
+      { email: 'admin@test.com', role: 'admin' },
+      process.env.JWT_SECRET,
+      { expiresIn: '-1s' },
+    );
+    const req = fakeRequest(null, null, `${ADMIN_COOKIE_NAMES.access}=${token}`);
     const result = verifyAdmin(req);
     expect(result.ok).toBe(false);
     expect(result.response.jsonBody.message).toBe('Token expired');
@@ -165,11 +195,9 @@ describe('verifyAdmin (JWT + key)', () => {
 
   it('rejects invalid JWT signature', async () => {
     const jwt = await import('jsonwebtoken');
-    const token = jwt.default.sign(
-      { email: 'admin@test.com', role: 'admin' },
-      'wrong-secret',
-      { expiresIn: '1h' },
-    );
+    const token = jwt.default.sign({ email: 'admin@test.com', role: 'admin' }, 'wrong-secret', {
+      expiresIn: '1h',
+    });
     const req = fakeRequest(null, `Bearer ${token}`);
     const result = verifyAdmin(req);
     expect(result.ok).toBe(false);
@@ -218,7 +246,9 @@ describe('hashOtp', () => {
 describe('getAdminEmails', () => {
   let prev;
 
-  beforeEach(() => { prev = process.env.ADMIN_EMAILS; });
+  beforeEach(() => {
+    prev = process.env.ADMIN_EMAILS;
+  });
   afterEach(() => {
     if (prev === undefined) delete process.env.ADMIN_EMAILS;
     else process.env.ADMIN_EMAILS = prev;
@@ -238,7 +268,9 @@ describe('getAdminEmails', () => {
 describe('effective admin emails', () => {
   let prev;
 
-  beforeEach(() => { prev = process.env.ADMIN_EMAILS; });
+  beforeEach(() => {
+    prev = process.env.ADMIN_EMAILS;
+  });
   afterEach(() => {
     if (prev === undefined) delete process.env.ADMIN_EMAILS;
     else process.env.ADMIN_EMAILS = prev;
@@ -255,7 +287,10 @@ describe('effective admin emails', () => {
         query: async () => ({ recordset: [{ email: 'DbAdmin@Test.com' }] }),
       }),
     };
-    await expect(getEffectiveAdminEmails(pool)).resolves.toEqual(['admin@test.com', 'dbadmin@test.com']);
+    await expect(getEffectiveAdminEmails(pool)).resolves.toEqual([
+      'admin@test.com',
+      'dbadmin@test.com',
+    ]);
   });
 });
 
@@ -295,14 +330,26 @@ describe('admin step-up token', () => {
   });
 
   it('rejects scope mismatch on action', () => {
-    const token = signAdminStepUpToken('admin@test.com', { action: 'add-admin', targetEmail: 'x@y.com' });
-    const result = verifyAdminStepUpToken(token, 'admin@test.com', { action: 'remove-admin', targetEmail: 'x@y.com' });
+    const token = signAdminStepUpToken('admin@test.com', {
+      action: 'add-admin',
+      targetEmail: 'x@y.com',
+    });
+    const result = verifyAdminStepUpToken(token, 'admin@test.com', {
+      action: 'remove-admin',
+      targetEmail: 'x@y.com',
+    });
     expect(result.ok).toBe(false);
   });
 
   it('rejects scope mismatch on target email', () => {
-    const token = signAdminStepUpToken('admin@test.com', { action: 'add-admin', targetEmail: 'x@y.com' });
-    const result = verifyAdminStepUpToken(token, 'admin@test.com', { action: 'add-admin', targetEmail: 'z@y.com' });
+    const token = signAdminStepUpToken('admin@test.com', {
+      action: 'add-admin',
+      targetEmail: 'x@y.com',
+    });
+    const result = verifyAdminStepUpToken(token, 'admin@test.com', {
+      action: 'add-admin',
+      targetEmail: 'z@y.com',
+    });
     expect(result.ok).toBe(false);
   });
 
@@ -328,7 +375,13 @@ describe('database-backed admin emails', () => {
   it('returns empty array when admin_users table is missing (err 208)', async () => {
     const err = new Error('Invalid object name admin_users');
     err.number = 208;
-    const pool = { request: () => ({ query: async () => { throw err; } }) };
+    const pool = {
+      request: () => ({
+        query: async () => {
+          throw err;
+        },
+      }),
+    };
     const { getDatabaseAdminEmails } = await import('./adminAuth.js');
     await expect(getDatabaseAdminEmails(pool)).resolves.toEqual([]);
   });
@@ -336,7 +389,13 @@ describe('database-backed admin emails', () => {
   it('rethrows other database errors', async () => {
     const err = new Error('Network');
     err.number = 4060;
-    const pool = { request: () => ({ query: async () => { throw err; } }) };
+    const pool = {
+      request: () => ({
+        query: async () => {
+          throw err;
+        },
+      }),
+    };
     const { getDatabaseAdminEmails } = await import('./adminAuth.js');
     await expect(getDatabaseAdminEmails(pool)).rejects.toThrow('Network');
   });
@@ -344,7 +403,10 @@ describe('database-backed admin emails', () => {
 
 describe('isEffectiveAdminEmail', () => {
   let prev;
-  beforeEach(() => { prev = process.env.ADMIN_EMAILS; process.env.ADMIN_EMAILS = 'admin@test.com'; });
+  beforeEach(() => {
+    prev = process.env.ADMIN_EMAILS;
+    process.env.ADMIN_EMAILS = 'admin@test.com';
+  });
   afterEach(() => {
     if (prev === undefined) delete process.env.ADMIN_EMAILS;
     else process.env.ADMIN_EMAILS = prev;

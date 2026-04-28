@@ -12,7 +12,15 @@ const orgDomains = await import('./getOrgDomains.js');
 describe('GET /api/campaigns/active', () => {
   it('returns active campaign config', async () => {
     mockPool = createMockPool([
-      [{ id: 'APR26', display_name: 'April 2026', total_packs: 999, total_weeks: 7, copilot_url: 'https://m365.cloud.microsoft/chat' }],
+      [
+        {
+          id: 'APR26',
+          display_name: 'April 2026',
+          total_packs: 999,
+          total_weeks: 7,
+          copilot_url: 'https://m365.cloud.microsoft/chat',
+        },
+      ],
     ]);
     const req = fakeRequest({});
     const res = await activeCampaign.handler(req, {});

@@ -9,7 +9,13 @@ import {
 const campaigns = ref([]);
 const loading = ref(true);
 const showCreate = ref(false);
-const newCampaign = ref({ id: '', displayName: '', totalPacks: 999, totalWeeks: 7, copilotUrl: 'https://m365.cloud.microsoft/chat' });
+const newCampaign = ref({
+  id: '',
+  displayName: '',
+  totalPacks: 999,
+  totalWeeks: 7,
+  copilotUrl: 'https://m365.cloud.microsoft/chat',
+});
 const editing = ref(null);
 
 async function loadCampaigns() {
@@ -27,7 +33,13 @@ async function createCampaign() {
   const res = await apiAdminCreateCampaign(newCampaign.value);
   if (res.ok) {
     showCreate.value = false;
-    newCampaign.value = { id: '', displayName: '', totalPacks: 999, totalWeeks: 7, copilotUrl: 'https://m365.cloud.microsoft/chat' };
+    newCampaign.value = {
+      id: '',
+      displayName: '',
+      totalPacks: 999,
+      totalWeeks: 7,
+      copilotUrl: 'https://m365.cloud.microsoft/chat',
+    };
     await loadCampaigns();
   } else {
     alert(res.data?.message || 'Failed to create');
@@ -61,7 +73,9 @@ async function toggleActive(c) {
   <div>
     <div class="mb-4 flex items-center justify-between">
       <h3 class="text-base font-extrabold text-primary">🎮 Campaigns</h3>
-      <button class="btn btn-primary btn-sm" @click="showCreate = !showCreate">+ New Campaign</button>
+      <button class="btn btn-primary btn-sm" @click="showCreate = !showCreate">
+        + New Campaign
+      </button>
     </div>
 
     <!-- Create form -->
@@ -73,7 +87,11 @@ async function toggleActive(c) {
         </div>
         <div>
           <label class="field-label">Display Name</label>
-          <input v-model="newCampaign.displayName" class="field-input" placeholder="e.g. July 2026" />
+          <input
+            v-model="newCampaign.displayName"
+            class="field-input"
+            placeholder="e.g. July 2026"
+          />
         </div>
         <div>
           <label class="field-label">Total Packs</label>
@@ -126,7 +144,11 @@ async function toggleActive(c) {
             <div>
               <strong class="text-on-surface">{{ c.id }}</strong>
               <span class="ml-2 text-label-md text-on-surface-variant">{{ c.displayName }}</span>
-              <span v-if="c.isActive" class="ml-2 rounded-full bg-success/20 px-2 py-0.5 text-label-sm font-bold text-success">ACTIVE</span>
+              <span
+                v-if="c.isActive"
+                class="ml-2 rounded-full bg-success/20 px-2 py-0.5 text-label-sm font-bold text-success"
+                >ACTIVE</span
+              >
             </div>
             <div class="flex gap-1">
               <button class="btn btn-ghost btn-xs" @click="startEdit(c)">Edit</button>
@@ -136,7 +158,8 @@ async function toggleActive(c) {
             </div>
           </div>
           <div class="text-label-sm text-on-surface-variant">
-            {{ c.stats.totalPlayers }} players · {{ c.stats.totalSessions }} sessions · {{ c.stats.totalSubmissions }} submissions
+            {{ c.stats.totalPlayers }} players · {{ c.stats.totalSessions }} sessions ·
+            {{ c.stats.totalSubmissions }} submissions
           </div>
         </template>
       </div>

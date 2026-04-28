@@ -78,8 +78,8 @@ describe('AdminLogin OTP step', () => {
     expect(wrapper.text()).toMatch(/6-digit code/i);
   });
 
-  it('persists token to sessionStorage and emits authenticated on success', async () => {
-    api.apiAdminVerifyOtp.mockResolvedValue({ ok: true, data: { token: 'jwt-here' } });
+  it('stores non-sensitive admin state and emits authenticated on success', async () => {
+    api.apiAdminVerifyOtp.mockResolvedValue({ ok: true, data: { ok: true } });
     const wrapper = mount(AdminLogin);
     await advanceToOtp(wrapper);
     await wrapper.find('input[placeholder="000000"]').setValue('123456');
@@ -87,11 +87,13 @@ describe('AdminLogin OTP step', () => {
     await flushPromises();
 
     expect(api.apiAdminVerifyOtp).toHaveBeenCalledWith('admin@test.com', '123456');
-    expect(sessionStorage.getItem('admin_token')).toBe('jwt-here');
-    expect(wrapper.emitted('authenticated')).toBeTruthy();
+    expect(sessionStorage.getItem('admin_authenticated')).toBe('true');
+    expect(sessionStorage.getItem('admin_email')).toBe('admin@test.com');
+    expect(sessionStorage.getItem('admin_token')).toBeNull();
+    expect(wrapper.emitted('authenticated')[0]).toEqual(['admin@test.com']);
   });
 
-  it('shows server error and does not store token on failure', async () => {
+  it('shows server error and does not store admin state on failure', async () => {
     api.apiAdminVerifyOtp.mockResolvedValue({ ok: false, data: { message: 'Invalid code' } });
     const wrapper = mount(AdminLogin);
     await advanceToOtp(wrapper);
@@ -99,6 +101,7 @@ describe('AdminLogin OTP step', () => {
     await findButton(wrapper, 'Verify').trigger('click');
     await flushPromises();
 
+    expect(sessionStorage.getItem('admin_authenticated')).toBeNull();
     expect(sessionStorage.getItem('admin_token')).toBeNull();
     expect(wrapper.text()).toContain('Invalid code');
     expect(wrapper.emitted('authenticated')).toBeUndefined();

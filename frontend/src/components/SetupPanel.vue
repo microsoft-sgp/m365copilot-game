@@ -9,7 +9,9 @@ const { startBoard, state } = useBingoGame();
 const error = ref('');
 const launching = ref(false);
 
-const assignedPack = computed(() => state.assignedPackId || Number(loadString(STORAGE_KEYS.lastPack) || 0));
+const assignedPack = computed(
+  () => state.assignedPackId || Number(loadString(STORAGE_KEYS.lastPack) || 0),
+);
 const cycleText = computed(() => {
   if (!state.assignmentCycle) return 'Cycle information will appear after assignment sync.';
   return `Cycle ${state.assignmentCycle}`;

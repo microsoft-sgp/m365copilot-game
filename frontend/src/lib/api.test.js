@@ -19,7 +19,9 @@ function csvResponse(text, { ok = true, status = 200 } = {}) {
     status,
     headers: { get: () => 'text/csv; charset=utf-8' },
     blob: async () => new Blob([text], { type: 'text/csv' }),
-    json: async () => { throw new Error('not json'); },
+    json: async () => {
+      throw new Error('not json');
+    },
   };
 }
 
@@ -53,7 +55,9 @@ describe('public request() wrapper', () => {
   });
 
   it('preserves non-2xx status with parsed body', async () => {
-    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: false, message: 'bad' }, { ok: false, status: 400 }));
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, message: 'bad' }, { ok: false, status: 400 }),
+    );
     const res = await api.apiRecordEvent({ kind: 'tile' });
     expect(res).toEqual({ ok: false, status: 400, data: { ok: false, message: 'bad' } });
   });
@@ -88,23 +92,15 @@ describe('public request() wrapper', () => {
 });
 
 describe('admin request() wrapper', () => {
-  it('attaches Authorization header when admin_token is in sessionStorage', async () => {
-    sessionStorage.setItem('admin_token', 'tok-abc');
+  it('uses credentialed requests without Authorization headers', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ admins: [] }));
     await api.apiAdminGetAdmins();
     const [, opts] = fetchSpy.mock.calls[0];
-    expect(opts.headers.Authorization).toBe('Bearer tok-abc');
-  });
-
-  it('omits Authorization header when no token', async () => {
-    fetchSpy.mockResolvedValueOnce(jsonResponse({ admins: [] }));
-    await api.apiAdminGetAdmins();
-    const [, opts] = fetchSpy.mock.calls[0];
+    expect(opts.credentials).toBe('include');
     expect(opts.headers.Authorization).toBeUndefined();
   });
 
   it('returns blob for text/csv responses', async () => {
-    sessionStorage.setItem('admin_token', 'tok-abc');
     fetchSpy.mockResolvedValueOnce(csvResponse('a,b\n1,2'));
     const res = await api.apiAdminExportCsv('APR26');
     expect(res.ok).toBe(true);
@@ -120,11 +116,11 @@ describe('admin request() wrapper', () => {
 
   it('encodes admin email in remove path', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true }));
-    await api.apiAdminRemoveAdmin('a+b@x.com', 'proof');
+    await api.apiAdminRemoveAdmin('a+b@x.com');
     const [url, opts] = fetchSpy.mock.calls[0];
     expect(url).toMatch(/\/admins\/a%2Bb%40x\.com$/);
     expect(opts.method).toBe('DELETE');
-    expect(JSON.parse(opts.body)).toEqual({ stepUpToken: 'proof' });
+    expect(opts.body).toBeUndefined();
   });
 
   it('encodes search query parameter', async () => {
@@ -134,8 +130,9 @@ describe('admin request() wrapper', () => {
   });
 
   it('apiAdminVerifyStepUpOtp posts purpose+action+targetEmail', async () => {
-    fetchSpy.mockResolvedValueOnce(jsonResponse({ stepUpToken: 'tok' }));
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true }));
     await api.apiAdminVerifyStepUpOtp('admin@x.com', '123456', 'add-admin', 'new@x.com');
+    expect(fetchSpy.mock.calls[0][1].credentials).toBe('include');
     const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
     expect(body).toEqual({
       email: 'admin@x.com',
@@ -144,5 +141,20 @@ describe('admin request() wrapper', () => {
       action: 'add-admin',
       targetEmail: 'new@x.com',
     });
+  });
+
+  it('apiAdminVerifyOtp and session endpoints use credentialed requests', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+    await api.apiAdminVerifyOtp('admin@x.com', '123456');
+    await api.apiAdminRefresh();
+    await api.apiAdminLogout();
+    expect(fetchSpy.mock.calls.map((call) => call[1].credentials)).toEqual([
+      'include',
+      'include',
+      'include',
+    ]);
   });
 });

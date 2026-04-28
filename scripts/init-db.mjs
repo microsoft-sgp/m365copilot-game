@@ -81,9 +81,9 @@ async function run() {
   }
 
   // Check if tables exist already
-  const tableCheck = await pool.request().query(
-    "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'organizations'"
-  );
+  const tableCheck = await pool
+    .request()
+    .query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'organizations'");
 
   if (tableCheck.recordset.length === 0) {
     await runBatch('001-create-tables.sql');

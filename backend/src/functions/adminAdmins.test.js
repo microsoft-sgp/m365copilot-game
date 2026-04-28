@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockPool, fakeRequest } from '../test-helpers/mockPool.js';
 import { signAdminStepUpToken, signAdminToken } from '../lib/adminAuth.js';
+import { ADMIN_COOKIE_NAMES } from '../lib/adminCookies.js';
 
 let mockPool;
 vi.mock('../lib/db.js', () => ({ getPool: () => mockPool.pool }));
@@ -13,6 +14,10 @@ function authHeaders() {
 
 function stepUp(action, targetEmail) {
   return signAdminStepUpToken('admin@test.com', { action, targetEmail });
+}
+
+function stepUpHeader(action, targetEmail) {
+  return `${ADMIN_COOKIE_NAMES.stepUp}=${stepUp(action, targetEmail)}`;
 }
 
 describe('admin admin-management endpoints', () => {
@@ -34,7 +39,15 @@ describe('admin admin-management endpoints', () => {
 
   it('lists bootstrap and portal-managed admins', async () => {
     mockPool = createMockPool([
-      [{ id: 1, email: 'portal@test.com', is_active: true, created_at: new Date(), created_by: 'admin@test.com' }],
+      [
+        {
+          id: 1,
+          email: 'portal@test.com',
+          is_active: true,
+          created_at: new Date(),
+          created_by: 'admin@test.com',
+        },
+      ],
     ]);
     const res = await listAdmins(fakeRequest({ headers: authHeaders() }), {});
     expect(res.jsonBody.admins.map((admin) => admin.email)).toContain('admin@test.com');
@@ -51,8 +64,8 @@ describe('admin admin-management endpoints', () => {
   it('adds admin with fresh step-up token', async () => {
     mockPool = createMockPool([{ recordset: [], rowsAffected: [1] }]);
     const req = fakeRequest({
-      body: { email: ' New@Test.com ', stepUpToken: stepUp('add-admin', 'new@test.com') },
-      headers: authHeaders(),
+      body: { email: ' New@Test.com ' },
+      headers: { ...authHeaders(), cookie: stepUpHeader('add-admin', 'new@test.com') },
     });
     const res = await addAdmin(req, {});
     expect(res.jsonBody.ok).toBe(true);
@@ -63,8 +76,7 @@ describe('admin admin-management endpoints', () => {
     mockPool = createMockPool([]);
     const req = fakeRequest({
       params: { email: 'admin@test.com' },
-      body: { stepUpToken: stepUp('remove-admin', 'admin@test.com') },
-      headers: authHeaders(),
+      headers: { ...authHeaders(), cookie: stepUpHeader('remove-admin', 'admin@test.com') },
     });
     const res = await removeAdmin(req, {});
     expect(res.status).toBe(409);
@@ -77,8 +89,7 @@ describe('admin admin-management endpoints', () => {
     ]);
     const req = fakeRequest({
       params: { email: 'portal@test.com' },
-      body: { stepUpToken: stepUp('remove-admin', 'portal@test.com') },
-      headers: authHeaders(),
+      headers: { ...authHeaders(), cookie: stepUpHeader('remove-admin', 'portal@test.com') },
     });
     const res = await removeAdmin(req, {});
     expect(res.jsonBody.ok).toBe(true);
@@ -87,8 +98,8 @@ describe('admin admin-management endpoints', () => {
   it('rejects step-up proof scoped to another target', async () => {
     mockPool = createMockPool([]);
     const req = fakeRequest({
-      body: { email: 'new@test.com', stepUpToken: stepUp('add-admin', 'other@test.com') },
-      headers: authHeaders(),
+      body: { email: 'new@test.com' },
+      headers: { ...authHeaders(), cookie: stepUpHeader('add-admin', 'other@test.com') },
     });
     const res = await addAdmin(req, {});
     expect(res.status).toBe(403);

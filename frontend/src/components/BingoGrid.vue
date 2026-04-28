@@ -17,9 +17,7 @@ const { state } = useBingoGame();
       }"
       @click="emit('open-tile', i)"
     >
-      <div
-        class="text-label-sm font-extrabold uppercase tracking-[0.5px] text-primary"
-      >
+      <div class="text-label-sm font-extrabold uppercase tracking-[0.5px] text-primary">
         Task {{ i + 1 }}
       </div>
       <div class="text-body-md font-bold leading-snug text-on-surface">

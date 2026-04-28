@@ -30,15 +30,15 @@ Manual development path:
 ```bash
 docker compose up db db-init
 cd backend
-npm install
-func start
+npm ci
+npm start
 ```
 
 In another terminal:
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
@@ -46,12 +46,33 @@ The local Docker Compose credentials and sample admin email are development-only
 
 ## Tests
 
-Run the backend and frontend tests before submitting a pull request:
+Run the backend and frontend verification commands before submitting a pull request:
 
 ```bash
-cd backend && npm test
-cd ../frontend && npm test
+cd backend
+npm ci
+npm run typecheck
+npm run build
+npm run lint
+npm run format:check
+npm test
+
+cd ../frontend
+npm ci
+npm run typecheck
+npm run lint
+npm run format:check
+npm test
 ```
+
+When your change affects browser-visible player or admin behavior, also run the Playwright smoke suite from the frontend project. It starts Vite automatically and uses mocked API fixtures for deterministic smoke coverage:
+
+```bash
+cd frontend
+npm run e2e
+```
+
+For full-stack browser checks against Azure SQL and the Functions API, start the root Docker Compose stack or the backend/frontend dev servers manually and repeat the same player and admin journeys.
 
 For documentation-only changes, describe the review you performed, such as link checks, stale-term scans, or command examples checked for accuracy.
 

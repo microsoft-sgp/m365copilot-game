@@ -38,10 +38,8 @@ vi.mock('mssql', async () => {
   };
 });
 
-const {
-  resolvePackAssignment,
-  isPackAssignmentLifecycleEnabled,
-} = await import('./packAssignments.js');
+const { resolvePackAssignment, isPackAssignmentLifecycleEnabled } =
+  await import('./packAssignments.js');
 
 function assignmentRow(overrides = {}) {
   return {
@@ -84,12 +82,15 @@ describe('packAssignments', () => {
       { recordset: [] },
       { recordset: [{ lock_result: 0 }] },
       { recordset: [] },
-      { recordset: [{ pack_id: 1, active_count: 1 }, { pack_id: 3, active_count: 1 }] },
-      { recordset: [{ next_cycle: 1 }] },
       {
         recordset: [
-          assignmentRow({ pack_id: 4 }),
+          { pack_id: 1, active_count: 1 },
+          { pack_id: 3, active_count: 1 },
         ],
+      },
+      { recordset: [{ next_cycle: 1 }] },
+      {
+        recordset: [assignmentRow({ pack_id: 4 })],
       },
     ]);
 
@@ -118,9 +119,7 @@ describe('packAssignments', () => {
     const { pool, calls } = createMockPool([
       { recordset: [{ id: 'APR26', total_packs: 999, total_weeks: 7 }] },
       {
-        recordset: [
-          assignmentRow({ id: 20, pack_id: 50, cycle_number: 2 }),
-        ],
+        recordset: [assignmentRow({ id: 20, pack_id: 50, cycle_number: 2 })],
       },
       { recordset: [{ board_state: JSON.stringify({ challengeProfile: { weeksCompleted: 3 } }) }] },
     ]);
@@ -140,9 +139,7 @@ describe('packAssignments', () => {
     const { pool } = createMockPool([
       { recordset: [{ id: 'APR26', total_packs: 999, total_weeks: 7 }] },
       {
-        recordset: [
-          assignmentRow({ id: 30, pack_id: 70, cycle_number: 2 }),
-        ],
+        recordset: [assignmentRow({ id: 30, pack_id: 70, cycle_number: 2 })],
       },
       { recordset: [{ board_state: JSON.stringify({ challengeProfile: { weeksCompleted: 7 } }) }] },
       { rowsAffected: [1], recordset: [] },
@@ -152,7 +149,12 @@ describe('packAssignments', () => {
       { recordset: [{ next_cycle: 3 }] },
       {
         recordset: [
-          assignmentRow({ id: 31, pack_id: 100, cycle_number: 3, assigned_at: '2026-04-26T00:10:00Z' }),
+          assignmentRow({
+            id: 31,
+            pack_id: 100,
+            cycle_number: 3,
+            assigned_at: '2026-04-26T00:10:00Z',
+          }),
         ],
       },
     ]);

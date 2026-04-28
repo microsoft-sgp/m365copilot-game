@@ -51,10 +51,7 @@ describe('adminCampaigns.listCampaigns', () => {
 describe('adminCampaigns.createCampaign', () => {
   it('rejects when id or displayName missing', async () => {
     mockPool = createMockPool([]);
-    const res = await createCampaign(
-      fakeRequest({ body: { id: 'X' }, headers }),
-      {},
-    );
+    const res = await createCampaign(fakeRequest({ body: { id: 'X' }, headers }), {});
     expect(res.status).toBe(400);
   });
 
@@ -119,10 +116,7 @@ describe('adminCampaigns.clearCampaignData', () => {
       { recordset: [], rowsAffected: [4] },
       { recordset: [], rowsAffected: [9] },
     ]);
-    const res = await clearCampaignData(
-      fakeRequest({ params: { id: 'APR26' }, headers }),
-      {},
-    );
+    const res = await clearCampaignData(fakeRequest({ params: { id: 'APR26' }, headers }), {});
     expect(res.jsonBody).toEqual({
       ok: true,
       deleted: { events: 12, sessions: 4, submissions: 9 },
@@ -136,10 +130,7 @@ describe('adminCampaigns.clearCampaignData', () => {
 describe('adminCampaigns.resetLeaderboard', () => {
   it('deletes only submissions for the campaign', async () => {
     mockPool = createMockPool([{ recordset: [], rowsAffected: [7] }]);
-    const res = await resetLeaderboard(
-      fakeRequest({ params: { id: 'APR26' }, headers }),
-      {},
-    );
+    const res = await resetLeaderboard(fakeRequest({ params: { id: 'APR26' }, headers }), {});
     expect(res.jsonBody).toEqual({ ok: true, deleted: { submissions: 7 } });
     expect(mockPool.calls[0].inputs.campaignId).toBe('APR26');
   });

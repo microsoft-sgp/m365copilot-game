@@ -1,0 +1,54 @@
+import { app, type HttpRequest, type InvocationContext } from '@azure/functions';
+import sql from 'mssql';
+import { getPool } from '../lib/db.js';
+import { numberValue, readJsonObject } from './http.js';
+
+export const handler = async (request: HttpRequest, context: InvocationContext) => {
+  const id = parseInt(request.params.id, 10);
+  if (isNaN(id)) {
+    return {
+      status: 400,
+      jsonBody: { ok: false, message: 'Invalid session id.' },
+    };
+  }
+
+  const body = await readJsonObject(request);
+  const tilesCleared = numberValue(body.tilesCleared) ?? 0;
+  const linesWon = numberValue(body.linesWon) ?? 0;
+  const keywordsEarned = numberValue(body.keywordsEarned) ?? 0;
+  const { boardState } = body;
+
+  const pool = await getPool();
+  const boardStateJson = boardState ? JSON.stringify(boardState) : null;
+  const result = await pool
+    .request()
+    .input('id', sql.Int, id)
+    .input('tilesCleared', sql.Int, tilesCleared)
+    .input('linesWon', sql.Int, linesWon)
+    .input('keywordsEarned', sql.Int, keywordsEarned)
+    .input('boardState', sql.NVarChar(sql.MAX), boardStateJson).query(`
+      UPDATE game_sessions
+      SET tiles_cleared   = @tilesCleared,
+          lines_won       = @linesWon,
+          keywords_earned = @keywordsEarned,
+          board_state     = COALESCE(@boardState, board_state),
+          last_active_at  = SYSUTCDATETIME()
+      WHERE id = @id;
+    `);
+
+  if (result.rowsAffected[0] === 0) {
+    return {
+      status: 404,
+      jsonBody: { ok: false, message: 'Session not found' },
+    };
+  }
+
+  return { jsonBody: { ok: true } };
+};
+
+app.http('updateSession', {
+  methods: ['PATCH'],
+  authLevel: 'anonymous',
+  route: 'sessions/{id}',
+  handler,
+});

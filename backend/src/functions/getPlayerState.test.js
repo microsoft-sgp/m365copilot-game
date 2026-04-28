@@ -10,7 +10,8 @@ vi.mock('../lib/packAssignments.js', () => ({
   resolvePackAssignment: vi.fn(),
 }));
 
-const { isPackAssignmentLifecycleEnabled, resolvePackAssignment } = await import('../lib/packAssignments.js');
+const { isPackAssignmentLifecycleEnabled, resolvePackAssignment } =
+  await import('../lib/packAssignments.js');
 
 const { handler } = await import('./getPlayerState.js');
 
@@ -38,7 +39,19 @@ describe('GET /api/player/state', () => {
     const boardState = JSON.stringify({ cleared: [true, false], wonLines: ['R1'], keywords: [] });
     mockPool = createMockPool([
       [{ id: 1, player_name: 'Alice', session_id: 'abc123' }],
-      [{ id: 10, pack_id: 42, campaign_id: 'APR26', tiles_cleared: 3, lines_won: 1, keywords_earned: 1, board_state: boardState, started_at: '2026-04-20', last_active_at: '2026-04-24' }],
+      [
+        {
+          id: 10,
+          pack_id: 42,
+          campaign_id: 'APR26',
+          tiles_cleared: 3,
+          lines_won: 1,
+          keywords_earned: 1,
+          board_state: boardState,
+          started_at: '2026-04-20',
+          last_active_at: '2026-04-24',
+        },
+      ],
     ]);
     const req = fakeRequest({ query: { email: 'alice@test.com' } });
     const res = await handler(req, {});
@@ -49,10 +62,7 @@ describe('GET /api/player/state', () => {
   });
 
   it('returns player with no sessions', async () => {
-    mockPool = createMockPool([
-      [{ id: 1, player_name: 'Bob', session_id: 'def456' }],
-      [],
-    ]);
+    mockPool = createMockPool([[{ id: 1, player_name: 'Bob', session_id: 'def456' }], []]);
     const req = fakeRequest({ query: { email: 'bob@test.com' } });
     const res = await handler(req, {});
     expect(res.jsonBody.ok).toBe(true);
@@ -82,7 +92,19 @@ describe('GET /api/player/state', () => {
     });
     mockPool = createMockPool([
       [{ id: 1, player_name: 'Alice', session_id: 'abc123' }],
-      [{ id: 201, pack_id: 77, campaign_id: 'APR26', tiles_cleared: 1, lines_won: 1, keywords_earned: 1, board_state: boardState, started_at: '2026-04-20', last_active_at: '2026-04-24' }],
+      [
+        {
+          id: 201,
+          pack_id: 77,
+          campaign_id: 'APR26',
+          tiles_cleared: 1,
+          lines_won: 1,
+          keywords_earned: 1,
+          board_state: boardState,
+          started_at: '2026-04-20',
+          last_active_at: '2026-04-24',
+        },
+      ],
     ]);
 
     const req = fakeRequest({ query: { email: 'alice@test.com' } });
@@ -97,7 +119,19 @@ describe('GET /api/player/state', () => {
   it('returns null boardState when DB column is null', async () => {
     mockPool = createMockPool([
       [{ id: 1, player_name: 'Alice', session_id: 'abc' }],
-      [{ id: 10, pack_id: 1, campaign_id: 'APR26', tiles_cleared: 0, lines_won: 0, keywords_earned: 0, board_state: null, started_at: 'x', last_active_at: 'y' }],
+      [
+        {
+          id: 10,
+          pack_id: 1,
+          campaign_id: 'APR26',
+          tiles_cleared: 0,
+          lines_won: 0,
+          keywords_earned: 0,
+          board_state: null,
+          started_at: 'x',
+          last_active_at: 'y',
+        },
+      ],
     ]);
     const res = await handler(fakeRequest({ query: { email: 'alice@test.com' } }), {});
     expect(res.jsonBody.player.activeSession.boardState).toBeNull();
@@ -125,14 +159,17 @@ describe('GET /api/player/state', () => {
     vi.mocked(isPackAssignmentLifecycleEnabled).mockReturnValue(true);
     vi.mocked(resolvePackAssignment).mockResolvedValue({
       campaign: { id: 'APR26', totalPacks: 999, totalWeeks: 7 },
-      assignment: { assignmentId: 1, packId: 1, cycleNumber: 1, status: 'active', campaignId: 'APR26' },
+      assignment: {
+        assignmentId: 1,
+        packId: 1,
+        cycleNumber: 1,
+        status: 'active',
+        campaignId: 'APR26',
+      },
       rotated: false,
       completedPackId: null,
     });
-    mockPool = createMockPool([
-      [{ id: 1, player_name: 'Alice', session_id: 'abc' }],
-      [],
-    ]);
+    mockPool = createMockPool([[{ id: 1, player_name: 'Alice', session_id: 'abc' }], []]);
     const res = await handler(fakeRequest({ query: { email: 'alice@test.com' } }), {});
     expect(res.jsonBody.player.activeSession).toBeNull();
     expect(res.jsonBody.player.activeAssignment.packId).toBe(1);

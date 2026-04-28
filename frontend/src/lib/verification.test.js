@@ -77,9 +77,9 @@ describe('verifyStructure', () => {
   describe('headings rule', () => {
     it('accepts case-insensitive headings', () => {
       const proof = '## strengths\nfoo\n## WEAKNESSES\nbar';
-      expect(
-        verifyStructure(proof, PID, TI, { headings: ['Strengths', 'Weaknesses'] }),
-      ).toEqual([]);
+      expect(verifyStructure(proof, PID, TI, { headings: ['Strengths', 'Weaknesses'] })).toEqual(
+        [],
+      );
     });
     it('flags each missing heading', () => {
       const proof = '## Strengths\nfoo';
@@ -159,9 +159,9 @@ describe('verifyStructure', () => {
 
   describe('hashtags rule', () => {
     it('counts all #word tokens', () => {
-      expect(
-        verifyStructure('fun #one #two and #three times', PID, TI, { hashtags: 3 }),
-      ).toEqual([]);
+      expect(verifyStructure('fun #one #two and #three times', PID, TI, { hashtags: 3 })).toEqual(
+        [],
+      );
     });
     it('fails when under threshold', () => {
       expect(verifyStructure('#only', PID, TI, { hashtags: 2 })).toHaveLength(1);

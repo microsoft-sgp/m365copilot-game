@@ -5,11 +5,35 @@ location            = "eastus2"
 sql_location        = "koreacentral"
 environment         = "dev"
 name_prefix         = "m365copilot-game"
+default_campaign_id = "APR26"
 
 # Replace with real bootstrap admin emails before production use.
 admin_emails = [
   "admin@test.com",
 ]
+
+# Add custom frontend origins here if you use a custom domain. The generated
+# Static Web App hostname is included automatically.
+# allowed_origins = [
+#   "https://bingo.example.com",
+# ]
+
+# Cookie/session defaults. Production cookies are emitted as Secure and
+# SameSite=None so the Static Web App can call the Function App with credentials.
+# admin_access_ttl_seconds  = 900
+# admin_refresh_ttl_seconds = 604800
+# admin_step_up_ttl_seconds = 300
+
+# Redis cache defaults. Basic C0 is suitable for dev/test; use Standard or
+# Premium for production resilience requirements.
+# redis_sku_name = "Basic"
+# redis_family   = "C"
+# redis_capacity = 0
+
+# Cache TTL defaults in seconds.
+# cache_ttl_active_campaign_seconds = 60
+# cache_ttl_org_domains_seconds     = 300
+# cache_ttl_leaderboard_seconds     = 30
 
 # Optional: allow a workstation to run sqlcmd migrations directly.
 # sql_allowed_ip_ranges = {

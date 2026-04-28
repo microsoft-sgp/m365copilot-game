@@ -5,10 +5,7 @@ vi.mock('../lib/api.js', () => ({
 }));
 
 import { apiGetHealth } from '../lib/api.js';
-import {
-  useHealthStatus,
-  __resetHealthStatusForTests,
-} from './useHealthStatus.js';
+import { useHealthStatus, __resetHealthStatusForTests } from './useHealthStatus.js';
 
 describe('useHealthStatus', () => {
   beforeEach(() => {
@@ -125,7 +122,11 @@ describe('useHealthStatus', () => {
 
   it('coalesces concurrent probes into a single in-flight request', async () => {
     let resolve;
-    apiGetHealth.mockReturnValueOnce(new Promise((r) => { resolve = r; }));
+    apiGetHealth.mockReturnValueOnce(
+      new Promise((r) => {
+        resolve = r;
+      }),
+    );
     const { _probe } = useHealthStatus();
     const a = _probe();
     const b = _probe();

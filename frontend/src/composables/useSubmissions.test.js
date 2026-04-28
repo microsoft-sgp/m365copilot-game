@@ -204,16 +204,12 @@ describe('useSubmissions.leaderboard', () => {
     apiGetLeaderboard.mockResolvedValue({
       ok: true,
       data: {
-        leaderboard: [
-          { org: 'SMU', score: 3, contributors: 2, lastSubmission: 't' },
-        ],
+        leaderboard: [{ org: 'SMU', score: 3, contributors: 2, lastSubmission: 't' }],
       },
     });
     const { leaderboard, refreshLeaderboard } = useSubmissions();
     await refreshLeaderboard();
-    expect(leaderboard.value).toEqual([
-      { org: 'SMU', count: 3, contributorCount: 2, lastTs: 't' },
-    ]);
+    expect(leaderboard.value).toEqual([{ org: 'SMU', count: 3, contributorCount: 2, lastTs: 't' }]);
   });
 
   it('computes a local leaderboard when the server is empty', async () => {

@@ -28,9 +28,7 @@ describe('organization helpers', () => {
 
 describe('resolveOrganizationForEmail', () => {
   it('uses an existing mapped domain before inference', async () => {
-    const { pool, calls } = createMockPool([
-      [{ id: 7, name: 'NUS' }],
-    ]);
+    const { pool, calls } = createMockPool([[{ id: 7, name: 'NUS' }]]);
 
     const result = await resolveOrganizationForEmail(pool, { email: 'ada@nus.edu.sg' });
 
@@ -77,11 +75,7 @@ describe('resolveOrganizationForEmail', () => {
   });
 
   it('resolves public email domains from a supplied organization without mapping the domain', async () => {
-    const { pool, calls } = createMockPool([
-      [],
-      [],
-      [{ id: 44, name: 'Contoso' }],
-    ]);
+    const { pool, calls } = createMockPool([[], [], [{ id: 44, name: 'Contoso' }]]);
 
     const result = await resolveOrganizationForEmail(pool, {
       email: 'alex@gmail.com',

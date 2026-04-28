@@ -36,9 +36,7 @@ describe('SubmitPanel', () => {
     await emailInput.setValue('ada@smu.edu.sg');
     await emailInput.trigger('input');
     expect(w.text()).toContain('Detected org: SMU');
-    const orgInput = inputs.find(
-      (i) => i.attributes('placeholder')?.includes('NUS'),
-    );
+    const orgInput = inputs.find((i) => i.attributes('placeholder')?.includes('NUS'));
     expect(orgInput.attributes('readonly')).toBeDefined();
   });
 
@@ -52,9 +50,9 @@ describe('SubmitPanel', () => {
 
   it('uppercases keyword on input', async () => {
     const w = mount(SubmitPanel);
-    const kwInput = w.findAll('input').find((i) =>
-      i.attributes('placeholder')?.includes('CO-APR26'),
-    );
+    const kwInput = w
+      .findAll('input')
+      .find((i) => i.attributes('placeholder')?.includes('CO-APR26'));
     await kwInput.setValue('co-apr26-042-r1-abcd1234');
     await kwInput.trigger('input');
     expect(kwInput.element.value).toBe('CO-APR26-042-R1-ABCD1234');
@@ -73,7 +71,10 @@ describe('SubmitPanel', () => {
     const kwInput = inputs.find((i) => i.attributes('placeholder')?.includes('CO-APR26'));
     await kwInput.setValue('CO-APR26-042-R1-ABCD1234');
     await kwInput.trigger('input');
-    await w.findAll('button').find((b) => b.text() === 'Submit Keyword').trigger('click');
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Submit Keyword')
+      .trigger('click');
     // Allow the async submit to resolve
     await new Promise((r) => setTimeout(r, 0));
     await w.vm.$nextTick();
@@ -95,7 +96,10 @@ describe('SubmitPanel', () => {
     const kwInput = inputs.find((i) => i.attributes('placeholder')?.includes('CO-APR26'));
     await kwInput.setValue('CO-APR26-042-R1-ABCD1234');
     await kwInput.trigger('input');
-    await w.findAll('button').find((b) => b.text() === 'Submit Keyword').trigger('click');
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Submit Keyword')
+      .trigger('click');
     await new Promise((r) => setTimeout(r, 0));
     await w.vm.$nextTick();
     expect(w.text()).toContain('already submitted');

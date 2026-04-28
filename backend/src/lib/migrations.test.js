@@ -26,15 +26,19 @@ describe('SQL migration files', () => {
     for (const file of listMigrations()) {
       const sql = readFileSync(join(MIGRATIONS_DIR, file), 'utf8');
       expect(sql.trim().length, `${file} is empty`).toBeGreaterThan(0);
-      expect(sql, `${file} has no DDL/DML`).toMatch(
-        /\b(CREATE|ALTER|INSERT|MERGE|UPDATE|DROP)\b/i,
-      );
+      expect(sql, `${file} has no DDL/DML`).toMatch(/\b(CREATE|ALTER|INSERT|MERGE|UPDATE|DROP)\b/i);
     }
   });
 
   it('first migration creates the core tables referenced by handlers', () => {
     const sql = readFileSync(join(MIGRATIONS_DIR, '001-create-tables.sql'), 'utf8');
-    for (const table of ['organizations', 'players', 'submissions', 'game_sessions', 'tile_events']) {
+    for (const table of [
+      'organizations',
+      'players',
+      'submissions',
+      'game_sessions',
+      'tile_events',
+    ]) {
       expect(sql, `001-create-tables.sql missing table: ${table}`).toMatch(
         new RegExp(`CREATE TABLE\\s+(?:dbo\\.)?${table}\\b`, 'i'),
       );

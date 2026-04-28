@@ -40,9 +40,11 @@ async function verifyOtp() {
   const res = await apiAdminVerifyOtp(email.value.trim().toLowerCase(), code.value.trim());
   loading.value = false;
 
-  if (res.ok && res.data?.token) {
-    sessionStorage.setItem('admin_token', res.data.token);
-    emit('authenticated');
+  if (res.ok) {
+    const adminEmail = email.value.trim().toLowerCase();
+    sessionStorage.setItem('admin_authenticated', 'true');
+    sessionStorage.setItem('admin_email', adminEmail);
+    emit('authenticated', adminEmail);
   } else {
     error.value = res.data?.message || 'Invalid code.';
   }
@@ -70,11 +72,7 @@ async function verifyOtp() {
           />
         </div>
         <div v-if="error" class="mb-3 text-label-md text-error">{{ error }}</div>
-        <button
-          class="btn btn-primary w-full"
-          :disabled="loading"
-          @click="requestOtp"
-        >
+        <button class="btn btn-primary w-full" :disabled="loading" @click="requestOtp">
           {{ loading ? 'Sending…' : 'Send Code' }}
         </button>
       </template>
@@ -82,7 +80,8 @@ async function verifyOtp() {
       <!-- Step 2: OTP verification -->
       <template v-else>
         <p class="mb-4 text-sm text-on-surface-variant">
-          Enter the 6-digit code sent to <strong>{{ email }}</strong>.
+          Enter the 6-digit code sent to <strong>{{ email }}</strong
+          >.
         </p>
         <div class="mb-4">
           <label class="field-label">Verification Code</label>
@@ -96,16 +95,15 @@ async function verifyOtp() {
           />
         </div>
         <div v-if="error" class="mb-3 text-label-md text-error">{{ error }}</div>
-        <button
-          class="btn btn-primary w-full"
-          :disabled="loading"
-          @click="verifyOtp"
-        >
+        <button class="btn btn-primary w-full" :disabled="loading" @click="verifyOtp">
           {{ loading ? 'Verifying…' : 'Verify & Login' }}
         </button>
         <button
           class="mt-3 w-full text-center text-label-md text-on-surface-variant hover:text-primary"
-          @click="step = 'email'; error = ''"
+          @click="
+            step = 'email';
+            error = '';
+          "
         >
           ← Back to email
         </button>

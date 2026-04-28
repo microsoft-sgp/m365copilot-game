@@ -13,8 +13,8 @@ vi.mock('../lib/api.js', () => ({
 const api = await import('../lib/api.js');
 
 function setAdminSession(email = 'admin@test.com') {
-  const payload = btoa(JSON.stringify({ email }));
-  sessionStorage.setItem('admin_token', `x.${payload}.x`);
+  sessionStorage.setItem('admin_authenticated', 'true');
+  sessionStorage.setItem('admin_email', email);
 }
 
 describe('AdminAccess', () => {
@@ -44,13 +44,16 @@ describe('AdminAccess', () => {
 
   it('requires OTP step-up before adding an admin', async () => {
     api.apiAdminRequestOtp.mockResolvedValue({ ok: true, data: { ok: true } });
-    api.apiAdminVerifyStepUpOtp.mockResolvedValue({ ok: true, data: { stepUpToken: 'proof' } });
+    api.apiAdminVerifyStepUpOtp.mockResolvedValue({ ok: true, data: { ok: true } });
     api.apiAdminAddAdmin.mockResolvedValue({ ok: true, data: { ok: true } });
 
     const wrapper = mount(AdminAccess);
     await flushPromises();
     await wrapper.find('input[type="email"]').setValue('new@test.com');
-    await wrapper.findAll('button').find((button) => button.text() === 'Add Admin').trigger('click');
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Add Admin')
+      .trigger('click');
     await flushPromises();
 
     expect(api.apiAdminRequestOtp).toHaveBeenCalledWith('admin@test.com');
@@ -58,11 +61,19 @@ describe('AdminAccess', () => {
     expect(wrapper.text()).toContain('Re-enter OTP');
 
     await wrapper.find('input[placeholder="000000"]').setValue('123456');
-    await wrapper.findAll('button').find((button) => button.text() === 'Confirm').trigger('click');
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Confirm')
+      .trigger('click');
     await flushPromises();
 
-    expect(api.apiAdminVerifyStepUpOtp).toHaveBeenCalledWith('admin@test.com', '123456', 'add-admin', 'new@test.com');
-    expect(api.apiAdminAddAdmin).toHaveBeenCalledWith('new@test.com', 'proof');
+    expect(api.apiAdminVerifyStepUpOtp).toHaveBeenCalledWith(
+      'admin@test.com',
+      '123456',
+      'add-admin',
+      'new@test.com',
+    );
+    expect(api.apiAdminAddAdmin).toHaveBeenCalledWith('new@test.com');
   });
 
   it('keeps remove unsubmitted when step-up OTP fails', async () => {
@@ -71,10 +82,16 @@ describe('AdminAccess', () => {
 
     const wrapper = mount(AdminAccess);
     await flushPromises();
-    await wrapper.findAll('button').find((button) => button.text() === 'Disable').trigger('click');
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Disable')
+      .trigger('click');
     await flushPromises();
     await wrapper.find('input[placeholder="000000"]').setValue('000000');
-    await wrapper.findAll('button').find((button) => button.text() === 'Confirm').trigger('click');
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Confirm')
+      .trigger('click');
     await flushPromises();
 
     expect(api.apiAdminRemoveAdmin).not.toHaveBeenCalled();

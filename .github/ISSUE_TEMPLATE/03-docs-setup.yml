@@ -1,6 +1,6 @@
 name: Documentation or setup issue
 description: Report confusing docs, setup gaps, deployment steps, or configuration examples.
-title: "[Docs/Setup]: "
+title: '[Docs/Setup]: '
 labels: [documentation, triage]
 body:
   - type: dropdown

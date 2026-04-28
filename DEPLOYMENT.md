@@ -30,14 +30,15 @@ Before using the app with real attendees, review your organization's privacy, co
 
 ## What you will create
 
-| Azure resource | Purpose | Pricing tier |
-|---|---|---|
-| **Resource Group** | Container that holds all your resources | Free |
-| **Azure SQL Server + Database** | Stores players, sessions, submissions, leaderboard | Basic (5 DTU) — ~$5/mo |
-| **Storage Account** | Required by Azure Functions for internal state | Standard LRS — pennies/mo |
-| **Azure Communication Services + Email** | Sends admin OTP codes for portal login and sensitive admin changes | Usage-based — tiny for event-scale OTP traffic |
-| **Azure Functions App** | Hosts the Node.js API | Consumption plan in this manual guide; Terraform uses Flex Consumption |
-| **Azure Static Web App** | Hosts the Vue 3 frontend with global CDN and free TLS | Free tier |
+| Azure resource                           | Purpose                                                            | Pricing tier                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| **Resource Group**                       | Container that holds all your resources                            | Free                                                                   |
+| **Azure SQL Server + Database**          | Stores players, sessions, submissions, leaderboard                 | Basic (5 DTU) — ~$5/mo                                                 |
+| **Azure Cache for Redis**                | Cache-aside layer for public config and leaderboard API responses  | Basic C0 for dev/test; use Standard/Premium for production resilience  |
+| **Storage Account**                      | Required by Azure Functions for internal state                     | Standard LRS — pennies/mo                                              |
+| **Azure Communication Services + Email** | Sends admin OTP codes for portal login and sensitive admin changes | Usage-based — tiny for event-scale OTP traffic                         |
+| **Azure Functions App**                  | Hosts the Node.js API                                              | Consumption plan in this manual guide; Terraform uses Flex Consumption |
+| **Azure Static Web App**                 | Hosts the Vue 3 frontend with global CDN and free TLS              | Free tier                                                              |
 
 Total estimated cost: **~$5–7/month plus small email usage charges**. For typical event usage, the SQL database is still the main cost driver.
 
@@ -324,9 +325,30 @@ Admin portal login depends on email OTP delivery. In production, configure Azure
 
 > **Important:** OTP email sending fails in production if either `ACS_CONNECTION_STRING` or `ACS_EMAIL_SENDER` is missing. The backend invalidates any OTP row whose email send fails, so users must request a fresh code after a provider or configuration issue is fixed.
 
-### 7c. Configure app settings
+### 7c. Create Redis cache
 
-Set the SQL connection string, admin secrets, and ACS Email settings:
+Redis is used as a disposable cache-aside layer. Azure SQL remains the source of truth, and the API falls back to SQL if Redis is unavailable.
+
+```bash
+az redis create \
+  --name redis-bingo-api \
+  --resource-group rg-bingo \
+  --location eastus2 \
+  --sku Basic \
+  --vm-size c0 \
+  --minimum-tls-version 1.2
+
+REDIS_KEY=$(az redis list-keys \
+  --name redis-bingo-api \
+  --resource-group rg-bingo \
+  --query primaryKey -o tsv)
+```
+
+For production, choose a SKU that matches your availability and network requirements, and store the Redis connection string in Key Vault or app settings rather than scripts or source files.
+
+### 7d. Configure app settings
+
+Set the SQL connection string, admin secrets, ACS Email settings, Redis connection string, and cookie/CORS settings:
 
 ```bash
 az functionapp config appsettings set \
@@ -337,18 +359,32 @@ az functionapp config appsettings set \
     "ADMIN_KEY=<pick-a-strong-secret-for-admin-access>" \
     "JWT_SECRET=<random-64-character-string-for-jwt-signing>" \
     "ADMIN_EMAILS=admin1@example.com,admin2@example.com" \
+    "ADMIN_ACCESS_TTL_SECONDS=900" \
+    "ADMIN_REFRESH_TTL_SECONDS=604800" \
+    "ADMIN_STEP_UP_TTL_SECONDS=300" \
+    "ADMIN_COOKIE_SECURE=true" \
+    "ADMIN_COOKIE_SAMESITE=None" \
+    "ADMIN_COOKIE_PATH=/api/portal-api" \
+    "ALLOWED_ORIGINS=https://<your-swa-name>.azurestaticapps.net" \
     "ACS_CONNECTION_STRING=<your-azure-communication-services-connection-string>" \
     "ACS_EMAIL_SENDER=DoNotReply@<your-verified-email-domain>" \
+    "REDIS_CONNECTION_STRING=rediss://:${REDIS_KEY}@redis-bingo-api.redis.cache.windows.net:6380" \
+    "CACHE_TTL_ACTIVE_CAMPAIGN_SECONDS=60" \
+    "CACHE_TTL_ORG_DOMAINS_SECONDS=300" \
+    "CACHE_TTL_LEADERBOARD_SECONDS=30" \
+    "DEFAULT_CAMPAIGN_ID=APR26" \
     "LEADERBOARD_SOURCE=progression" \
     "ENABLE_PACK_ASSIGNMENT_LIFECYCLE=true"
 ```
 
-> **Important:** Replace the password and choose strong values for `ADMIN_KEY` and `JWT_SECRET`. The admin key is used for CLI/API access to admin endpoints. `JWT_SECRET` signs admin portal session tokens. `ADMIN_EMAILS` is a comma-separated bootstrap/break-glass list of emails allowed to log into the admin portal via OTP; portal-managed admins are stored in the database. `ACS_CONNECTION_STRING` and `ACS_EMAIL_SENDER` configure Azure Communication Services Email for sending OTP codes. Keep all secrets confidential.
+> **Important:** Replace the password and choose strong values for `ADMIN_KEY` and `JWT_SECRET`. The admin key is used for CLI/API break-glass access to admin endpoints. `JWT_SECRET` signs admin access, refresh, and step-up cookies. `ADMIN_EMAILS` is a comma-separated bootstrap/break-glass list of emails allowed to log into the admin portal via OTP; portal-managed admins are stored in the database. `ACS_CONNECTION_STRING`, `ACS_EMAIL_SENDER`, and `REDIS_CONNECTION_STRING` configure production dependencies. Keep all secrets confidential.
 
-  > **Scoring source toggle:** `LEADERBOARD_SOURCE=progression` enables verified gameplay progression scoring. Set `LEADERBOARD_SOURCE=submissions` to temporarily roll back to legacy submission-based leaderboard aggregation.
-  > **Pack lifecycle toggle:** `ENABLE_PACK_ASSIGNMENT_LIFECYCLE=true` enables server-authoritative pack assignment and 7-week completion rotation. Set `ENABLE_PACK_ASSIGNMENT_LIFECYCLE=false` to temporarily roll back to legacy manual pack selection behavior.
+> **Cookie settings:** When the frontend and Function App are on different hostnames, keep `ADMIN_COOKIE_SECURE=true` and `ADMIN_COOKIE_SAMESITE=None`, and configure credentialed CORS for the frontend origin. For localhost only, use `ADMIN_COOKIE_SECURE=false` and `ADMIN_COOKIE_SAMESITE=Lax`.
 
-### 7d. Deploy the backend code
+> **Scoring source toggle:** `LEADERBOARD_SOURCE=progression` enables verified gameplay progression scoring. Set `LEADERBOARD_SOURCE=submissions` to temporarily roll back to legacy submission-based leaderboard aggregation.
+> **Pack lifecycle toggle:** `ENABLE_PACK_ASSIGNMENT_LIFECYCLE=true` enables server-authoritative pack assignment and 7-week completion rotation. Set `ENABLE_PACK_ASSIGNMENT_LIFECYCLE=false` to temporarily roll back to legacy manual pack selection behavior.
+
+### 7e. Deploy the backend code
 
 ```bash
 cd backend
@@ -358,7 +394,7 @@ func azure functionapp publish func-bingo-api
 
 This packages your backend code and uploads it to Azure. It takes about a minute. When done, you will see output listing all the deployed function endpoints.
 
-### 7e. Verify the API is running
+### 7f. Verify the API is running
 
 ```bash
 curl https://func-bingo-api.azurewebsites.net/api/leaderboard?campaign=APR26
@@ -448,6 +484,11 @@ az functionapp cors add \
   --name func-bingo-api \
   --resource-group rg-bingo \
   --allowed-origins "https://<your-swa-name>.azurestaticapps.net"
+
+az functionapp cors credentials \
+  --name func-bingo-api \
+  --resource-group rg-bingo \
+  --enable true
 ```
 
 > Replace `<your-swa-name>.azurestaticapps.net` with the actual URL from Step 8e.
@@ -458,18 +499,20 @@ az functionapp cors add \
 
 Open your Static Web App URL in a browser and check:
 
-| # | What to check | Expected result |
-|---|---|---|
-| 1 | App loads | You see the **Game**, **Keywords**, **Activity**, and **Help** tabs |
-| 2 | Start a game | Complete onboarding identity (name + email); the API assigns a pack and the 3×3 board appears |
-| 3 | Assigned pack persists | Reload the page and confirm the same assigned pack is restored |
-| 4 | Progress persists | Cleared tiles, earned keywords, and challenge progress are restored |
-| 5 | Verify progression scoring | Clear a line and confirm `POST` to `/api/events` with `line_won` and leaderboard refresh |
-| 6 | Leaderboard | Visit the Activity tab — leaderboard and timeline show score events |
-| 7 | No console errors | Browser DevTools → Console shows no errors |
-| 8 | Admin dashboard | `curl -H "X-Admin-Key: <your-key>" https://func-bingo-api.azurewebsites.net/api/portal-api/dashboard?campaign=APR26` returns engagement data |
-| 9 | Admin OTP login | Visit `https://<your-swa-name>.azurestaticapps.net/#/admin/login`, request a code for an email in `ADMIN_EMAILS`, and verify the portal opens |
-| 10 | Admin access management | In **Admin Access**, confirm bootstrap admins are read-only and adding/disabling a portal-managed admin requires re-entering an OTP |
+| #   | What to check              | Expected result                                                                                                                               |
+| --- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | App loads                  | You see the **Game**, **Keywords**, **Activity**, and **Help** tabs                                                                           |
+| 2   | Start a game               | Complete onboarding identity (name + email); the API assigns a pack and the 3×3 board appears                                                 |
+| 3   | Assigned pack persists     | Reload the page and confirm the same assigned pack is restored                                                                                |
+| 4   | Progress persists          | Cleared tiles, earned keywords, and challenge progress are restored                                                                           |
+| 5   | Verify progression scoring | Clear a line and confirm `POST` to `/api/events` with `line_won` and leaderboard refresh                                                      |
+| 6   | Leaderboard                | Visit the Activity tab — leaderboard and timeline show score events                                                                           |
+| 7   | No console errors          | Browser DevTools → Console shows no errors                                                                                                    |
+| 8   | Admin dashboard            | `curl -H "X-Admin-Key: <your-key>" https://func-bingo-api.azurewebsites.net/api/portal-api/dashboard?campaign=APR26` returns engagement data  |
+| 9   | Admin OTP login            | Visit `https://<your-swa-name>.azurestaticapps.net/#/admin/login`, request a code for an email in `ADMIN_EMAILS`, and verify the portal opens |
+| 10  | Admin access management    | In **Admin Access**, confirm bootstrap admins are read-only and adding/disabling a portal-managed admin requires re-entering an OTP           |
+
+After OTP login, browser DevTools should show `admin_access` and `admin_refresh` cookies set by the Function App as `HttpOnly`, `Secure`, and `SameSite=None`. JWT token strings should not appear in `sessionStorage` or `localStorage`.
 
 ### Admin access runbook
 
@@ -485,8 +528,10 @@ Open your Static Web App URL in a browser and check:
 2. Apply `database/004-add-progression-scores.sql`.
 3. Deploy frontend/backend changes that emit and consume progression score events.
 4. Validate parity in staging:
-  - Compare `GET /api/leaderboard` output with `LEADERBOARD_SOURCE=submissions` vs `LEADERBOARD_SOURCE=progression`.
-  - Confirm admin dashboard totals match leaderboard totals in both modes.
+
+- Compare `GET /api/leaderboard` output with `LEADERBOARD_SOURCE=submissions` vs `LEADERBOARD_SOURCE=progression`.
+- Confirm admin dashboard totals match leaderboard totals in both modes.
+
 5. Switch production app setting to `LEADERBOARD_SOURCE=progression`.
 6. Monitor leaderboard/admin parity and API error rates.
 
@@ -496,6 +541,12 @@ Rollback:
 2. Restart Function App.
 3. Verify leaderboard and admin dashboard return legacy submission-based totals.
 4. Keep progression score data for reconciliation; do not drop new tables during rollback.
+
+### Redis and auth-cookie rollback runbook
+
+- Redis: clear or remove `REDIS_CONNECTION_STRING` and restart the Function App. The API will skip Redis and read from Azure SQL.
+- Admin cookies: keep `ADMIN_KEY` configured so operators can use the break-glass API path while investigating login issues.
+- Credentialed CORS: if admin login sets cookies but authenticated requests fail, verify the Static Web App origin is in Function App CORS, `support credentials` is enabled, and app settings keep `ADMIN_COOKIE_SAMESITE=None` plus `ADMIN_COOKIE_SECURE=true` for production.
 
 ---
 
@@ -605,14 +656,15 @@ Protect GitHub Actions secrets, deployment tokens, publish profiles, Terraform s
 
 For a typical event (hundreds of players over a few days):
 
-| Resource | Tier | Estimated monthly cost |
-|---|---|---|
-| Azure SQL Database | Basic (5 DTU) | ~$5 |
-| Azure Functions | Consumption (pay-per-execution) | Free (1M executions/mo included) |
-| Storage Account | Standard LRS | < $0.10 |
-| Azure Communication Services Email | Usage-based | Small, depends on OTP volume |
-| Azure Static Web Apps | Free | $0 |
-| **Total** | | **~$5/month plus email usage** |
+| Resource                           | Tier                            | Estimated monthly cost           |
+| ---------------------------------- | ------------------------------- | -------------------------------- |
+| Azure SQL Database                 | Basic (5 DTU)                   | ~$5                              |
+| Azure Cache for Redis              | Basic C0                        | Low single-digit dollars/month   |
+| Azure Functions                    | Consumption (pay-per-execution) | Free (1M executions/mo included) |
+| Storage Account                    | Standard LRS                    | < $0.10                          |
+| Azure Communication Services Email | Usage-based                     | Small, depends on OTP volume     |
+| Azure Static Web Apps              | Free                            | $0                               |
+| **Total**                          |                                 | **~$5/month plus email usage**   |
 
 > After the event, you can [tear down](#tearing-it-down) the resources to stop all charges immediately.
 
@@ -718,6 +770,7 @@ az sql server firewall-rule create \
 ### Resource name already taken
 
 Azure resource names must be globally unique. Append a random suffix:
+
 - SQL Server: `sql-bingo-server-abc123`
 - Function App: `func-bingo-api-abc123`
 - Storage Account: `stbingofunc123`
@@ -740,13 +793,13 @@ This deletes the SQL server, database, function app, storage account, and static
 
 ## Quick reference — All resource names
 
-| Resource | Default name | Customizable? |
-|---|---|---|
-| Resource Group | `rg-bingo` | Yes |
-| SQL Server | `sql-bingo-server` | Yes (globally unique) |
-| SQL Database | `bingo_db` | Yes |
-| Storage Account | `stbingofunc` | Yes (globally unique, lowercase, no hyphens) |
-| Function App | `func-bingo-api` | Yes (globally unique) |
-| Static Web App | `swa-bingo` | Yes |
+| Resource        | Default name       | Customizable?                                |
+| --------------- | ------------------ | -------------------------------------------- |
+| Resource Group  | `rg-bingo`         | Yes                                          |
+| SQL Server      | `sql-bingo-server` | Yes (globally unique)                        |
+| SQL Database    | `bingo_db`         | Yes                                          |
+| Storage Account | `stbingofunc`      | Yes (globally unique, lowercase, no hyphens) |
+| Function App    | `func-bingo-api`   | Yes (globally unique)                        |
+| Static Web App  | `swa-bingo`        | Yes                                          |
 
 If you change any name, update it consistently in all subsequent commands.

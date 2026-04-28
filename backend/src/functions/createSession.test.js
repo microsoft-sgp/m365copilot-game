@@ -11,10 +11,7 @@ vi.mock('../lib/organizations.js', () => ({
 }));
 
 import { getPool } from '../lib/db.js';
-import {
-  isPackAssignmentLifecycleEnabled,
-  resolvePackAssignment,
-} from '../lib/packAssignments.js';
+import { isPackAssignmentLifecycleEnabled, resolvePackAssignment } from '../lib/packAssignments.js';
 import { resolveOrganizationForEmail } from '../lib/organizations.js';
 import { handler } from './createSession.js';
 
@@ -24,7 +21,10 @@ describe('POST /sessions (createSession)', () => {
     vi.mocked(isPackAssignmentLifecycleEnabled).mockReturnValue(false);
     vi.mocked(resolvePackAssignment).mockReset();
     vi.mocked(resolveOrganizationForEmail).mockReset();
-    vi.mocked(resolveOrganizationForEmail).mockResolvedValue({ orgId: null, requiresOrganization: false });
+    vi.mocked(resolveOrganizationForEmail).mockResolvedValue({
+      orgId: null,
+      requiresOrganization: false,
+    });
     delete process.env.ENABLE_PACK_ASSIGNMENT_LIFECYCLE;
   });
 
@@ -78,7 +78,11 @@ describe('POST /sessions (createSession)', () => {
   });
 
   it('uses email identity while preserving canonical onboarding name', async () => {
-    vi.mocked(resolveOrganizationForEmail).mockResolvedValue({ orgId: 10, orgName: 'SMU', requiresOrganization: false });
+    vi.mocked(resolveOrganizationForEmail).mockResolvedValue({
+      orgId: 10,
+      orgName: 'SMU',
+      requiresOrganization: false,
+    });
     const { pool, calls } = createMockPool([
       { recordset: [{ id: 11 }] },
       { recordset: [{ id: 99 }] },
@@ -86,7 +90,14 @@ describe('POST /sessions (createSession)', () => {
     vi.mocked(getPool).mockResolvedValue(pool);
 
     const res = await handler(
-      fakeRequest({ body: { sessionId: 'sess-abc', playerName: 'New Alias', packId: 42, email: 'ada@smu.edu.sg' } }),
+      fakeRequest({
+        body: {
+          sessionId: 'sess-abc',
+          playerName: 'New Alias',
+          packId: 42,
+          email: 'ada@smu.edu.sg',
+        },
+      }),
     );
 
     expect(res.jsonBody).toEqual({ ok: true, gameSessionId: 99, packId: 42 });
@@ -112,7 +123,9 @@ describe('POST /sessions (createSession)', () => {
     vi.mocked(getPool).mockResolvedValue(pool);
 
     const res = await handler(
-      fakeRequest({ body: { sessionId: 'sess-abc', playerName: 'Ada', packId: 42, email: 'ada@gmail.com' } }),
+      fakeRequest({
+        body: { sessionId: 'sess-abc', playerName: 'Ada', packId: 42, email: 'ada@gmail.com' },
+      }),
     );
 
     expect(res.status).toBe(400);
@@ -123,7 +136,7 @@ describe('POST /sessions (createSession)', () => {
   it('returns the existing session id on duplicate-key error (2627)', async () => {
     const { pool } = createMockPool([
       { recordset: [{ id: 11 }] }, // player upsert
-      sqlError(2627),              // session insert dupe
+      sqlError(2627), // session insert dupe
       { recordset: [{ id: 77 }] }, // follow-up SELECT
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
@@ -162,9 +175,7 @@ describe('POST /sessions (createSession)', () => {
 
   it('returns 400 if lifecycle mode is enabled without email', async () => {
     vi.mocked(isPackAssignmentLifecycleEnabled).mockReturnValue(true);
-    const res = await handler(
-      fakeRequest({ body: { sessionId: 's', playerName: 'Ada' } }),
-    );
+    const res = await handler(fakeRequest({ body: { sessionId: 's', playerName: 'Ada' } }));
     expect(res.status).toBe(400);
     expect(res.jsonBody.ok).toBe(false);
   });
@@ -220,10 +231,7 @@ describe('POST /sessions (createSession)', () => {
       completedPackId: null,
     });
 
-    const { pool } = createMockPool([
-      { recordset: [{ id: 11 }] },
-      { recordset: [{ id: 909 }] },
-    ]);
+    const { pool } = createMockPool([{ recordset: [{ id: 11 }] }, { recordset: [{ id: 909 }] }]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
     const res = await handler(

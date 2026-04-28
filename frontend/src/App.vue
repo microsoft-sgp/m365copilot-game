@@ -3,7 +3,7 @@ import { computed, ref, onMounted, defineAsyncComponent } from 'vue';
 import { STORAGE_KEYS } from './data/constants.js';
 import { loadString, removeKey, saveString } from './lib/storage.js';
 import { isPublicEmailDomain } from './lib/emailDomains.js';
-import { apiGetPlayerState } from './lib/api.js';
+import { apiAdminLogout, apiAdminRefresh, apiGetPlayerState } from './lib/api.js';
 import { useBingoGame } from './composables/useBingoGame.js';
 import TopBar from './components/TopBar.vue';
 import AppTabs from './components/AppTabs.vue';
@@ -33,8 +33,8 @@ const identityReady = computed(() => {
 
 onMounted(() => {
   // Check hash-based routing for admin
-  checkRoute();
-  window.addEventListener('hashchange', checkRoute);
+  void checkRoute();
+  window.addEventListener('hashchange', () => void checkRoute());
 
   if (identityReady.value) {
     syncPlayerState(playerEmail.value);
@@ -52,13 +52,23 @@ async function syncPlayerState(email) {
   }
 }
 
-function checkRoute() {
+async function checkRoute() {
   const hash = window.location.hash;
   if (hash.startsWith('#/admin/login')) {
     view.value = 'admin-login';
   } else if (hash.startsWith('#/admin')) {
-    const token = sessionStorage.getItem('admin_token');
-    view.value = token ? 'admin' : 'admin-login';
+    if (sessionStorage.getItem('admin_authenticated') === 'true') {
+      view.value = 'admin';
+      return;
+    }
+
+    const refresh = await apiAdminRefresh();
+    if (refresh.ok) {
+      sessionStorage.setItem('admin_authenticated', 'true');
+      view.value = 'admin';
+    } else {
+      view.value = 'admin-login';
+    }
   } else {
     view.value = 'game';
   }
@@ -85,13 +95,17 @@ function onAdminNav() {
   view.value = 'admin-login';
 }
 
-function onAdminLoggedIn() {
+function onAdminLoggedIn(email) {
+  sessionStorage.setItem('admin_authenticated', 'true');
+  if (email) sessionStorage.setItem('admin_email', email);
   window.location.hash = '#/admin';
   view.value = 'admin';
 }
 
-function onAdminLogout() {
-  sessionStorage.removeItem('admin_token');
+async function onAdminLogout() {
+  await apiAdminLogout();
+  sessionStorage.removeItem('admin_authenticated');
+  sessionStorage.removeItem('admin_email');
   window.location.hash = '';
   view.value = 'game';
 }

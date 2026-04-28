@@ -34,9 +34,7 @@ watch(keywordCount, async () => {
   <div class="mx-auto max-w-[720px]">
     <div class="glass mb-5 rounded-[14px] p-[22px]">
       <div class="mb-3.5 flex items-center justify-between">
-        <h3 class="m-0 text-base font-extrabold text-primary">
-          🏆 Organization Leaderboard
-        </h3>
+        <h3 class="m-0 text-base font-extrabold text-primary">🏆 Organization Leaderboard</h3>
       </div>
       <LeaderboardTable />
     </div>
@@ -59,7 +57,9 @@ watch(keywordCount, async () => {
         >
           <div>
             <div class="font-mono text-label-md font-semibold text-tertiary">{{ k.code }}</div>
-            <div class="text-label-sm text-on-surface-variant">{{ k.lineId }} · Pack {{ String(k.packId).padStart(3, '0') }}</div>
+            <div class="text-label-sm text-on-surface-variant">
+              {{ k.lineId }} · Pack {{ String(k.packId).padStart(3, '0') }}
+            </div>
           </div>
           <div class="text-label-sm text-on-surface-variant">{{ fmt(k.ts) }}</div>
         </div>

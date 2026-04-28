@@ -54,14 +54,20 @@ describe('TileModal', () => {
   it('shows the errors returned by the verifier', async () => {
     const w = mount(TileModal, { props: { tileIndex: 0 } });
     await w.find('textarea').setValue('bad proof');
-    await w.findAll('button').find((b) => b.text().includes('Verify')).trigger('click');
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Verify'))
+      .trigger('click');
     expect(w.text()).toContain('invalid proof');
   });
 
   it('on valid proof: emits close, marks cleared, and shows toast', async () => {
     const w = mount(TileModal, { props: { tileIndex: 0 } });
     await w.find('textarea').setValue('PASS this proof');
-    await w.findAll('button').find((b) => b.text().includes('Verify')).trigger('click');
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Verify'))
+      .trigger('click');
     expect(w.emitted('close')).toBeTruthy();
     const { state } = useBingoGame();
     expect(state.cleared[0]).toBe(true);
@@ -75,7 +81,10 @@ describe('TileModal', () => {
     state.cleared[1] = true;
     const w = mount(TileModal, { props: { tileIndex: 2 } });
     await w.find('textarea').setValue('PASS third tile');
-    await w.findAll('button').find((b) => b.text().includes('Verify')).trigger('click');
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Verify'))
+      .trigger('click');
     const wonEvents = w.emitted('won');
     expect(wonEvents).toBeTruthy();
     expect(wonEvents[0][0].line.id).toBe('R1');
@@ -92,7 +101,10 @@ describe('TileModal', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
     const w = mount(TileModal, { props: { tileIndex: 0 } });
-    await w.findAll('button').find((b) => b.text().includes('Copy Prompt')).trigger('click');
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Copy Prompt'))
+      .trigger('click');
     expect(writeText).toHaveBeenCalled();
     // The concrete marker replaces the placeholder.
     const arg = writeText.mock.calls[0][0];
@@ -102,7 +114,10 @@ describe('TileModal', () => {
   it('Open Copilot Chat calls window.open', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     const w = mount(TileModal, { props: { tileIndex: 0 } });
-    await w.findAll('button').find((b) => b.text().includes('Open Copilot')).trigger('click');
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Open Copilot'))
+      .trigger('click');
     expect(openSpy).toHaveBeenCalled();
     openSpy.mockRestore();
   });

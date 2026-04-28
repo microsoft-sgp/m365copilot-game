@@ -81,7 +81,9 @@ describe('clearAllGameData', () => {
 describe('failure tolerance', () => {
   it('saveJson swallows errors thrown by setItem', () => {
     const original = Storage.prototype.setItem;
-    Storage.prototype.setItem = () => { throw new Error('quota'); };
+    Storage.prototype.setItem = () => {
+      throw new Error('quota');
+    };
     try {
       expect(() => saveJson('k', { a: 1 })).not.toThrow();
       expect(() => saveString('k', 'v')).not.toThrow();
@@ -92,7 +94,9 @@ describe('failure tolerance', () => {
 
   it('loadString returns empty string when getItem throws', () => {
     const original = Storage.prototype.getItem;
-    Storage.prototype.getItem = () => { throw new Error('boom'); };
+    Storage.prototype.getItem = () => {
+      throw new Error('boom');
+    };
     try {
       expect(loadString('k')).toBe('');
     } finally {

@@ -87,6 +87,95 @@ variable "enable_pack_assignment_lifecycle" {
   default     = true
 }
 
+variable "default_campaign_id" {
+  description = "Default campaign ID used by legacy submission and cache invalidation paths."
+  type        = string
+  default     = "APR26"
+}
+
+variable "allowed_origins" {
+  description = "Additional frontend origins allowed to make credentialed requests to the Function App. The Static Web App default hostname is always included."
+  type        = list(string)
+  default     = []
+}
+
+variable "admin_access_ttl_seconds" {
+  description = "Lifetime for short-lived admin access cookies."
+  type        = number
+  default     = 900
+}
+
+variable "admin_refresh_ttl_seconds" {
+  description = "Lifetime for admin refresh cookies."
+  type        = number
+  default     = 604800
+}
+
+variable "admin_step_up_ttl_seconds" {
+  description = "Lifetime for admin-management step-up proof cookies."
+  type        = number
+  default     = 300
+}
+
+variable "cache_ttl_active_campaign_seconds" {
+  description = "Redis TTL for active campaign config cache entries."
+  type        = number
+  default     = 60
+}
+
+variable "cache_ttl_org_domains_seconds" {
+  description = "Redis TTL for organization domain map cache entries."
+  type        = number
+  default     = 300
+}
+
+variable "cache_ttl_leaderboard_seconds" {
+  description = "Redis TTL for leaderboard cache entries."
+  type        = number
+  default     = 30
+}
+
+variable "redis_sku_name" {
+  description = "Azure Cache for Redis SKU name used by the API cache layer."
+  type        = string
+  default     = "Basic"
+
+  validation {
+    condition     = contains(["Basic", "Standard", "Premium"], var.redis_sku_name)
+    error_message = "redis_sku_name must be Basic, Standard, or Premium."
+  }
+}
+
+variable "redis_family" {
+  description = "Azure Cache for Redis SKU family. Use C for Basic/Standard and P for Premium."
+  type        = string
+  default     = "C"
+}
+
+variable "redis_capacity" {
+  description = "Azure Cache for Redis capacity. Basic/Standard C0 is suitable for dev/test."
+  type        = number
+  default     = 0
+}
+
+variable "redis_version" {
+  description = "Redis engine version requested for the managed cache."
+  type        = string
+  default     = "6"
+}
+
+variable "redis_maxmemory_policy" {
+  description = "Redis eviction policy for cache-aside entries."
+  type        = string
+  default     = "allkeys-lru"
+}
+
+variable "redis_public_network_access_enabled" {
+  description = "Whether the Redis cache allows public network access. Keep false only when private networking is configured."
+  type        = bool
+  default     = true
+}
+
 variable "sql_database_name" {
   description = "Azure SQL database name."
   type        = string

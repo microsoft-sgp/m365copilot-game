@@ -53,6 +53,16 @@ output "key_vault_name" {
   value       = azurerm_key_vault.main.name
 }
 
+output "redis_cache_name" {
+  description = "Azure Redis cache name used by the Function App cache layer."
+  value       = azurerm_redis_cache.api.name
+}
+
+output "redis_hostname" {
+  description = "Azure Redis hostname. Connection secrets are stored in Key Vault and not output."
+  value       = azurerm_redis_cache.api.hostname
+}
+
 output "acs_email_sender" {
   description = "Sender address configured for admin OTP email."
   value       = local.acs_email_sender_address

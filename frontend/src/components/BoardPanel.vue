@@ -12,9 +12,7 @@ function pad(n) {
 }
 
 function newBoard() {
-  if (
-    confirm('Start a new board? Your current board progress will be cleared.')
-  ) {
+  if (confirm('Start a new board? Your current board progress will be cleared.')) {
     resetBoard();
   }
 }
@@ -27,17 +25,12 @@ function newBoard() {
 
     <div class="mb-3.5 flex items-center justify-between">
       <div>
-        <h2 class="text-gradient text-title-md font-black">
-          Pack #{{ pad(state.packId) }}
-        </h2>
+        <h2 class="text-gradient text-title-md font-black">Pack #{{ pad(state.packId) }}</h2>
         <div class="text-xs text-on-surface-variant">
-          Player: {{ state.playerName }} · Session:
-          {{ state.sessionId.slice(0, 8) }}…
+          Player: {{ state.playerName }} · Session: {{ state.sessionId.slice(0, 8) }}…
         </div>
       </div>
-      <button class="btn btn-ghost btn-sm" @click="newBoard">
-        ↩ New Board
-      </button>
+      <button class="btn btn-ghost btn-sm" @click="newBoard">↩ New Board</button>
     </div>
 
     <BingoGrid @open-tile="(i) => emit('open-tile', i)" />

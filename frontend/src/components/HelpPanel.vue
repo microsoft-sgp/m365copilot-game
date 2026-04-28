@@ -7,12 +7,10 @@ import { COPILOT_URL } from '../data/constants.js';
     <div class="glass rounded-[14px] p-6">
       <h2 class="text-gradient mb-1 text-title-lg font-black">How to Play</h2>
       <p class="mb-3.5 text-sm text-on-surface-variant">
-        Complete Copilot Chat tasks on your 3×3 board, verify your answers, and
-        earn keywords when you complete a Bingo line.
+        Complete Copilot Chat tasks on your 3×3 board, verify your answers, and earn keywords when
+        you complete a Bingo line.
       </p>
-      <ol
-        class="list-decimal pl-[18px] text-body-md leading-loose text-on-surface-variant"
-      >
+      <ol class="list-decimal pl-[18px] text-body-md leading-loose text-on-surface-variant">
         <li>Complete onboarding with your email and display name.</li>
         <li>Pick a pack (1–999) → Launch your board.</li>
         <li>Click any tile to open the task panel.</li>

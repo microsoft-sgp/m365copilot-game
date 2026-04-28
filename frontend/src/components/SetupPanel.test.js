@@ -53,7 +53,10 @@ describe('SetupPanel', () => {
 
   it('calls startBoard on valid input', async () => {
     const w = mount(SetupPanel);
-    await w.findAll('button').find((b) => b.text().includes('Launch Board')).trigger('click');
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Launch Board'))
+      .trigger('click');
     await flushPromises();
     const { state } = useBingoGame();
     expect(state.boardActive).toBe(true);
@@ -82,7 +85,10 @@ describe('SetupPanel', () => {
     });
 
     const w = mount(SetupPanel);
-    await w.findAll('button').find((b) => b.text().includes('Launch Board')).trigger('click');
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Launch Board'))
+      .trigger('click');
     await flushPromises();
 
     expect(apiCreateSession).toHaveBeenCalledWith({
@@ -118,7 +124,10 @@ describe('SetupPanel', () => {
     });
 
     const w = mount(SetupPanel);
-    await w.findAll('button').find((button) => button.text().includes('Launch Board')).trigger('click');
+    await w
+      .findAll('button')
+      .find((button) => button.text().includes('Launch Board'))
+      .trigger('click');
     await flushPromises();
 
     expect(apiCreateSession).toHaveBeenCalledWith({
@@ -149,7 +158,10 @@ describe('SetupPanel', () => {
   it('blocks launch if onboarding identity is missing', async () => {
     localStorage.removeItem('copilot_bingo_player_name');
     const w = mount(SetupPanel);
-    await w.findAll('button').find((b) => b.text().includes('Launch Board')).trigger('click');
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Launch Board'))
+      .trigger('click');
     expect(w.text()).toContain('complete onboarding identity');
     expect(useBingoGame().state.boardActive).toBe(false);
   });

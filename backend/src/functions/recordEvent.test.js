@@ -18,20 +18,19 @@ describe('POST /events (recordEvent)', () => {
   beforeEach(() => {
     vi.mocked(getPool).mockReset();
     vi.mocked(resolveOrganizationForEmail).mockReset();
-    vi.mocked(resolveOrganizationForEmail).mockResolvedValue({ orgId: null, requiresOrganization: false });
+    vi.mocked(resolveOrganizationForEmail).mockResolvedValue({
+      orgId: null,
+      requiresOrganization: false,
+    });
   });
 
   it('returns 400 when gameSessionId is null', async () => {
-    const res = await handler(
-      fakeRequest({ body: { tileIndex: 0, eventType: 'reveal' } }),
-    );
+    const res = await handler(fakeRequest({ body: { tileIndex: 0, eventType: 'reveal' } }));
     expect(res.status).toBe(400);
   });
 
   it('returns 400 when tileIndex is null', async () => {
-    const res = await handler(
-      fakeRequest({ body: { gameSessionId: 1, eventType: 'reveal' } }),
-    );
+    const res = await handler(fakeRequest({ body: { gameSessionId: 1, eventType: 'reveal' } }));
     expect(res.status).toBe(400);
   });
 
@@ -102,9 +101,7 @@ describe('POST /events (recordEvent)', () => {
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
-    await handler(
-      fakeRequest({ body: { gameSessionId: 1, tileIndex: 0, eventType: 'reveal' } }),
-    );
+    await handler(fakeRequest({ body: { gameSessionId: 1, tileIndex: 0, eventType: 'reveal' } }));
     expect(calls[1].inputs.keyword).toBeNull();
     expect(calls[1].inputs.lineId).toBeNull();
   });

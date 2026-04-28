@@ -4,10 +4,7 @@ const { toast, hide } = useToast();
 </script>
 
 <template>
-  <div
-    v-if="toast.visible"
-    class="fixed bottom-6 left-1/2 z-[500] -translate-x-1/2"
-  >
+  <div v-if="toast.visible" class="fixed bottom-6 left-1/2 z-[500] -translate-x-1/2">
     <div
       class="flex max-w-[480px] items-center gap-3 rounded-2xl border-[1.5px] border-primary bg-gradient-to-br from-primary-container to-surface-container px-[22px] py-3.5 shadow-[0_0_40px_rgba(77,208,225,0.6)]"
     >

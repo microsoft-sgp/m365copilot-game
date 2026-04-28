@@ -49,20 +49,20 @@ describe('GET /portal-api/dashboard', () => {
       ],
       [{ org: 'Contoso', score: 9 }],
       [{ id: 1, player_name: 'Ada' }],
-      [{
-        id: 2,
-        player_name: 'Grace',
-        keyword: 'CO-APR26-001-R1-AAAA1111',
-        event_type: 'line_won',
-        event_key: 'R1',
-        created_at: '2026-04-24T00:00:00.000Z',
-      }],
+      [
+        {
+          id: 2,
+          player_name: 'Grace',
+          keyword: 'CO-APR26-001-R1-AAAA1111',
+          event_type: 'line_won',
+          event_key: 'R1',
+          created_at: '2026-04-24T00:00:00.000Z',
+        },
+      ],
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
-    const res = await handler(
-      fakeRequest({ headers: { 'x-admin-key': 'secret' } }),
-    );
+    const res = await handler(fakeRequest({ headers: { 'x-admin-key': 'secret' } }));
 
     expect(res.jsonBody.summary).toEqual({
       totalPlayers: 12,
@@ -85,9 +85,7 @@ describe('GET /portal-api/dashboard', () => {
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
-    const res = await handler(
-      fakeRequest({ headers: { 'x-admin-key': 'secret' } }),
-    );
+    const res = await handler(fakeRequest({ headers: { 'x-admin-key': 'secret' } }));
     expect(res.jsonBody.summary.avgTilesCleared).toBe(0);
     expect(res.jsonBody.summary.topOrg).toBeNull();
   });

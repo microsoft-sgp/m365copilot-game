@@ -12,9 +12,7 @@ describe('PATCH /sessions/{id} (updateSession)', () => {
   });
 
   it('returns 400 when id is not a number', async () => {
-    const res = await handler(
-      fakeRequest({ params: { id: 'abc' }, body: { tilesCleared: 1 } }),
-    );
+    const res = await handler(fakeRequest({ params: { id: 'abc' }, body: { tilesCleared: 1 } }));
     expect(res.status).toBe(400);
     expect(res.jsonBody.message).toMatch(/Invalid session id/);
     expect(getPool).not.toHaveBeenCalled();
@@ -24,9 +22,7 @@ describe('PATCH /sessions/{id} (updateSession)', () => {
     const { pool } = createMockPool([{ recordset: [], rowsAffected: [0] }]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
-    const res = await handler(
-      fakeRequest({ params: { id: '999' }, body: { tilesCleared: 3 } }),
-    );
+    const res = await handler(fakeRequest({ params: { id: '999' }, body: { tilesCleared: 3 } }));
     expect(res.status).toBe(404);
     expect(res.jsonBody.ok).toBe(false);
   });

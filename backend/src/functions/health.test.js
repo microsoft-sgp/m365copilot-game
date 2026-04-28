@@ -63,8 +63,12 @@ describe('GET /api/health', () => {
     const body = JSON.stringify(res.jsonBody);
     expect(body).not.toContain(secret);
     expect(body).not.toMatch(/stack/i);
-    expect(Object.keys(res.jsonBody).sort()).toEqual(
-      ['api', 'checkedAt', 'database', 'ok', 'status'],
-    );
+    expect(Object.keys(res.jsonBody).sort()).toEqual([
+      'api',
+      'checkedAt',
+      'database',
+      'ok',
+      'status',
+    ]);
   });
 });

@@ -91,15 +91,17 @@ describe('GET /admin/export (CSV)', () => {
 
   it('renders null fields as empty strings', async () => {
     const { pool } = createMockPool([
-      [{
-        org: 'Contoso',
-        player_name: null,
-        email: null,
-        event_type: null,
-        event_key: null,
-        keyword: 'x',
-        submitted_at: null,
-      }],
+      [
+        {
+          org: 'Contoso',
+          player_name: null,
+          email: null,
+          event_type: null,
+          event_key: null,
+          keyword: 'x',
+          submitted_at: null,
+        },
+      ],
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 

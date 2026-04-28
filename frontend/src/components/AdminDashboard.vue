@@ -41,11 +41,15 @@ async function exportCsv() {
           <div class="text-label-sm text-on-surface-variant">Sessions</div>
         </div>
         <div class="glass rounded-xl p-4 text-center">
-          <div class="text-2xl font-black text-tertiary">{{ dashboard.summary.totalSubmissions }}</div>
+          <div class="text-2xl font-black text-tertiary">
+            {{ dashboard.summary.totalSubmissions }}
+          </div>
           <div class="text-label-sm text-on-surface-variant">Score Events</div>
         </div>
         <div class="glass rounded-xl p-4 text-center">
-          <div class="text-2xl font-black text-tertiary">{{ dashboard.summary.avgTilesCleared }}</div>
+          <div class="text-2xl font-black text-tertiary">
+            {{ dashboard.summary.avgTilesCleared }}
+          </div>
           <div class="text-label-sm text-on-surface-variant">Avg Tiles</div>
         </div>
       </div>
@@ -67,7 +71,9 @@ async function exportCsv() {
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Pack</th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Tiles</th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Lines</th>
-                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Last Active</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">
+                  Last Active
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -76,7 +82,9 @@ async function exportCsv() {
                 <td class="border-b border-outline-variant px-2 py-1.5">{{ s.pack_id }}</td>
                 <td class="border-b border-outline-variant px-2 py-1.5">{{ s.tiles_cleared }}/9</td>
                 <td class="border-b border-outline-variant px-2 py-1.5">{{ s.lines_won }}</td>
-                <td class="border-b border-outline-variant px-2 py-1.5">{{ new Date(s.last_active_at).toLocaleString() }}</td>
+                <td class="border-b border-outline-variant px-2 py-1.5">
+                  {{ new Date(s.last_active_at).toLocaleString() }}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -104,9 +112,15 @@ async function exportCsv() {
               <tr v-for="s in dashboard.submissions" :key="s.id" class="hover:bg-primary/8">
                 <td class="border-b border-outline-variant px-2 py-1.5">{{ s.player_name }}</td>
                 <td class="border-b border-outline-variant px-2 py-1.5">{{ s.org }}</td>
-                <td class="border-b border-outline-variant px-2 py-1.5">{{ s.event_type || 'legacy_submission' }}</td>
-                <td class="border-b border-outline-variant px-2 py-1.5 font-mono text-label-sm">{{ s.keyword }}</td>
-                <td class="border-b border-outline-variant px-2 py-1.5">{{ new Date(s.created_at).toLocaleString() }}</td>
+                <td class="border-b border-outline-variant px-2 py-1.5">
+                  {{ s.event_type || 'legacy_submission' }}
+                </td>
+                <td class="border-b border-outline-variant px-2 py-1.5 font-mono text-label-sm">
+                  {{ s.keyword }}
+                </td>
+                <td class="border-b border-outline-variant px-2 py-1.5">
+                  {{ new Date(s.created_at).toLocaleString() }}
+                </td>
               </tr>
             </tbody>
           </table>

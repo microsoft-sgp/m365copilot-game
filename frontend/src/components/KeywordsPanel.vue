@@ -40,9 +40,7 @@ function copy(code) {
         <div class="text-label-sm text-on-surface-variant">
           Pack {{ pad(k.packId) }} · {{ k.lineId }} · {{ fmt(k.ts) }}
         </div>
-        <button class="btn btn-ghost btn-xs" @click="copy(k.code)">
-          📋
-        </button>
+        <button class="btn btn-ghost btn-xs" @click="copy(k.code)">📋</button>
       </div>
     </div>
   </div>

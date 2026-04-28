@@ -27,9 +27,7 @@ export function createMockPool(scripts = []) {
         query: vi.fn(async (sqlText) => {
           captured.query = sqlText;
           if (queue.length === 0) {
-            throw new Error(
-              `mockPool: unexpected query (no more scripted results): ${sqlText}`,
-            );
+            throw new Error(`mockPool: unexpected query (no more scripted results): ${sqlText}`);
           }
           const next = queue.shift();
           if (next instanceof Error) throw next;

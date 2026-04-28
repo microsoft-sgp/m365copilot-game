@@ -46,17 +46,13 @@ describe('POST /submissions (submitKeyword)', () => {
     });
 
     it('returns 400 for emails without @', async () => {
-      const res = await handler(
-        fakeRequest({ body: validBody({ email: 'not-an-email' }) }),
-      );
+      const res = await handler(fakeRequest({ body: validBody({ email: 'not-an-email' }) }));
       expect(res.status).toBe(400);
       expect(res.jsonBody.message).toMatch(/Invalid email/);
     });
 
     it('returns 400 for malformed keywords', async () => {
-      const res = await handler(
-        fakeRequest({ body: validBody({ keyword: 'NOT-A-KEYWORD' }) }),
-      );
+      const res = await handler(fakeRequest({ body: validBody({ keyword: 'NOT-A-KEYWORD' }) }));
       expect(res.status).toBe(400);
       expect(res.jsonBody.message).toMatch(/keyword/i);
     });
@@ -64,7 +60,7 @@ describe('POST /submissions (submitKeyword)', () => {
     it('normalizes keyword to uppercase and email to lowercase before validation', async () => {
       const { pool, calls } = createMockPool([
         [{ id: 20 }], // player upsert
-        [],           // insert submission (rowsAffected 0, but handler ignores)
+        [], // insert submission (rowsAffected 0, but handler ignores)
         [{ cnt: 0 }], // org dupe check
       ]);
       vi.mocked(getPool).mockResolvedValue(pool);
@@ -90,11 +86,7 @@ describe('POST /submissions (submitKeyword)', () => {
 
   describe('org resolution', () => {
     it('uses the shared resolver org id for submission inserts', async () => {
-      const { pool, calls } = createMockPool([
-        [{ id: 20 }],
-        [],
-        [{ cnt: 0 }],
-      ]);
+      const { pool, calls } = createMockPool([[{ id: 20 }], [], [{ cnt: 0 }]]);
       vi.mocked(getPool).mockResolvedValue(pool);
 
       await handler(fakeRequest({ body: validBody() }));
@@ -106,11 +98,7 @@ describe('POST /submissions (submitKeyword)', () => {
         orgId: 99,
         orgName: 'Mapped Contoso',
       });
-      const { pool } = createMockPool([
-        [{ id: 40 }],
-        [],
-        [{ cnt: 0 }],
-      ]);
+      const { pool } = createMockPool([[{ id: 40 }], [], [{ cnt: 0 }]]);
       vi.mocked(getPool).mockResolvedValue(pool);
 
       const res = await handler(fakeRequest({ body: validBody({ org: 'Manual Name' }) }));
@@ -132,8 +120,8 @@ describe('POST /submissions (submitKeyword)', () => {
   describe('duplicate detection', () => {
     it('returns 409 when the same player submits the same keyword (2627)', async () => {
       const { pool } = createMockPool([
-        [{ id: 20 }],      // player upsert
-        sqlError(2627),    // submission insert dupe
+        [{ id: 20 }], // player upsert
+        sqlError(2627), // submission insert dupe
       ]);
       vi.mocked(getPool).mockResolvedValue(pool);
 
@@ -143,10 +131,7 @@ describe('POST /submissions (submitKeyword)', () => {
     });
 
     it('also handles the alternate duplicate-key code 2601', async () => {
-      const { pool } = createMockPool([
-        [{ id: 20 }],
-        sqlError(2601),
-      ]);
+      const { pool } = createMockPool([[{ id: 20 }], sqlError(2601)]);
       vi.mocked(getPool).mockResolvedValue(pool);
 
       const res = await handler(fakeRequest({ body: validBody() }));
@@ -154,10 +139,7 @@ describe('POST /submissions (submitKeyword)', () => {
     });
 
     it('propagates non-constraint errors', async () => {
-      const { pool } = createMockPool([
-        [{ id: 20 }],
-        sqlError(9001, 'boom'),
-      ]);
+      const { pool } = createMockPool([[{ id: 20 }], sqlError(9001, 'boom')]);
       vi.mocked(getPool).mockResolvedValue(pool);
 
       await expect(handler(fakeRequest({ body: validBody() }))).rejects.toThrow(/boom/);
@@ -166,8 +148,8 @@ describe('POST /submissions (submitKeyword)', () => {
     it('flags orgDupe=true when a teammate already submitted this keyword', async () => {
       const { pool } = createMockPool([
         [{ id: 20 }],
-        [],            // insert succeeds
-        [{ cnt: 1 }],  // another player in same org already had this keyword
+        [], // insert succeeds
+        [{ cnt: 1 }], // another player in same org already had this keyword
       ]);
       vi.mocked(getPool).mockResolvedValue(pool);
 
@@ -178,11 +160,7 @@ describe('POST /submissions (submitKeyword)', () => {
     });
 
     it('flags orgDupe=false when first submission for the org', async () => {
-      const { pool } = createMockPool([
-        [{ id: 20 }],
-        [],
-        [{ cnt: 0 }],
-      ]);
+      const { pool } = createMockPool([[{ id: 20 }], [], [{ cnt: 0 }]]);
       vi.mocked(getPool).mockResolvedValue(pool);
 
       const res = await handler(fakeRequest({ body: validBody() }));

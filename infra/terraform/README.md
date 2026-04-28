@@ -9,6 +9,7 @@ This folder provisions the Azure resources needed by Copilot Chat Bingo.
 - Linux Azure Function App on a Flex Consumption plan for the Node.js API
 - Storage Account required by Azure Functions
 - Azure SQL Server and `bingo_db` database
+- Azure Redis cache for cache-aside API responses
 - Azure Communication Services and Email Communication Service with an Azure-managed sender domain
 - Key Vault for generated app secrets
 - Log Analytics workspace and Application Insights
@@ -52,6 +53,10 @@ Edit `terraform.tfvars` and replace `admin@test.com` with one or more real boots
 This deployment uses the existing `rg-m365copilot-game-dev` resource group in `koreacentral`, while app resources are deployed to `eastus2`.
 
 If you want to run SQL migrations from your workstation, add your public IP to `sql_allowed_ip_ranges`.
+
+Terraform includes the generated Static Web App hostname in the Function App CORS allow-list automatically and sets credentialed admin cookies to `Secure` and `SameSite=None` for the Static Web App to Function App cross-origin deployment. Add any production custom frontend domains to `allowed_origins` before planning.
+
+The default Redis SKU is Basic C0 for dev/test cost control. Use `redis_sku_name`, `redis_family`, and `redis_capacity` to choose Standard or Premium for production resilience requirements.
 
 ## Provision
 
@@ -128,6 +133,16 @@ curl -X POST "$(terraform -chdir=infra/terraform output -raw function_app_url)/a
 	--data '{"email":"not-an-admin@example.com"}'
 ```
 
+Confirm Redis and cookie settings are present without printing secret values:
+
+```bash
+az functionapp config appsettings list \
+	--name "$(terraform -chdir=infra/terraform output -raw function_app_name)" \
+	--resource-group "$(terraform -chdir=infra/terraform output -raw resource_group_name)" \
+	--query "[?name=='REDIS_CONNECTION_STRING' || name=='ADMIN_COOKIE_SAMESITE' || name=='ADMIN_COOKIE_SECURE' || name=='ALLOWED_ORIGINS'].{name:name,value:value}" \
+	-o table
+```
+
 Open the frontend URL:
 
 ```bash
@@ -135,6 +150,14 @@ terraform -chdir=infra/terraform output -raw static_web_app_url
 ```
 
 Open the frontend, complete onboarding with a test name and email address, and confirm the API assigns a pack and renders the 3x3 board. Admin login is available at `#/admin/login`. The initial bootstrap admin list comes from `admin_emails` in `terraform.tfvars`.
+
+To test admin cookies, open browser DevTools after OTP login and confirm the API response sets `admin_access` and `admin_refresh` cookies as `HttpOnly`, `Secure`, and `SameSite=None`. The frontend should not store JWT token strings in `sessionStorage` or `localStorage`.
+
+## Rollback Notes
+
+- Redis rollback: remove or clear the `REDIS_CONNECTION_STRING` app setting and restart the Function App. API endpoints continue to read from Azure SQL and skip cache writes.
+- Cookie/CORS rollback: keep `ADMIN_KEY` configured as the break-glass path for admin API calls. If browser login fails after a domain or CORS change, verify `ALLOWED_ORIGINS`, Function App CORS `support_credentials`, and the `ADMIN_COOKIE_SAMESITE=None`/`ADMIN_COOKIE_SECURE=true` settings before reverting application code.
+- Leaderboard rollback: set `LEADERBOARD_SOURCE=submissions`, restart the Function App, and verify the leaderboard endpoint before changing data.
 
 ## Notes
 

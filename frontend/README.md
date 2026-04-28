@@ -15,18 +15,37 @@ Vue 3 + Tailwind CSS (v4) frontend for the Copilot Chat Bingo game.
 ## Develop
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-The dev server expects the backend API at `http://localhost:7071/api` through Vite proxy configuration. Start the backend from `../backend` with `func start`, or use the root Docker Compose workflow for the full stack.
+The dev server expects the backend API at `http://localhost:7071/api` through Vite proxy configuration. Start the backend from `../backend` with `npm start`, or use the root Docker Compose workflow for the full stack.
 
 ## Build
 
 ```bash
+npm run typecheck
 npm run build
 npm run preview
 ```
+
+## Verify
+
+```bash
+npm ci
+npm run typecheck
+npm run lint
+npm run format:check
+npm test
+```
+
+Run browser smoke tests from the frontend project:
+
+```bash
+npm run e2e
+```
+
+The smoke suite starts the Vite dev server automatically and mocks API responses in Playwright, so it does not require Docker or a live backend. Use `npm run e2e:ci` for CI-style line reporting. For a full-stack manual browser pass, start the root Docker Compose stack or the backend dev server separately and exercise the same flows against the real API.
 
 ## Notes
 

@@ -23,6 +23,10 @@ rules:
     - Use Given/When/Then format for scenarios
   design:
     - Include sequence diagrams for complex flows
+  tasks:
+    - Add Vitest unit tests for new backend/frontend logic
+    - Co-locate `*.test.js` files next to the code under test
+    - Run `npm test` (Vitest) before marking a task complete
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.

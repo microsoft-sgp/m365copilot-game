@@ -9,6 +9,7 @@ export default defineConfig({
     open: false,
   },
   test: {
+    include: ['src/**/*.test.{js,ts}'],
     environment: 'jsdom',
     globals: false,
     setupFiles: ['./test/setup.js'],
@@ -16,11 +17,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text-summary', 'text', 'html'],
       include: ['src/**/*.{js,vue}'],
-      exclude: [
-        'src/main.js',
-        'src/styles/**',
-        '**/*.test.js',
-      ],
+      exclude: ['src/main.js', 'src/styles/**', '**/*.test.js'],
       // Floors enforced when running `npm run test:coverage`.
       // Raise these as gaps are closed (e.g. once the remaining admin views —
       // AdminCampaigns/Dashboard/Layout/Organizations/Players — are tested).

@@ -57,7 +57,12 @@ async function revokeSubmission(subId) {
 
     <!-- Search -->
     <div class="mb-5 flex gap-2">
-      <input v-model="query" class="field-input max-w-[300px]" placeholder="Search by email or name" @keyup.enter="search" />
+      <input
+        v-model="query"
+        class="field-input max-w-[300px]"
+        placeholder="Search by email or name"
+        @keyup.enter="search"
+      />
       <button class="btn btn-primary btn-sm" :disabled="loading" @click="search">Search</button>
     </div>
 
@@ -74,7 +79,12 @@ async function revokeSubmission(subId) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="p in players" :key="p.id" class="cursor-pointer hover:bg-primary/8" @click="selectPlayer(p)">
+            <tr
+              v-for="p in players"
+              :key="p.id"
+              class="cursor-pointer hover:bg-primary/8"
+              @click="selectPlayer(p)"
+            >
               <td class="border-b border-outline-variant px-2 py-1.5">{{ p.player_name }}</td>
               <td class="border-b border-outline-variant px-2 py-1.5">{{ p.email }}</td>
               <td class="border-b border-outline-variant px-2 py-1.5">{{ p.session_count }}</td>
@@ -93,14 +103,32 @@ async function revokeSubmission(subId) {
           <div class="text-label-md text-on-surface-variant">{{ playerDetail.player.email }}</div>
         </div>
         <div class="flex gap-2">
-          <button class="btn btn-ghost btn-xs" @click="selectedPlayer = null; playerDetail = null">← Back</button>
-          <button class="btn-danger btn-xs px-2 py-1 text-label-sm" @click="deletePlayer(playerDetail.player.id)">Delete Player</button>
+          <button
+            class="btn btn-ghost btn-xs"
+            @click="
+              selectedPlayer = null;
+              playerDetail = null;
+            "
+          >
+            ← Back
+          </button>
+          <button
+            class="btn-danger btn-xs px-2 py-1 text-label-sm"
+            @click="deletePlayer(playerDetail.player.id)"
+          >
+            Delete Player
+          </button>
         </div>
       </div>
 
       <!-- Sessions -->
       <h4 class="mb-2 text-label-lg font-bold text-primary">Game Sessions</h4>
-      <div v-if="playerDetail.sessions.length === 0" class="mb-4 text-label-md text-on-surface-variant">No sessions</div>
+      <div
+        v-if="playerDetail.sessions.length === 0"
+        class="mb-4 text-label-md text-on-surface-variant"
+      >
+        No sessions
+      </div>
       <div v-else class="mb-4 overflow-x-auto">
         <table class="w-full border-collapse text-label-md">
           <thead>
@@ -118,7 +146,9 @@ async function revokeSubmission(subId) {
               <td class="border-b border-outline-variant px-2 py-1">{{ s.tiles_cleared }}/9</td>
               <td class="border-b border-outline-variant px-2 py-1">{{ s.lines_won }}</td>
               <td class="border-b border-outline-variant px-2 py-1">{{ s.keywords_earned }}</td>
-              <td class="border-b border-outline-variant px-2 py-1">{{ new Date(s.last_active_at).toLocaleString() }}</td>
+              <td class="border-b border-outline-variant px-2 py-1">
+                {{ new Date(s.last_active_at).toLocaleString() }}
+              </td>
             </tr>
           </tbody>
         </table>
@@ -126,7 +156,12 @@ async function revokeSubmission(subId) {
 
       <!-- Submissions -->
       <h4 class="mb-2 text-label-lg font-bold text-primary">Submissions</h4>
-      <div v-if="playerDetail.submissions.length === 0" class="text-label-md text-on-surface-variant">No submissions</div>
+      <div
+        v-if="playerDetail.submissions.length === 0"
+        class="text-label-md text-on-surface-variant"
+      >
+        No submissions
+      </div>
       <div v-else class="overflow-x-auto">
         <table class="w-full border-collapse text-label-md">
           <thead>
@@ -140,10 +175,16 @@ async function revokeSubmission(subId) {
           <tbody>
             <tr v-for="s in playerDetail.submissions" :key="s.id">
               <td class="border-b border-outline-variant px-2 py-1">{{ s.org }}</td>
-              <td class="border-b border-outline-variant px-2 py-1 font-mono text-label-sm">{{ s.keyword }}</td>
-              <td class="border-b border-outline-variant px-2 py-1">{{ new Date(s.created_at).toLocaleString() }}</td>
+              <td class="border-b border-outline-variant px-2 py-1 font-mono text-label-sm">
+                {{ s.keyword }}
+              </td>
               <td class="border-b border-outline-variant px-2 py-1">
-                <button class="text-error hover:underline" @click="revokeSubmission(s.id)">Revoke</button>
+                {{ new Date(s.created_at).toLocaleString() }}
+              </td>
+              <td class="border-b border-outline-variant px-2 py-1">
+                <button class="text-error hover:underline" @click="revokeSubmission(s.id)">
+                  Revoke
+                </button>
               </td>
             </tr>
           </tbody>

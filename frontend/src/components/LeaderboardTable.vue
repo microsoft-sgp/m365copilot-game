@@ -27,10 +27,7 @@ function isPlayerOrg(org) {
 
 <template>
   <div>
-    <p
-      v-if="!leaderboard.length"
-      class="text-body-md text-on-surface-variant"
-    >
+    <p v-if="!leaderboard.length" class="text-body-md text-on-surface-variant">
       No submissions yet. Be the first! 🚀
     </p>
     <div v-else class="overflow-x-auto">
@@ -66,20 +63,14 @@ function isPlayerOrg(org) {
             class="hover:bg-primary/8"
             :class="{ 'bg-primary/10 ring-1 ring-primary/30': isPlayerOrg(r.org) }"
           >
-            <td
-              class="border-b border-outline-variant px-3 py-2.5 text-body-md text-on-surface"
-            >
+            <td class="border-b border-outline-variant px-3 py-2.5 text-body-md text-on-surface">
               <span class="rank-badge" :class="rankClass(i)">{{ i + 1 }}</span>
             </td>
-            <td
-              class="border-b border-outline-variant px-3 py-2.5 text-body-md text-on-surface"
-            >
+            <td class="border-b border-outline-variant px-3 py-2.5 text-body-md text-on-surface">
               <strong>{{ r.org }}</strong>
               <span v-if="isPlayerOrg(r.org)" class="ml-1 text-label-sm text-tertiary">★ You</span>
             </td>
-            <td
-              class="border-b border-outline-variant px-3 py-2.5 text-body-md text-on-surface"
-            >
+            <td class="border-b border-outline-variant px-3 py-2.5 text-body-md text-on-surface">
               {{ r.contributorCount }}
             </td>
             <td

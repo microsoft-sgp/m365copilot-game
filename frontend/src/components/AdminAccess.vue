@@ -18,13 +18,7 @@ const otpError = ref('');
 const otpLoading = ref(false);
 
 const currentAdminEmail = computed(() => {
-  try {
-    const token = sessionStorage.getItem('admin_token') || '';
-    const payload = JSON.parse(atob(token.split('.')[1] || ''));
-    return payload.email || '';
-  } catch {
-    return '';
-  }
+  return sessionStorage.getItem('admin_email') || '';
 });
 
 async function loadAdmins() {
@@ -87,16 +81,16 @@ async function confirmStepUp() {
     actionName,
     action.email,
   );
-  if (!verifyRes.ok || !verifyRes.data?.stepUpToken) {
+  if (!verifyRes.ok) {
     otpLoading.value = false;
     otpError.value = verifyRes.data?.message || 'Verification failed.';
     return;
   }
 
-  const stepUpToken = verifyRes.data.stepUpToken;
-  const mutateRes = action.type === 'add'
-    ? await apiAdminAddAdmin(action.email, stepUpToken)
-    : await apiAdminRemoveAdmin(action.email, stepUpToken);
+  const mutateRes =
+    action.type === 'add'
+      ? await apiAdminAddAdmin(action.email)
+      : await apiAdminRemoveAdmin(action.email);
   otpLoading.value = false;
 
   if (!mutateRes.ok) {
@@ -125,13 +119,19 @@ function cancelStepUp() {
     </div>
 
     <p class="mb-4 text-label-lg text-on-surface-variant">
-      Bootstrap admins come from Function App settings. Portal-managed admins are stored in the database.
+      Bootstrap admins come from Function App settings. Portal-managed admins are stored in the
+      database.
     </p>
 
     <div class="glass mb-5 rounded-xl p-4">
       <label class="field-label">Add Admin Email</label>
       <div class="flex flex-wrap gap-2">
-        <input v-model="newEmail" class="field-input min-w-[240px] flex-1" type="email" placeholder="admin@example.com" />
+        <input
+          v-model="newEmail"
+          class="field-input min-w-[240px] flex-1"
+          type="email"
+          placeholder="admin@example.com"
+        />
         <button class="btn btn-primary btn-sm" @click="beginAdd">Add Admin</button>
       </div>
     </div>
@@ -140,7 +140,11 @@ function cancelStepUp() {
     <div v-if="loading" class="text-on-surface-variant">Loading…</div>
 
     <div v-else class="space-y-3">
-      <div v-for="admin in admins" :key="`${admin.source}:${admin.email}`" class="glass rounded-xl p-4">
+      <div
+        v-for="admin in admins"
+        :key="`${admin.source}:${admin.email}`"
+        class="glass rounded-xl p-4"
+      >
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div class="font-semibold text-on-surface">{{ admin.email }}</div>
@@ -163,18 +167,25 @@ function cancelStepUp() {
           >
             Disable
           </button>
-          <span v-else-if="admin.source === 'bootstrap'" class="text-label-md text-on-surface-variant">
+          <span
+            v-else-if="admin.source === 'bootstrap'"
+            class="text-label-md text-on-surface-variant"
+          >
             Managed in app settings
           </span>
         </div>
       </div>
     </div>
 
-    <div v-if="pendingAction" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-5">
+    <div
+      v-if="pendingAction"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-5"
+    >
       <div class="glass w-full max-w-[420px] rounded-[14px] p-6">
         <h4 class="mb-2 text-base font-extrabold text-primary">Re-enter OTP</h4>
         <p class="mb-4 text-label-lg text-on-surface-variant">
-          Enter the code sent to {{ currentAdminEmail }} before {{ pendingAction.type === 'add' ? 'adding' : 'disabling' }} {{ pendingAction.email }}.
+          Enter the code sent to {{ currentAdminEmail }} before
+          {{ pendingAction.type === 'add' ? 'adding' : 'disabling' }} {{ pendingAction.email }}.
         </p>
         <label class="field-label">Verification Code</label>
         <input
@@ -189,7 +200,9 @@ function cancelStepUp() {
           <button class="btn btn-primary flex-1" :disabled="otpLoading" @click="confirmStepUp">
             {{ otpLoading ? 'Verifying…' : 'Confirm' }}
           </button>
-          <button class="btn btn-ghost flex-1" :disabled="otpLoading" @click="cancelStepUp">Cancel</button>
+          <button class="btn btn-ghost flex-1" :disabled="otpLoading" @click="cancelStepUp">
+            Cancel
+          </button>
         </div>
       </div>
     </div>

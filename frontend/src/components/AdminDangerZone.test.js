@@ -33,7 +33,10 @@ describe('AdminDangerZone clear campaign data', () => {
     const inputs = clearInputs(wrapper);
     await inputs[0].setValue('APR26');
     await inputs[1].setValue('NOPE');
-    await wrapper.findAll('button').find((b) => b.text() === 'Clear All Data').trigger('click');
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Clear All Data')
+      .trigger('click');
     await flushPromises();
 
     expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('CLEAR-ALL'));
@@ -46,7 +49,10 @@ describe('AdminDangerZone clear campaign data', () => {
     const inputs = clearInputs(wrapper);
     await inputs[0].setValue('APR26');
     await inputs[1].setValue('CLEAR-ALL');
-    await wrapper.findAll('button').find((b) => b.text() === 'Clear All Data').trigger('click');
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Clear All Data')
+      .trigger('click');
     await flushPromises();
 
     expect(api.apiAdminClearCampaignData).not.toHaveBeenCalled();
@@ -61,7 +67,10 @@ describe('AdminDangerZone clear campaign data', () => {
     const inputs = clearInputs(wrapper);
     await inputs[0].setValue('APR26');
     await inputs[1].setValue('CLEAR-ALL');
-    await wrapper.findAll('button').find((b) => b.text() === 'Clear All Data').trigger('click');
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Clear All Data')
+      .trigger('click');
     await flushPromises();
 
     expect(api.apiAdminClearCampaignData).toHaveBeenCalledWith('APR26');
@@ -76,7 +85,10 @@ describe('AdminDangerZone clear campaign data', () => {
     const inputs = clearInputs(wrapper);
     await inputs[0].setValue('APR26');
     await inputs[1].setValue('CLEAR-ALL');
-    await wrapper.findAll('button').find((b) => b.text() === 'Clear All Data').trigger('click');
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Clear All Data')
+      .trigger('click');
     await flushPromises();
 
     expect(alertSpy).toHaveBeenCalledWith('denied');
@@ -89,7 +101,10 @@ describe('AdminDangerZone reset leaderboard', () => {
     const inputs = clearInputs(wrapper);
     await inputs[2].setValue('APR26');
     await inputs[3].setValue('NOPE');
-    await wrapper.findAll('button').find((b) => b.text() === 'Reset Leaderboard').trigger('click');
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Reset Leaderboard')
+      .trigger('click');
     await flushPromises();
     expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('RESET-BOARD'));
     expect(api.apiAdminResetLeaderboard).not.toHaveBeenCalled();
@@ -104,7 +119,10 @@ describe('AdminDangerZone reset leaderboard', () => {
     const inputs = clearInputs(wrapper);
     await inputs[2].setValue('APR26');
     await inputs[3].setValue('RESET-BOARD');
-    await wrapper.findAll('button').find((b) => b.text() === 'Reset Leaderboard').trigger('click');
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Reset Leaderboard')
+      .trigger('click');
     await flushPromises();
     expect(api.apiAdminResetLeaderboard).toHaveBeenCalledWith('APR26');
     expect(wrapper.text()).toContain('17 submissions');

@@ -9,16 +9,12 @@ const cp = computed(() => state.challengeProfile);
 const weeks = Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1);
 const done = computed(() => cp.value?.weeksCompleted ?? 0);
 const left = computed(() => TOTAL_WEEKS - done.value);
-const progressPct = computed(() =>
-  Math.round((done.value / TOTAL_WEEKS) * 100),
-);
+const progressPct = computed(() => Math.round((done.value / TOTAL_WEEKS) * 100));
 </script>
 
 <template>
   <div v-if="cp" class="glass mb-4 rounded-[14px] px-5 py-4">
-    <h4
-      class="mb-2.5 text-xs font-bold uppercase tracking-[1px] text-primary"
-    >
+    <h4 class="mb-2.5 text-xs font-bold uppercase tracking-[1px] text-primary">
       7-Week Challenge Progress
     </h4>
     <div class="mb-2 flex gap-2">

@@ -102,9 +102,7 @@ function verify() {
         ✕
       </button>
 
-      <div
-        class="mb-1.5 text-label-sm font-bold uppercase tracking-[2px] text-primary"
-      >
+      <div class="mb-1.5 text-label-sm font-bold uppercase tracking-[2px] text-primary">
         Task {{ tileIndex + 1 }} · {{ tile?.tag }}
       </div>
       <div class="text-gradient mb-3 text-xl font-black">
@@ -119,9 +117,7 @@ function verify() {
       <div
         class="mb-3.5 rounded-xl border border-primary-container bg-gradient-to-br from-primary-container/20 to-primary/10 p-3.5"
       >
-        <h4
-          class="mb-2 text-xs font-bold uppercase tracking-[1px] text-primary"
-        >
+        <h4 class="mb-2 text-xs font-bold uppercase tracking-[1px] text-primary">
           🚀 Launch Copilot Chat
         </h4>
         <div class="flex flex-col gap-2">
@@ -136,9 +132,7 @@ function verify() {
               <button class="btn btn-primary btn-sm mt-1.5" @click="copyPrompt">
                 📋 Copy Prompt
               </button>
-              <span v-if="copied" class="ml-2 text-label-sm text-success"
-                >✓ Copied!</span
-              >
+              <span v-if="copied" class="ml-2 text-label-sm text-success">✓ Copied!</span>
             </div>
           </div>
           <div class="flex items-start gap-2.5 text-label-lg">
@@ -160,25 +154,19 @@ function verify() {
           </div>
         </div>
         <div class="hint-warn mt-2">
-          💡 Prompt copied — paste into Copilot Chat and run it, then paste
-          your output below as proof.
+          💡 Prompt copied — paste into Copilot Chat and run it, then paste your output below as
+          proof.
         </div>
       </div>
 
       <div>
-        <label class="field-label mt-3"
-          >Your Proof (paste Copilot output here)</label
-        >
+        <label class="field-label mt-3">Your Proof (paste Copilot output here)</label>
         <textarea
           v-model="proof"
           class="field-textarea"
           placeholder="Paste the full Copilot response here…"
         ></textarea>
-        <button
-          class="btn btn-primary mt-2.5 w-full"
-          :disabled="verifying"
-          @click="verify"
-        >
+        <button class="btn btn-primary mt-2.5 w-full" :disabled="verifying" @click="verify">
           {{ verifying ? '⏳ Verifying…' : '✅ Verify & Claim' }}
         </button>
         <div

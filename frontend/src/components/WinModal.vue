@@ -10,15 +10,7 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 const { show: showToast } = useToast();
 
-const colors = [
-  '#4DD0E1',
-  '#BAC6EA',
-  '#004D5A',
-  '#B2EBF2',
-  '#81C784',
-  '#FFD54F',
-  '#3A4760',
-];
+const colors = ['#4DD0E1', '#BAC6EA', '#004D5A', '#B2EBF2', '#81C784', '#FFD54F', '#3A4760'];
 const confetti = Array.from({ length: 40 }, (_, i) => ({
   left: Math.random() * 100,
   background: colors[i % colors.length],
@@ -40,9 +32,7 @@ function copyKw() {
     <div
       class="relative w-full max-w-[480px] rounded-3xl border-2 border-tertiary bg-surface-container p-9 text-center shadow-[0_0_80px_rgba(77,208,225,0.6)]"
     >
-      <div
-        class="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl"
-      >
+      <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
         <div
           v-for="(c, i) in confetti"
           :key="i"
@@ -67,16 +57,11 @@ function copyKw() {
       >
         {{ data.kw }}
       </div>
-      <button class="btn btn-ghost btn-sm mb-2.5" @click="copyKw">
-        📋 Copy Keyword
-      </button>
+      <button class="btn btn-ghost btn-sm mb-2.5" @click="copyKw">📋 Copy Keyword</button>
       <br />
-      <button class="btn btn-primary btn-sm" @click="emit('close')">
-        Keep Playing →
-      </button>
+      <button class="btn btn-primary btn-sm" @click="emit('close')">Keep Playing →</button>
       <p class="mt-3 text-label-sm text-on-surface-variant">
-        ⚠️ Prototype: keyword generated client-side with session nonce. Not
-        tamper-proof.
+        ⚠️ Prototype: keyword generated client-side with session nonce. Not tamper-proof.
       </p>
     </div>
   </div>

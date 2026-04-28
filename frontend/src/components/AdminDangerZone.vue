@@ -15,7 +15,12 @@ async function doClear() {
     alert('Type CLEAR-ALL to confirm.');
     return;
   }
-  if (!confirm(`This will delete ALL sessions, events, and submissions for campaign ${clearCampaign.value}. Are you sure?`)) return;
+  if (
+    !confirm(
+      `This will delete ALL sessions, events, and submissions for campaign ${clearCampaign.value}. Are you sure?`,
+    )
+  )
+    return;
 
   const res = await apiAdminClearCampaignData(clearCampaign.value);
   if (res.ok) {
@@ -31,7 +36,10 @@ async function doReset() {
     alert('Type RESET-BOARD to confirm.');
     return;
   }
-  if (!confirm(`This will delete ALL submissions for campaign ${resetCampaign.value}. Are you sure?`)) return;
+  if (
+    !confirm(`This will delete ALL submissions for campaign ${resetCampaign.value}. Are you sure?`)
+  )
+    return;
 
   const res = await apiAdminResetLeaderboard(resetCampaign.value);
   if (res.ok) {
@@ -52,18 +60,31 @@ async function doReset() {
 
     <!-- Clear Campaign Data -->
     <div class="mb-5 rounded-[14px] border border-error/20 bg-error/5 p-5">
-      <h4 class="mb-2 text-xs font-bold uppercase tracking-[1px] text-error">Clear Campaign Data</h4>
+      <h4 class="mb-2 text-xs font-bold uppercase tracking-[1px] text-error">
+        Clear Campaign Data
+      </h4>
       <p class="mb-3 text-label-md text-on-surface-variant">
-        Deletes all sessions, tile events, and submissions for a campaign.
-        Players and organizations are preserved.
+        Deletes all sessions, tile events, and submissions for a campaign. Players and organizations
+        are preserved.
       </p>
       <div class="flex flex-wrap gap-2">
-        <input v-model="clearCampaign" class="field-input max-w-[120px]" placeholder="Campaign ID" />
-        <input v-model="clearPhrase" class="field-input max-w-[150px]" placeholder="Type CLEAR-ALL" />
-        <button class="btn-danger px-3 py-1.5 text-label-md" @click="doClear">Clear All Data</button>
+        <input
+          v-model="clearCampaign"
+          class="field-input max-w-[120px]"
+          placeholder="Campaign ID"
+        />
+        <input
+          v-model="clearPhrase"
+          class="field-input max-w-[150px]"
+          placeholder="Type CLEAR-ALL"
+        />
+        <button class="btn-danger px-3 py-1.5 text-label-md" @click="doClear">
+          Clear All Data
+        </button>
       </div>
       <div v-if="clearResult" class="mt-2 text-label-md text-success">
-        ✅ Cleared: {{ clearResult.deleted.sessions }} sessions, {{ clearResult.deleted.events }} events, {{ clearResult.deleted.submissions }} submissions
+        ✅ Cleared: {{ clearResult.deleted.sessions }} sessions,
+        {{ clearResult.deleted.events }} events, {{ clearResult.deleted.submissions }} submissions
       </div>
     </div>
 
@@ -74,9 +95,19 @@ async function doReset() {
         Deletes all submissions for a campaign. Sessions and events are preserved.
       </p>
       <div class="flex flex-wrap gap-2">
-        <input v-model="resetCampaign" class="field-input max-w-[120px]" placeholder="Campaign ID" />
-        <input v-model="resetPhrase" class="field-input max-w-[160px]" placeholder="Type RESET-BOARD" />
-        <button class="btn-danger px-3 py-1.5 text-label-md" @click="doReset">Reset Leaderboard</button>
+        <input
+          v-model="resetCampaign"
+          class="field-input max-w-[120px]"
+          placeholder="Campaign ID"
+        />
+        <input
+          v-model="resetPhrase"
+          class="field-input max-w-[160px]"
+          placeholder="Type RESET-BOARD"
+        />
+        <button class="btn-danger px-3 py-1.5 text-label-md" @click="doReset">
+          Reset Leaderboard
+        </button>
       </div>
       <div v-if="resetResult" class="mt-2 text-label-md text-success">
         ✅ Deleted: {{ resetResult.deleted.submissions }} submissions

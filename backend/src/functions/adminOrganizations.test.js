@@ -37,29 +37,20 @@ describe('adminOrganizations.listOrganizations', () => {
 describe('adminOrganizations.createOrganization', () => {
   it('rejects missing name', async () => {
     mockPool = createMockPool([]);
-    const res = await createOrganization(
-      fakeRequest({ body: { name: '   ' }, headers }),
-      {},
-    );
+    const res = await createOrganization(fakeRequest({ body: { name: '   ' }, headers }), {});
     expect(res.status).toBe(400);
   });
 
   it('inserts trimmed name and returns new id', async () => {
     mockPool = createMockPool([[{ id: 42 }]]);
-    const res = await createOrganization(
-      fakeRequest({ body: { name: '  NewOrg ' }, headers }),
-      {},
-    );
+    const res = await createOrganization(fakeRequest({ body: { name: '  NewOrg ' }, headers }), {});
     expect(res.jsonBody).toEqual({ ok: true, id: 42 });
     expect(mockPool.calls[0].inputs.name).toBe('NewOrg');
   });
 
   it('returns 409 on duplicate', async () => {
     mockPool = createMockPool([sqlError(2627)]);
-    const res = await createOrganization(
-      fakeRequest({ body: { name: 'Dup' }, headers }),
-      {},
-    );
+    const res = await createOrganization(fakeRequest({ body: { name: 'Dup' }, headers }), {});
     expect(res.status).toBe(409);
   });
 });
@@ -107,10 +98,7 @@ describe('adminOrganizations.updateOrganization', () => {
 describe('adminOrganizations.deleteOrganization', () => {
   it('rejects deletion when submissions exist', async () => {
     mockPool = createMockPool([[{ cnt: 3 }]]);
-    const res = await deleteOrganization(
-      fakeRequest({ params: { id: '7' }, headers }),
-      {},
-    );
+    const res = await deleteOrganization(fakeRequest({ params: { id: '7' }, headers }), {});
     expect(res.status).toBe(409);
   });
 
@@ -120,10 +108,7 @@ describe('adminOrganizations.deleteOrganization', () => {
       { recordset: [], rowsAffected: [2] },
       { recordset: [], rowsAffected: [1] },
     ]);
-    const res = await deleteOrganization(
-      fakeRequest({ params: { id: '7' }, headers }),
-      {},
-    );
+    const res = await deleteOrganization(fakeRequest({ params: { id: '7' }, headers }), {});
     expect(res.jsonBody.ok).toBe(true);
     expect(mockPool.calls[1].query).toContain('DELETE FROM org_domains');
     expect(mockPool.calls[2].query).toContain('DELETE FROM organizations');
@@ -142,10 +127,7 @@ describe('adminOrganizations.addDomain', () => {
 
   it('rejects missing domain', async () => {
     mockPool = createMockPool([]);
-    const res = await addDomain(
-      fakeRequest({ params: { id: '1' }, body: {}, headers }),
-      {},
-    );
+    const res = await addDomain(fakeRequest({ params: { id: '1' }, body: {}, headers }), {});
     expect(res.status).toBe(400);
   });
 
@@ -172,19 +154,13 @@ describe('adminOrganizations.addDomain', () => {
 describe('adminOrganizations.removeDomain', () => {
   it('rejects invalid domain id', async () => {
     mockPool = createMockPool([]);
-    const res = await removeDomain(
-      fakeRequest({ params: { domainId: 'abc' }, headers }),
-      {},
-    );
+    const res = await removeDomain(fakeRequest({ params: { domainId: 'abc' }, headers }), {});
     expect(res.status).toBe(400);
   });
 
   it('deletes the domain row', async () => {
     mockPool = createMockPool([{ recordset: [], rowsAffected: [1] }]);
-    const res = await removeDomain(
-      fakeRequest({ params: { domainId: '99' }, headers }),
-      {},
-    );
+    const res = await removeDomain(fakeRequest({ params: { domainId: '99' }, headers }), {});
     expect(res.jsonBody.ok).toBe(true);
     expect(mockPool.calls[0].inputs.id).toBe(99);
   });

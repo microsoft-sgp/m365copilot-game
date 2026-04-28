@@ -14,12 +14,7 @@ describe('AppTabs', () => {
     const w = mount(AppTabs, { props: { modelValue: 'game' } });
     const desktopNav = w.findAll('nav')[0];
     const labels = desktopNav.findAll('button').map((b) => b.text());
-    expect(labels).toEqual([
-      '🎮 Game',
-      '🔑 Keys',
-      '🧾 Activity',
-      '❓ Help',
-    ]);
+    expect(labels).toEqual(['🎮 Game', '🔑 Keys', '🧾 Activity', '❓ Help']);
   });
 
   it('marks the active tab via the "active" class (desktop)', () => {
