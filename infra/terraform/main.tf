@@ -35,7 +35,8 @@ locals {
   function_app_name      = substr("func-${local.resource_prefix}-${local.suffix}", 0, 32)
   service_plan_name      = substr("plan-${local.resource_prefix}-${local.suffix}", 0, 60)
   function_identity_name = substr("id-${local.resource_prefix}-${local.suffix}", 0, 60)
-  static_app_name        = substr("swa-${local.resource_prefix}-${local.suffix}", 0, 60)
+  frontend_web_app_name  = substr("app-${local.resource_prefix}-${local.suffix}", 0, 60)
+  frontend_plan_name     = substr("plan-fe-${local.resource_prefix}-${local.suffix}", 0, 60)
   sql_server_name        = substr("sql-${local.resource_prefix}-kc-${local.suffix}", 0, 63)
   log_workspace_name     = substr("log-${local.resource_prefix}-${local.suffix}", 0, 63)
   app_insights_name      = substr("appi-${local.resource_prefix}-${local.suffix}", 0, 63)
@@ -45,7 +46,7 @@ locals {
 
   acs_email_sender_address = "${var.acs_sender_username}@${azurerm_email_communication_service_domain.admin_otp.from_sender_domain}"
   allowed_origins = distinct(concat(
-    ["https://${azurerm_static_web_app.frontend.default_host_name}"],
+    ["https://${azurerm_linux_web_app.frontend.default_hostname}"],
     var.allowed_origins,
   ))
 
@@ -109,7 +110,7 @@ resource "azurerm_storage_account" "functions" {
   account_replication_type        = "LRS"
   min_tls_version                 = "TLS1_2"
   allow_nested_items_to_be_public = false
-  shared_access_key_enabled       = false
+  shared_access_key_enabled       = true
   tags                            = local.tags
 }
 
@@ -118,24 +119,6 @@ resource "azurerm_user_assigned_identity" "functions" {
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location
   tags                = local.tags
-}
-
-resource "azurerm_role_assignment" "function_storage_blob_data_contributor" {
-  scope                = azurerm_storage_account.functions.id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azurerm_user_assigned_identity.functions.principal_id
-}
-
-resource "azurerm_role_assignment" "function_system_storage_blob_data_contributor" {
-  scope                = azurerm_storage_account.functions.id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azurerm_function_app_flex_consumption.api.identity[0].principal_id
-}
-
-resource "azurerm_storage_container" "function_packages" {
-  name                  = "function-packages"
-  storage_account_id    = azurerm_storage_account.functions.id
-  container_access_type = "private"
 }
 
 resource "azurerm_key_vault" "main" {
@@ -296,41 +279,55 @@ resource "azurerm_service_plan" "functions" {
   tags                = local.tags
 }
 
-resource "azurerm_static_web_app" "frontend" {
-  name                          = local.static_app_name
+resource "azurerm_service_plan" "frontend" {
+  name                = local.frontend_plan_name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = var.location
+  os_type             = "Linux"
+  sku_name            = var.frontend_app_service_sku_name
+  tags                = local.tags
+}
+
+resource "azurerm_linux_web_app" "frontend" {
+  name                          = local.frontend_web_app_name
   resource_group_name           = azurerm_resource_group.main.name
   location                      = var.location
-  sku_tier                      = var.static_web_app_sku_tier
-  sku_size                      = var.static_web_app_sku_size
-  preview_environments_enabled  = true
+  service_plan_id               = azurerm_service_plan.frontend.id
+  https_only                    = true
   public_network_access_enabled = true
   tags                          = local.tags
 
-  lifecycle {
-    ignore_changes = [
-      repository_branch,
-      repository_url,
-    ]
+  app_settings = {
+    WEBSITE_NODE_DEFAULT_VERSION          = "~24"
+    SCM_DO_BUILD_DURING_DEPLOYMENT        = "false"
+    APPLICATIONINSIGHTS_CONNECTION_STRING = azurerm_application_insights.api.connection_string
+  }
+
+  site_config {
+    minimum_tls_version     = "1.2"
+    scm_minimum_tls_version = "1.2"
+    always_on               = true
+    ftps_state              = "Disabled"
+    http2_enabled           = true
+    app_command_line        = "pm2 serve /home/site/wwwroot --no-daemon --spa"
+
+    application_stack {
+      node_version = "24-lts"
+    }
   }
 }
 
-resource "azurerm_function_app_flex_consumption" "api" {
-  name                              = local.function_app_name
-  resource_group_name               = azurerm_resource_group.main.name
-  location                          = var.location
-  service_plan_id                   = azurerm_service_plan.functions.id
-  storage_container_type            = "blobContainer"
-  storage_container_endpoint        = "${azurerm_storage_account.functions.primary_blob_endpoint}${azurerm_storage_container.function_packages.name}"
-  storage_authentication_type       = "UserAssignedIdentity"
-  storage_user_assigned_identity_id = azurerm_user_assigned_identity.functions.id
-  runtime_name                      = "node"
-  runtime_version                   = "20"
-  maximum_instance_count            = var.function_maximum_instance_count
-  instance_memory_in_mb             = var.function_instance_memory_mb
-  https_only                        = true
-  public_network_access_enabled     = true
-  app_settings                      = local.app_settings
-  tags                              = local.tags
+resource "azurerm_linux_function_app" "api" {
+  name                          = local.function_app_name
+  resource_group_name           = azurerm_resource_group.main.name
+  location                      = var.location
+  service_plan_id               = azurerm_service_plan.functions.id
+  storage_account_name          = azurerm_storage_account.functions.name
+  storage_account_access_key    = azurerm_storage_account.functions.primary_access_key
+  https_only                    = true
+  public_network_access_enabled = true
+  app_settings                  = local.app_settings
+  tags                          = local.tags
 
   identity {
     type         = "SystemAssigned, UserAssigned"
@@ -341,6 +338,13 @@ resource "azurerm_function_app_flex_consumption" "api" {
     application_insights_connection_string = azurerm_application_insights.api.connection_string
     minimum_tls_version                    = "1.2"
     scm_minimum_tls_version                = "1.2"
+    pre_warmed_instance_count              = var.function_pre_warmed_instance_count
+    ftps_state                             = "Disabled"
+    http2_enabled                          = true
+
+    application_stack {
+      node_version = "24"
+    }
 
     cors {
       allowed_origins     = local.allowed_origins
@@ -353,14 +357,13 @@ resource "azurerm_function_app_flex_consumption" "api" {
     azurerm_key_vault_secret.admin_key,
     azurerm_key_vault_secret.jwt_secret,
     azurerm_key_vault_secret.redis_connection_string,
-    azurerm_role_assignment.function_storage_blob_data_contributor,
   ]
 }
 
 resource "azurerm_key_vault_access_policy" "function_secrets" {
   key_vault_id = azurerm_key_vault.main.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_function_app_flex_consumption.api.identity[0].principal_id
+  object_id    = azurerm_linux_function_app.api.identity[0].principal_id
 
   secret_permissions = [
     "Get",

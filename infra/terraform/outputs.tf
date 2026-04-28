@@ -5,27 +5,27 @@ output "resource_group_name" {
 
 output "function_app_name" {
   description = "Azure Function App name for backend deployment."
-  value       = azurerm_function_app_flex_consumption.api.name
+  value       = azurerm_linux_function_app.api.name
 }
 
 output "function_app_url" {
   description = "Backend Function App base URL."
-  value       = "https://${azurerm_function_app_flex_consumption.api.default_hostname}"
+  value       = "https://${azurerm_linux_function_app.api.default_hostname}"
 }
 
 output "api_base_url" {
   description = "Frontend VITE_API_BASE value for build/deploy."
-  value       = "https://${azurerm_function_app_flex_consumption.api.default_hostname}/api"
+  value       = "https://${azurerm_linux_function_app.api.default_hostname}/api"
 }
 
-output "static_web_app_name" {
-  description = "Azure Static Web App name for frontend deployment."
-  value       = azurerm_static_web_app.frontend.name
+output "frontend_web_app_name" {
+  description = "Linux App Service name hosting the Vue frontend."
+  value       = azurerm_linux_web_app.frontend.name
 }
 
-output "static_web_app_url" {
-  description = "Frontend Static Web App URL."
-  value       = "https://${azurerm_static_web_app.frontend.default_host_name}"
+output "frontend_web_app_url" {
+  description = "Frontend Linux App Service URL."
+  value       = "https://${azurerm_linux_web_app.frontend.default_hostname}"
 }
 
 output "sql_server_fqdn" {

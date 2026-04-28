@@ -4,13 +4,14 @@ This folder provisions the Azure resources needed by Copilot Chat Bingo.
 
 ## What It Creates
 
-- Resource group `rg-m365copilot-game-dev`
-- Azure Static Web App for the Vue frontend
-- Linux Azure Function App on a Flex Consumption plan for the Node.js API
+- Resource group `rg-m365copilot-game-dev` in `koreacentral`
+- Linux Azure App Service hosting the Vue frontend (built static assets)
+- Linux Azure Function App on a Functions Premium (Elastic Premium / EP) plan for the Node.js API
 - Storage Account required by Azure Functions
-- Azure SQL Server and `bingo_db` database
+- Azure SQL Server and `bingo_db` database (Korea Central)
 - Azure Redis cache for cache-aside API responses
 - Azure Communication Services and Email Communication Service with an Azure-managed sender domain
+  - ACS `data_location` defaults to `United States` because the service is not available in every region; this is an intentional regional exception to the Korea Central default.
 - Key Vault for generated app secrets
 - Log Analytics workspace and Application Insights
 
@@ -25,7 +26,7 @@ Before running a production or event deployment, review your organization's priv
 - Azure CLI authenticated to the subscription you set in `terraform.tfvars`
 - Terraform installed
 - Azure Functions Core Tools for backend publishing
-- Static Web Apps CLI for frontend publishing
+- Azure CLI `webapp` commands (built-in) for frontend publishing
 - Node.js dependencies in `backend/` for the migration runner
 
 On macOS, install Terraform with:
@@ -50,11 +51,11 @@ cp terraform.tfvars.example terraform.tfvars
 
 Edit `terraform.tfvars` and replace `admin@test.com` with one or more real bootstrap admin emails.
 
-This deployment uses the existing `rg-m365copilot-game-dev` resource group in `koreacentral`, while app resources are deployed to `eastus2`.
+This deployment uses the existing `rg-m365copilot-game-dev` resource group in `koreacentral`. All app resources (Function App, App Service, SQL, Redis, Storage, Key Vault, App Insights) are deployed to `koreacentral`. Azure Communication Services keeps its `data_location` outside Korea Central (default `United States`) because the service is not available in every region.
 
 If you want to run SQL migrations from your workstation, add your public IP to `sql_allowed_ip_ranges`.
 
-Terraform includes the generated Static Web App hostname in the Function App CORS allow-list automatically and sets credentialed admin cookies to `Secure` and `SameSite=None` for the Static Web App to Function App cross-origin deployment. Add any production custom frontend domains to `allowed_origins` before planning.
+Terraform includes the generated frontend App Service hostname in the Function App CORS allow-list automatically and sets credentialed admin cookies to `Secure` and `SameSite=None` for the App Service to Function App cross-origin deployment. Add any production custom frontend domains to `allowed_origins` before planning.
 
 The default Redis SKU is Basic C0 for dev/test cost control. Use `redis_sku_name`, `redis_family`, and `redis_capacity` to choose Standard or Premium for production resilience requirements.
 
@@ -80,7 +81,7 @@ npm ci
 func azure functionapp publish $(terraform -chdir=../infra/terraform output -raw function_app_name) --javascript
 ```
 
-Azure Functions Core Tools may report a post-deployment health warning for the Flex Consumption app even when the deployment pipeline succeeds. Verify the deployed app with the health endpoint below.
+Azure Functions Core Tools deploys the backend to the Premium-plan Function App. The deployment uses the standard zip deploy / run-from-package flow.
 
 ## Run SQL Migrations
 
@@ -108,19 +109,23 @@ The SQL server is configured for Microsoft Entra-only authentication to satisfy 
 
 ## Deploy Frontend
 
+The frontend is hosted on a Linux App Service running Node 20 with `pm2 serve` for SPA routing. Build locally, then publish the `dist/` folder as a zip:
+
 ```bash
 cd frontend
 npm ci
 VITE_API_BASE=$(terraform -chdir=../infra/terraform output -raw api_base_url) npm run build
 
-STATIC_WEB_APP_NAME=$(terraform -chdir=../infra/terraform output -raw static_web_app_name)
+FRONTEND_APP_NAME=$(terraform -chdir=../infra/terraform output -raw frontend_web_app_name)
 RESOURCE_GROUP_NAME=$(terraform -chdir=../infra/terraform output -raw resource_group_name)
 
-SWA_CLI_DEPLOYMENT_TOKEN="$(az staticwebapp secrets list \
-	--name "$STATIC_WEB_APP_NAME" \
+(cd dist && zip -r ../dist.zip .)
+az webapp deploy \
 	--resource-group "$RESOURCE_GROUP_NAME" \
-	--query properties.apiKey -o tsv)" \
-npx --yes @azure/static-web-apps-cli deploy dist --env production --no-use-keychain
+	--name "$FRONTEND_APP_NAME" \
+	--src-path dist.zip \
+	--type zip
+rm dist.zip
 ```
 
 ## Verify
@@ -146,7 +151,7 @@ az functionapp config appsettings list \
 Open the frontend URL:
 
 ```bash
-terraform -chdir=infra/terraform output -raw static_web_app_url
+terraform -chdir=infra/terraform output -raw frontend_web_app_url
 ```
 
 Open the frontend, complete onboarding with a test name and email address, and confirm the API assigns a pack and renders the 3x3 board. Admin login is available at `#/admin/login`. The initial bootstrap admin list comes from `admin_emails` in `terraform.tfvars`.
@@ -167,4 +172,4 @@ To test admin cookies, open browser DevTools after OTP login and confirm the API
 - Key Vault stores generated app secrets that are referenced by Function App settings. Keep production secrets and deployment tokens out of source control and public issue/PR content.
 - CSV exports and deployment logs can include personal or operational data. Handle them according to your organization's policies.
 - Storage shared-key access is disabled by policy. Terraform uses Azure AD storage operations, and the Function App deployment storage uses managed identity.
-- Azure SQL is deployed in `koreacentral` because SQL provisioning is restricted in the app region; app resources remain in `eastus2`.
+- Azure SQL is deployed in `koreacentral` alongside app resources. Azure Communication Services intentionally uses a non-Korea `data_location` (default `United States`) because the service is not available in every region.

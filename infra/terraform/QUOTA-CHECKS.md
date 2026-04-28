@@ -4,7 +4,7 @@ Live Azure policy and quota checks were not completed while generating this temp
 
 - Azure CLI authentication was unavailable or timed out for policy queries.
 - Terraform was not installed locally.
-- The deployment region was confirmed as `eastus2`, but quota usage needs an authenticated Azure CLI context.
+- The deployment region is `koreacentral` for all resources except Azure Communication Services (which keeps `data_location = "United States"` because the service is not available in every region). Quota usage needs an authenticated Azure CLI context.
 
 Before running `terraform apply`, complete these checks:
 
@@ -29,19 +29,20 @@ az graph query -q "resources | where resourceGroup =~ 'rg-m365copilot-game-dev' 
 
 Resources planned:
 
-| Resource Type                                      | Count |
-| -------------------------------------------------- | ----- |
-| `Microsoft.Resources/resourceGroups`               | 1     |
-| `Microsoft.Web/staticSites`                        | 1     |
-| `Microsoft.Web/serverfarms`                        | 1     |
-| `Microsoft.Web/sites`                              | 1     |
-| `Microsoft.Storage/storageAccounts`                | 1     |
-| `Microsoft.Sql/servers`                            | 1     |
-| `Microsoft.Sql/servers/databases`                  | 1     |
-| `Microsoft.Communication/communicationServices`    | 1     |
-| `Microsoft.Communication/emailServices`            | 1     |
-| `Microsoft.Communication/emailServices/domains`    | 1     |
-| `Microsoft.KeyVault/vaults`                        | 1     |
-| `Microsoft.ManagedIdentity/userAssignedIdentities` | 1     |
-| `Microsoft.OperationalInsights/workspaces`         | 1     |
-| `Microsoft.Insights/components`                    | 1     |
+| Resource Type                                      | Count | Notes                                                                                  |
+| -------------------------------------------------- | ----- | -------------------------------------------------------------------------------------- |
+| `Microsoft.Resources/resourceGroups`               | 1     | `rg-m365copilot-game-dev` in `koreacentral`                                            |
+| `Microsoft.Web/serverfarms`                        | 2     | Functions Premium (EP1) plan + frontend App Service plan (B1)                          |
+| `Microsoft.Web/sites` (functionapp)                | 1     | Linux Function App on the EP1 plan                                                     |
+| `Microsoft.Web/sites` (app)                        | 1     | Linux App Service hosting the Vue frontend                                             |
+| `Microsoft.Storage/storageAccounts`                | 1     | Backing storage for the Function App                                                   |
+| `Microsoft.Sql/servers`                            | 1     | Korea Central                                                                          |
+| `Microsoft.Sql/servers/databases`                  | 1     | `bingo_db`                                                                             |
+| `Microsoft.Cache/Redis`                            | 1     | Korea Central                                                                          |
+| `Microsoft.Communication/communicationServices`    | 1     | `data_location` outside Korea Central (default `United States`); regional exception    |
+| `Microsoft.Communication/emailServices`            | 1     | Same regional exception as above                                                       |
+| `Microsoft.Communication/emailServices/domains`    | 1     | Azure-managed sender domain                                                            |
+| `Microsoft.KeyVault/vaults`                        | 1     | Korea Central                                                                          |
+| `Microsoft.ManagedIdentity/userAssignedIdentities` | 1     | Used for SQL Microsoft Entra authentication                                            |
+| `Microsoft.OperationalInsights/workspaces`         | 1     | Korea Central                                                                          |
+| `Microsoft.Insights/components`                    | 1     | Application Insights (workspace-based)                                                 |

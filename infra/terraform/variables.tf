@@ -1,6 +1,7 @@
 variable "subscription_id" {
   description = "Azure subscription ID used by the AzureRM provider."
   type        = string
+  default     = "8b14080f-2d4f-4817-8b92-b0d85a6cc993"
 }
 
 variable "resource_group_name" {
@@ -10,9 +11,9 @@ variable "resource_group_name" {
 }
 
 variable "location" {
-  description = "Primary Azure region for app resources."
+  description = "Primary Azure region for app resources. Korea Central is the default. Azure Communication Services intentionally uses a different region (see communication_data_location)."
   type        = string
-  default     = "eastus2"
+  default     = "koreacentral"
 }
 
 variable "resource_group_location" {
@@ -94,7 +95,7 @@ variable "default_campaign_id" {
 }
 
 variable "allowed_origins" {
-  description = "Additional frontend origins allowed to make credentialed requests to the Function App. The Static Web App default hostname is always included."
+  description = "Additional frontend origins allowed to make credentialed requests to the Function App. The frontend App Service default hostname is always included."
   type        = list(string)
   default     = []
 }
@@ -198,33 +199,26 @@ variable "sql_allowed_ip_ranges" {
 }
 
 variable "function_plan_sku_name" {
-  description = "App Service plan SKU for the Function App. FC1 is Flex Consumption."
+  description = "App Service plan SKU for the Function App. EP1/EP2/EP3 are Functions Elastic Premium SKUs."
   type        = string
-  default     = "FC1"
+  default     = "EP1"
+
+  validation {
+    condition     = contains(["EP1", "EP2", "EP3"], var.function_plan_sku_name)
+    error_message = "function_plan_sku_name must be an Elastic Premium SKU (EP1, EP2, or EP3)."
+  }
 }
 
-variable "function_maximum_instance_count" {
-  description = "Maximum Flex Consumption instances for the Function App."
+variable "function_pre_warmed_instance_count" {
+  description = "Pre-warmed instance count for the Functions Premium plan. Keep at least 1 to mitigate cold starts."
   type        = number
-  default     = 50
+  default     = 1
 }
 
-variable "function_instance_memory_mb" {
-  description = "Memory size per Flex Consumption instance."
-  type        = number
-  default     = 2048
-}
-
-variable "static_web_app_sku_tier" {
-  description = "Static Web Apps SKU tier."
+variable "frontend_app_service_sku_name" {
+  description = "App Service plan SKU for the frontend Linux Web App that hosts the built Vue assets. B1 is suitable for dev/test."
   type        = string
-  default     = "Free"
-}
-
-variable "static_web_app_sku_size" {
-  description = "Static Web Apps SKU size."
-  type        = string
-  default     = "Free"
+  default     = "B1"
 }
 
 variable "communication_data_location" {

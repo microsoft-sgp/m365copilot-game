@@ -1,28 +1,37 @@
-subscription_id     = "<your-subscription-id>"
-resource_group_name = "rg-m365copilot-game-dev"
+subscription_id         = "8b14080f-2d4f-4817-8b92-b0d85a6cc993"
+resource_group_name     = "rg-m365copilot-game-dev"
 resource_group_location = "koreacentral"
-location            = "eastus2"
-sql_location        = "koreacentral"
-environment         = "dev"
-name_prefix         = "m365copilot-game"
-default_campaign_id = "APR26"
+location                = "koreacentral"
+sql_location            = "koreacentral"
+environment             = "dev"
+name_prefix             = "m365copilot-game"
+default_campaign_id     = "APR26"
 
 # Replace with real bootstrap admin emails before production use.
 admin_emails = [
   "admin@test.com",
 ]
 
-# Add custom frontend origins here if you use a custom domain. The generated
-# Static Web App hostname is included automatically.
+# Add custom frontend origins here if you use a custom domain. The frontend
+# App Service hostname is included automatically.
 # allowed_origins = [
 #   "https://bingo.example.com",
 # ]
 
 # Cookie/session defaults. Production cookies are emitted as Secure and
-# SameSite=None so the Static Web App can call the Function App with credentials.
+# SameSite=None so the frontend App Service can call the Function App with
+# credentials.
 # admin_access_ttl_seconds  = 900
 # admin_refresh_ttl_seconds = 604800
 # admin_step_up_ttl_seconds = 300
+
+# Functions Premium plan defaults. EP1 is the smallest Elastic Premium SKU.
+# function_plan_sku_name             = "EP1"
+# function_pre_warmed_instance_count = 1
+
+# Frontend App Service plan SKU. B1 is suitable for dev/test; use P1v3 or
+# higher for production.
+# frontend_app_service_sku_name = "B1"
 
 # Redis cache defaults. Basic C0 is suitable for dev/test; use Standard or
 # Premium for production resilience requirements.
@@ -34,6 +43,11 @@ admin_emails = [
 # cache_ttl_active_campaign_seconds = 60
 # cache_ttl_org_domains_seconds     = 300
 # cache_ttl_leaderboard_seconds     = 30
+
+# Azure Communication Services data location is intentionally NOT in
+# Korea Central (regional availability exception). United States is the
+# default; change only if your tenancy requires another region.
+# communication_data_location = "United States"
 
 # Optional: allow a workstation to run sqlcmd migrations directly.
 # sql_allowed_ip_ranges = {
