@@ -4,6 +4,11 @@ import { getPool } from '../lib/db.js';
 import { validateKeywordFormat } from '../lib/validation.js';
 import { resolveOrganizationForEmail } from '../lib/organizations.js';
 import { getDefaultCampaignId, invalidateLeaderboardCache } from '../lib/cache.js';
+import {
+  getPlayerTokenFromRequest,
+  isPlayerTokenEnforcementEnabled,
+  verifyPlayerOwnsRow,
+} from '../lib/playerAuth.js';
 import { isDuplicateSqlKeyError, readJsonObject, stringValue } from './http.js';
 
 export const handler = async (request: HttpRequest, context: InvocationContext) => {
@@ -33,6 +38,31 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
   }
 
   const pool = await getPool();
+
+  // Token enforcement: if a player row exists for this email, the request
+  // MUST present a token whose hash matches owner_token. A non-existent row
+  // is allowed to fall through (the upsert below creates one with null token,
+  // which will be claimed on the next createSession call). This keeps a fresh
+  // player able to submit on devices that haven't called createSession yet,
+  // while preventing impersonation of an established player.
+  if (isPlayerTokenEnforcementEnabled()) {
+    const lookup = await pool
+      .request()
+      .input('email', sql.NVarChar(320), email)
+      .query<{ owner_token: string | null }>(
+        'SELECT TOP 1 owner_token FROM players WHERE email = @email;',
+      );
+    const existingHash = lookup.recordset[0]?.owner_token ?? null;
+    if (existingHash) {
+      const presentedToken = getPlayerTokenFromRequest(request);
+      if (!verifyPlayerOwnsRow(presentedToken, existingHash)) {
+        return {
+          status: 401,
+          jsonBody: { ok: false, message: 'Unauthorized' },
+        };
+      }
+    }
+  }
 
   const resolvedOrganization = await resolveOrganizationForEmail(pool, {
     email,

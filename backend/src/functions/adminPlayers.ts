@@ -9,14 +9,18 @@ async function searchPlayers(request: HttpRequest, context: InvocationContext) {
   if (!auth.ok) return auth.response;
 
   const q = request.query.get('q') || '';
+  // Escape LIKE wildcards so an admin search for "100%" cannot trigger a
+  // table scan with leading wildcards or be combined with attacker-supplied
+  // metacharacters to widen the result set or pin the SQL Server CPU.
+  const escapedQ = q.replace(/[\\%_[]/g, (ch) => `\\${ch}`);
   const pool = await getPool();
 
-  const result = await pool.request().input('q', sql.NVarChar(320), `%${q}%`).query(`
+  const result = await pool.request().input('q', sql.NVarChar(320), `%${escapedQ}%`).query(`
       SELECT TOP 50 p.id, p.player_name, p.email, p.created_at,
         (SELECT COUNT(*) FROM game_sessions gs WHERE gs.player_id = p.id) AS session_count,
         (SELECT COUNT(*) FROM submissions s WHERE s.player_id = p.id) AS submission_count
       FROM players p
-      WHERE p.email LIKE @q OR p.player_name LIKE @q
+      WHERE p.email LIKE @q ESCAPE '\\' OR p.player_name LIKE @q ESCAPE '\\'
       ORDER BY p.created_at DESC;
     `);
 

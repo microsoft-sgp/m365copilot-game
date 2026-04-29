@@ -148,6 +148,50 @@ export async function cacheDelete(keys: string | string[], context?: LoggerLike)
   }
 }
 
+// Atomic INCR with TTL applied on first creation. Returns the post-increment
+// counter value, or null if Redis is unavailable. Used for OTP brute-force
+// lockout where each failed attempt needs a single, race-free counter.
+export async function cacheIncrementWithTtl(
+  key: string,
+  ttlSeconds: number,
+  context?: LoggerLike,
+): Promise<number | null> {
+  try {
+    const client = await getClient(context);
+    if (!client) return null;
+
+    const value = await client.incr(key);
+    if (value === 1) {
+      await client.expire(key, ttlSeconds);
+    }
+    return value;
+  } catch (error) {
+    logCacheEvent(context, 'redis_cache_incr_failed', { key, message: getErrorMessage(error) });
+    return null;
+  }
+}
+
+// Returns the current counter value for an OTP lockout key, or 0 when the key
+// has expired/never existed/Redis is unreachable. Used to gate verify before
+// the database lookup so an attacker cannot keep probing once locked.
+export async function cacheGetCounter(key: string, context?: LoggerLike): Promise<number> {
+  try {
+    const client = await getClient(context);
+    if (!client) return 0;
+
+    const value = await client.get(key);
+    if (!value) return 0;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch (error) {
+    logCacheEvent(context, 'redis_cache_get_counter_failed', {
+      key,
+      message: getErrorMessage(error),
+    });
+    return 0;
+  }
+}
+
 export async function cacheDeleteByPrefix(prefix: string, context?: LoggerLike): Promise<void> {
   try {
     const client = await getClient(context);

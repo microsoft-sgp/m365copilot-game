@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockPool, fakeRequest } from '../test-helpers/mockPool.js';
 
 let mockPool;
@@ -16,9 +16,20 @@ const { isPackAssignmentLifecycleEnabled, resolvePackAssignment } =
 const { handler } = await import('./getPlayerState.js');
 
 describe('GET /api/player/state', () => {
+  let prevEnforce;
+
   beforeEach(() => {
     vi.mocked(isPackAssignmentLifecycleEnabled).mockReturnValue(false);
     vi.mocked(resolvePackAssignment).mockReset();
+    // Legacy scenarios were written before token enforcement existed; dedicated
+    // enforcement tests live in getPlayerState.token.test.js.
+    prevEnforce = process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT;
+    process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT = 'false';
+  });
+
+  afterEach(() => {
+    if (prevEnforce === undefined) delete process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT;
+    else process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT = prevEnforce;
   });
 
   it('returns 400 when email is missing', async () => {

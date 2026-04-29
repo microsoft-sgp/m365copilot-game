@@ -80,6 +80,7 @@ locals {
     DEFAULT_CAMPAIGN_ID               = var.default_campaign_id
     LEADERBOARD_SOURCE                = var.leaderboard_source
     ENABLE_PACK_ASSIGNMENT_LIFECYCLE  = tostring(var.enable_pack_assignment_lifecycle)
+    ENABLE_PLAYER_TOKEN_ENFORCEMENT   = tostring(var.enable_player_token_enforcement)
   }
 }
 

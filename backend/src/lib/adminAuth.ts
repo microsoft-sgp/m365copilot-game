@@ -1,5 +1,28 @@
-import { timingSafeEqual, createHash } from 'node:crypto';
+import { timingSafeEqual, createHash, createHmac } from 'node:crypto';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
+
+// All admin tokens are signed with HS256. Pinning the algorithm in jwt.verify
+// blocks algorithm-confusion attacks (eg. RS256 -> HS256 key swap).
+const JWT_ALGORITHMS: jwt.Algorithm[] = ['HS256'];
+// Defence in depth: refuse to sign or verify with a weak secret. This catches
+// misconfigured deployments before they issue or accept short-key tokens.
+const MIN_JWT_SECRET_LENGTH = 32;
+
+function getJwtSecret(): string | null {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < MIN_JWT_SECRET_LENGTH) return null;
+  return secret;
+}
+
+function requireJwtSecret(): string {
+  const secret = getJwtSecret();
+  if (!secret) {
+    throw new Error(
+      `JWT_SECRET must be configured and at least ${MIN_JWT_SECRET_LENGTH} characters`,
+    );
+  }
+  return secret;
+}
 import {
   ADMIN_COOKIE_NAMES,
   getAdminAccessTtlSeconds,
@@ -35,6 +58,24 @@ type StepUpScope = {
   action?: string;
   targetEmail?: string;
 };
+
+function getAllowedOrigins(): string[] {
+  return (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+// Reject cookie-authenticated requests whose Origin is not in the allowlist.
+// CORS already restricts which origins receive responses, but a malicious page
+// can still trigger a credentialed POST that mutates state if no server-side
+// check exists. We enforce the same allowlist on the receive path.
+function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  const allowed = getAllowedOrigins();
+  if (allowed.length === 0) return false;
+  return allowed.includes(origin);
+}
 
 type AdminJwtPayload = JwtPayload & {
   email?: string;
@@ -90,13 +131,25 @@ function verifyJwt(request: AdminRequest): JwtVerificationResult {
     return { ok: false };
   }
 
-  const secret = process.env.JWT_SECRET;
+  // Cookie-bound auth: require an Origin header that matches the configured
+  // allowlist. Bearer tokens are server-to-server and do not need this check.
+  if (cookieToken && !isAllowedOrigin(request.headers.get('origin'))) {
+    return {
+      ok: false,
+      response: {
+        status: 403,
+        jsonBody: { ok: false, message: 'Forbidden origin' },
+      },
+    };
+  }
+
+  const secret = getJwtSecret();
   if (!secret) {
     return { ok: false };
   }
 
   try {
-    const payload = asAdminPayload(jwt.verify(token, secret));
+    const payload = asAdminPayload(jwt.verify(token, secret, { algorithms: JWT_ALGORITHMS }));
     if (payload?.role !== 'admin') {
       return {
         ok: false,
@@ -120,25 +173,27 @@ function verifyJwt(request: AdminRequest): JwtVerificationResult {
 }
 
 export function signAdminToken(email: string): string {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error('JWT_SECRET not configured');
-  return jwt.sign({ email, role: 'admin' }, secret, { expiresIn: getAdminAccessTtlSeconds() });
+  const secret = requireJwtSecret();
+  return jwt.sign({ email, role: 'admin' }, secret, {
+    expiresIn: getAdminAccessTtlSeconds(),
+    algorithm: 'HS256',
+  });
 }
 
 export function signAdminRefreshToken(email: string): string {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error('JWT_SECRET not configured');
+  const secret = requireJwtSecret();
   return jwt.sign({ email, role: 'admin-refresh' }, secret, {
     expiresIn: getAdminRefreshTtlSeconds(),
+    algorithm: 'HS256',
   });
 }
 
 export function verifyAdminRefreshToken(token: string | undefined): RefreshVerificationResult {
-  const secret = process.env.JWT_SECRET;
+  const secret = getJwtSecret();
   if (!secret || !token) return { ok: false, message: 'Unauthorized' };
 
   try {
-    const payload = asAdminPayload(jwt.verify(token, secret));
+    const payload = asAdminPayload(jwt.verify(token, secret, { algorithms: JWT_ALGORITHMS }));
     if (payload?.role !== 'admin-refresh' || !payload.email) {
       return { ok: false, message: 'Unauthorized' };
     }
@@ -149,8 +204,7 @@ export function verifyAdminRefreshToken(token: string | undefined): RefreshVerif
 }
 
 export function signAdminStepUpToken(email: string, scope: StepUpScope = {}): string {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error('JWT_SECRET not configured');
+  const secret = requireJwtSecret();
   return jwt.sign(
     {
       email,
@@ -160,7 +214,7 @@ export function signAdminStepUpToken(email: string, scope: StepUpScope = {}): st
       targetEmail: scope.targetEmail ? normalizeEmail(scope.targetEmail) : undefined,
     },
     secret,
-    { expiresIn: getAdminStepUpTtlSeconds() },
+    { expiresIn: getAdminStepUpTtlSeconds(), algorithm: 'HS256' },
   );
 }
 
@@ -169,13 +223,13 @@ export function verifyAdminStepUpToken(
   expectedEmail: string,
   expectedScope: StepUpScope = {},
 ): StepUpVerificationResult {
-  const secret = process.env.JWT_SECRET;
+  const secret = getJwtSecret();
   if (!secret || !token) {
     return { ok: false, message: 'OTP re-verification is required' };
   }
 
   try {
-    const payload = asAdminPayload(jwt.verify(token, secret));
+    const payload = asAdminPayload(jwt.verify(token, secret, { algorithms: JWT_ALGORITHMS }));
     if (
       payload?.role !== 'admin-step-up' ||
       payload.purpose !== 'admin-management' ||
@@ -196,7 +250,16 @@ export function verifyAdminStepUpToken(
   }
 }
 
+// HMAC-keyed digest of an OTP code so a leak of the admin_otps table cannot
+// be brute-forced offline against the 6-digit keyspace. Falls back to plain
+// SHA-256 if JWT_SECRET is unavailable (eg. early misconfiguration) so the
+// hash format remains stable for tests; production callers always have a
+// JWT_SECRET configured via Key Vault.
 export function hashOtp(code: string): string {
+  const secret = getJwtSecret();
+  if (secret) {
+    return createHmac('sha256', secret).update(code).digest('hex');
+  }
   return createHash('sha256').update(code).digest('hex');
 }
 

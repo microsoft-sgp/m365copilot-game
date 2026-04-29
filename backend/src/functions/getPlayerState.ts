@@ -2,6 +2,11 @@ import { app, type HttpRequest, type InvocationContext } from '@azure/functions'
 import sql from 'mssql';
 import { getPool } from '../lib/db.js';
 import { isPackAssignmentLifecycleEnabled, resolvePackAssignment } from '../lib/packAssignments.js';
+import {
+  getPlayerTokenFromRequest,
+  isPlayerTokenEnforcementEnabled,
+  verifyPlayerOwnsRow,
+} from '../lib/playerAuth.js';
 
 type SessionRecord = {
   id: number;
@@ -45,7 +50,7 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
   const playerResult = await pool
     .request()
     .input('email', sql.NVarChar(320), email.trim().toLowerCase()).query(`
-      SELECT p.id, p.player_name, p.session_id, p.org_id, o.name AS org_name
+      SELECT p.id, p.player_name, p.session_id, p.org_id, p.owner_token, o.name AS org_name
       FROM players p
       LEFT JOIN organizations o ON o.id = p.org_id
       WHERE p.email = @email;
@@ -58,6 +63,20 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
   }
 
   const player = playerResult.recordset[0];
+
+  // Token enforcement: if the player has claimed an owner_token, the caller
+  // MUST present a matching token. We return the same {player: null} shape
+  // as the no-record branch so this endpoint cannot be used as an existence
+  // oracle (the original H2 finding).
+  if (isPlayerTokenEnforcementEnabled() && player.owner_token) {
+    const presentedToken = getPlayerTokenFromRequest(request);
+    if (!verifyPlayerOwnsRow(presentedToken, player.owner_token)) {
+      return {
+        jsonBody: { ok: true, player: null },
+      };
+    }
+  }
+
   const lifecycleEnabled = isPackAssignmentLifecycleEnabled();
 
   if (lifecycleEnabled) {

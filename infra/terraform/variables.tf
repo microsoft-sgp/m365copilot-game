@@ -103,6 +103,12 @@ variable "enable_pack_assignment_lifecycle" {
   default     = true
 }
 
+variable "enable_player_token_enforcement" {
+  description = "Enforces opaque player session tokens on /api/sessions, /api/events, /api/submissions, /api/player/state, and /api/sessions/:id. Default false during the rollout window so the column can backfill before enforcement turns on."
+  type        = bool
+  default     = false
+}
+
 variable "default_campaign_id" {
   description = "Default campaign ID used by legacy submission and cache invalidation paths."
   type        = string

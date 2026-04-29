@@ -27,7 +27,7 @@ describe('admin admin-management endpoints', () => {
     prevEmails = process.env.ADMIN_EMAILS;
     prevSecret = process.env.JWT_SECRET;
     process.env.ADMIN_EMAILS = 'admin@test.com';
-    process.env.JWT_SECRET = 'test-secret-123';
+    process.env.JWT_SECRET = 'test-secret-32-chars-pad-pad-pad-padding';
   });
 
   afterEach(() => {

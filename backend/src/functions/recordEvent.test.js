@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockPool, fakeRequest } from '../test-helpers/mockPool.js';
 
 vi.mock('../lib/db.js', () => ({ getPool: vi.fn() }));
@@ -15,6 +15,8 @@ function sqlError(number, message = 'unique constraint violation') {
 }
 
 describe('POST /events (recordEvent)', () => {
+  let prevEnforce;
+
   beforeEach(() => {
     vi.mocked(getPool).mockReset();
     vi.mocked(resolveOrganizationForEmail).mockReset();
@@ -22,6 +24,15 @@ describe('POST /events (recordEvent)', () => {
       orgId: null,
       requiresOrganization: false,
     });
+    // Legacy scenarios were written before token enforcement existed; dedicated
+    // enforcement tests live in recordEvent.token.test.js.
+    prevEnforce = process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT;
+    process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT = 'false';
+  });
+
+  afterEach(() => {
+    if (prevEnforce === undefined) delete process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT;
+    else process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT = prevEnforce;
   });
 
   it('returns 400 when gameSessionId is null', async () => {

@@ -10,7 +10,7 @@ describe('admin session endpoints', () => {
 
   beforeEach(() => {
     prevSecret = process.env.JWT_SECRET;
-    process.env.JWT_SECRET = 'test-jwt-secret-key';
+    process.env.JWT_SECRET = 'test-jwt-secret-key-padded-to-min-32-chars';
   });
 
   afterEach(() => {

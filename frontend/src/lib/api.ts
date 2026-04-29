@@ -1,3 +1,5 @@
+import { clearPlayerToken, getPlayerToken, setPlayerToken } from './playerToken.js';
+
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 const ADMIN_API = '/portal-api';
 
@@ -11,17 +13,58 @@ export type ApiResponse<T = unknown> = {
   blob?: Blob;
 };
 
+// Optional consumer-supplied callback for re-bootstrapping the player session
+// when a game endpoint returns 401. The callback should call apiCreateSession
+// with the player's onboarding identity; api.ts will pick up the new token
+// from that call automatically. Returns true if a fresh token was obtained.
+type PlayerAuthRefresher = () => Promise<boolean>;
+let authRefresher: PlayerAuthRefresher | null = null;
+let refreshInFlight: Promise<boolean> | null = null;
+
+export function installPlayerAuthRefresher(fn: PlayerAuthRefresher | null): void {
+  authRefresher = fn;
+}
+
+async function refreshPlayerToken(): Promise<boolean> {
+  if (!authRefresher) return false;
+  // Coalesce concurrent refresh attempts so a burst of failed calls doesn't
+  // recreate the session N times.
+  if (!refreshInFlight) {
+    refreshInFlight = Promise.resolve()
+      .then(() => (authRefresher ? authRefresher() : Promise.resolve(false)))
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+  return refreshInFlight;
+}
+
+function buildHeaders(extra?: HeadersInit): HeadersInit {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  // Forward the player token as a header in addition to relying on the
+  // HttpOnly cookie. This is the SameSite=None / Safari ITP fallback path.
+  const token = getPlayerToken();
+  if (token) headers['X-Player-Token'] = token;
+  if (extra && typeof extra === 'object' && !Array.isArray(extra)) {
+    Object.assign(headers, extra as Record<string, string>);
+  }
+  return headers;
+}
+
 async function request<T = unknown>(
   method: HttpMethod,
   path: string,
   body?: RequestBody,
-  init: Pick<RequestInit, 'credentials'> = {},
+  init: Pick<RequestInit, 'credentials' | 'headers'> = {},
 ): Promise<ApiResponse<T>> {
   try {
     const opts: RequestInit = {
       method,
-      headers: { 'Content-Type': 'application/json' },
-      ...init,
+      // Default to 'include' so the player_token cookie travels with every
+      // game-API call. Admin helpers already pass credentials: 'include' too,
+      // so this is now consistent across both surfaces.
+      credentials: init.credentials ?? 'include',
+      headers: buildHeaders(init.headers),
     };
     if (body) opts.body = JSON.stringify(body);
 
@@ -33,20 +76,47 @@ async function request<T = unknown>(
   }
 }
 
+// Wrapper for game-API endpoints (PATCH /sessions/:id, POST /events,
+// POST /submissions, GET /player/state) that retries exactly once after
+// re-bootstrapping the player session when a 401 indicates a stale token.
+// Falls back to the original 401 response if no refresher is installed or
+// the refresh did not yield a usable token.
+async function requestGame<T = unknown>(
+  method: HttpMethod,
+  path: string,
+  body?: RequestBody,
+): Promise<ApiResponse<T>> {
+  const initial = await request<T>(method, path, body);
+  if (initial.status !== 401) return initial;
+
+  clearPlayerToken();
+  const refreshed = await refreshPlayerToken();
+  if (!refreshed || !getPlayerToken()) return initial;
+
+  return request<T>(method, path, body);
+}
+
 export function apiCreateSession(payload: Record<string, unknown>) {
-  return request('POST', '/sessions', payload);
+  return request<{ playerToken?: string }>('POST', '/sessions', payload).then((res) => {
+    // Capture the issued token transparently so call sites do not need to
+    // remember to persist it. Failed calls leave the existing token alone.
+    if (res.ok && res.data && typeof res.data.playerToken === 'string') {
+      setPlayerToken(res.data.playerToken);
+    }
+    return res;
+  });
 }
 
 export function apiUpdateSession(gameSessionId: number | string, counts: Record<string, unknown>) {
-  return request('PATCH', `/sessions/${gameSessionId}`, counts);
+  return requestGame('PATCH', `/sessions/${gameSessionId}`, counts);
 }
 
 export function apiRecordEvent(event: Record<string, unknown>) {
-  return request('POST', '/events', event);
+  return requestGame('POST', '/events', event);
 }
 
 export function apiSubmitKeyword(payload: Record<string, unknown>) {
-  return request('POST', '/submissions', payload);
+  return requestGame('POST', '/submissions', payload);
 }
 
 export async function apiGetLeaderboard(campaign = 'APR26') {
@@ -54,7 +124,7 @@ export async function apiGetLeaderboard(campaign = 'APR26') {
 }
 
 export function apiGetPlayerState(email: string) {
-  return request('GET', `/player/state?email=${encodeURIComponent(email)}`);
+  return requestGame('GET', `/player/state?email=${encodeURIComponent(email)}`);
 }
 
 export function apiGetCampaignConfig() {

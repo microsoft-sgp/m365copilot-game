@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockPool, fakeRequest, sqlError } from '../test-helpers/mockPool.js';
 
 vi.mock('../lib/db.js', () => ({ getPool: vi.fn() }));
@@ -21,6 +21,8 @@ function validBody(overrides = {}) {
 }
 
 describe('POST /submissions (submitKeyword)', () => {
+  let prevEnforce;
+
   beforeEach(() => {
     vi.mocked(getPool).mockReset();
     vi.mocked(resolveOrganizationForEmail).mockReset();
@@ -29,6 +31,15 @@ describe('POST /submissions (submitKeyword)', () => {
       orgName: 'Contoso',
       requiresOrganization: false,
     });
+    // Legacy scenarios were written before token enforcement existed; dedicated
+    // enforcement tests live in submitKeyword.token.test.js.
+    prevEnforce = process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT;
+    process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT = 'false';
+  });
+
+  afterEach(() => {
+    if (prevEnforce === undefined) delete process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT;
+    else process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT = prevEnforce;
   });
 
   describe('input validation', () => {

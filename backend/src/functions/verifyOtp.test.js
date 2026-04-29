@@ -16,7 +16,7 @@ describe('POST /api/portal-api/verify-otp', () => {
     prevEmails = process.env.ADMIN_EMAILS;
     prevSecret = process.env.JWT_SECRET;
     process.env.ADMIN_EMAILS = 'admin@test.com';
-    process.env.JWT_SECRET = 'test-jwt-secret-key';
+    process.env.JWT_SECRET = 'test-jwt-secret-key-padded-to-min-32-chars';
   });
 
   afterEach(() => {

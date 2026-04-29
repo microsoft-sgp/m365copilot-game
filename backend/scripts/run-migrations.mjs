@@ -114,6 +114,7 @@ async function run() {
   await runBatch(pool, '006-admin-users.sql');
   await runBatch(pool, '007-active-pack-assignment-counts.sql');
   await runBatch(pool, '008-player-organization-attribution.sql');
+  await runBatch(pool, '009-player-owner-token.sql');
   await grantAppIdentity(pool);
 
   await pool.close();

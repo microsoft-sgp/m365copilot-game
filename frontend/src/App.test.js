@@ -5,6 +5,16 @@ vi.mock('./lib/api.js', () => ({
   apiGetPlayerState: vi.fn().mockResolvedValue({ ok: true, data: { player: null } }),
   apiAdminRefresh: vi.fn().mockResolvedValue({ ok: false, data: { message: 'Unauthorized' } }),
   apiAdminLogout: vi.fn().mockResolvedValue({ ok: true, data: { ok: true } }),
+  apiCreateSession: vi
+    .fn()
+    .mockResolvedValue({ ok: true, status: 200, data: { ok: true, gameSessionId: 1 } }),
+  installPlayerAuthRefresher: vi.fn(),
+}));
+
+vi.mock('./lib/playerToken.js', () => ({
+  clearPlayerToken: vi.fn(),
+  getPlayerToken: vi.fn().mockReturnValue(''),
+  setPlayerToken: vi.fn(),
 }));
 
 vi.mock('./composables/useBingoGame.js', () => ({

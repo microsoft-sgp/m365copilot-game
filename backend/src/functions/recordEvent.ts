@@ -3,6 +3,11 @@ import sql from 'mssql';
 import { getPool } from '../lib/db.js';
 import { resolveOrganizationForEmail } from '../lib/organizations.js';
 import { invalidateLeaderboardCache } from '../lib/cache.js';
+import {
+  getPlayerTokenFromRequest,
+  isPlayerTokenEnforcementEnabled,
+  verifyPlayerOwnsRow,
+} from '../lib/playerAuth.js';
 import { isDuplicateSqlKeyError, numberValue, readJsonObject, stringValue } from './http.js';
 
 export const handler = async (request: HttpRequest, context: InvocationContext) => {
@@ -22,7 +27,8 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
 
   const pool = await getPool();
 
-  // Verify session exists
+  // Verify session exists. Project owner_token so token enforcement runs in
+  // the same round-trip when enabled.
   const check = await pool.request().input('gameSessionId', sql.Int, gameSessionId).query(`
       SELECT TOP 1
         gs.id,
@@ -30,6 +36,7 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
         gs.campaign_id,
         p.email,
         p.org_id,
+        p.owner_token,
         o.name AS org_name
       FROM game_sessions gs
       JOIN players p ON p.id = gs.player_id
@@ -42,6 +49,17 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
       status: 400,
       jsonBody: { ok: false, message: 'Invalid session' },
     };
+  }
+
+  if (isPlayerTokenEnforcementEnabled()) {
+    const presentedToken = getPlayerTokenFromRequest(request);
+    const ownerHash = check.recordset[0]?.owner_token ?? null;
+    if (!verifyPlayerOwnsRow(presentedToken, ownerHash)) {
+      return {
+        status: 401,
+        jsonBody: { ok: false, message: 'Unauthorized' },
+      };
+    }
   }
 
   await pool

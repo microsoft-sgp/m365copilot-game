@@ -798,6 +798,48 @@ When you no longer need the deployment, delete the entire resource group to remo
 az group delete --name rg-bingo --yes --no-wait
 ```
 
+---
+
+## Operational runbook: enabling player session token enforcement
+
+The backend issues an opaque `playerToken` to every player on `POST /api/sessions`, stored as a SHA-256 hash in `players.owner_token`. When `ENABLE_PLAYER_TOKEN_ENFORCEMENT=true`, the API rejects any `PATCH /api/sessions/:id`, `POST /api/events`, `POST /api/submissions`, or `GET /api/player/state` call whose token does not match the owning player.
+
+To avoid breaking existing players whose `owner_token` has not yet been claimed, deploy in two stages:
+
+1. **Bake stage (issuance only)** — deploy the migration `009-player-owner-token.sql`, the new backend, and the new frontend with `enable_player_token_enforcement = false` (Terraform default). In this state:
+   - `POST /api/sessions` issues and stores the token.
+   - All other endpoints accept token-less calls (legacy behaviour).
+   - The frontend captures and forwards the token, so subsequent calls from up-to-date browsers already include it.
+   - Watch App Insights for `players` rows whose `owner_token` becomes non-null over the bake window. A 24-hour bake window covers most active players.
+
+2. **Flip stage (enforce)** — set the Function App app setting `ENABLE_PLAYER_TOKEN_ENFORCEMENT=true` (no redeploy needed):
+
+   ```bash
+   az functionapp config appsettings set \
+     --name <func-app-name> \
+     --resource-group <rg-name> \
+     --settings ENABLE_PLAYER_TOKEN_ENFORCEMENT=true
+   ```
+
+   Then update Terraform state by setting `enable_player_token_enforcement = true` in `terraform.tfvars` and running `terraform apply` so the change is reflected in IaC.
+
+   Monitor the 401 rate on `POST /api/events` for the next ~5 minutes. A small spike from stale tabs is expected; alert if it exceeds ~2 % of game-endpoint traffic for more than 5 minutes.
+
+3. **Rollback** — if regressions appear, set the same setting back to `false`. Issuance keeps running so the column stays populated and a future re-flip works without another bake.
+
+### Support recovery: re-claiming a player identity
+
+If a legitimate player loses their token (e.g. cleared browser storage, then opens the SPA in a different browser before their cookie returned) and sees `409 Identity in use` from `POST /api/sessions`, an admin can clear the row's token so the player can re-claim it on next visit:
+
+```sql
+UPDATE players
+SET owner_token = NULL
+WHERE email = '<player-email>';
+```
+
+The next `POST /api/sessions` from that player will atomically claim a fresh token.
+
+
 This deletes the SQL server, database, function app, storage account, and static web app — everything created in this guide. The `--no-wait` flag returns immediately; deletion happens in the background and takes a few minutes.
 
 ---

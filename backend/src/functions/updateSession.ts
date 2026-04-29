@@ -1,6 +1,11 @@
 import { app, type HttpRequest, type InvocationContext } from '@azure/functions';
 import sql from 'mssql';
 import { getPool } from '../lib/db.js';
+import {
+  getPlayerTokenFromRequest,
+  isPlayerTokenEnforcementEnabled,
+  verifyPlayerOwnsRow,
+} from '../lib/playerAuth.js';
 import { numberValue, readJsonObject } from './http.js';
 
 export const handler = async (request: HttpRequest, context: InvocationContext) => {
@@ -19,6 +24,31 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
   const { boardState } = body;
 
   const pool = await getPool();
+
+  // When enforcement is on, the request token must hash to the owning
+  // player's owner_token. We project owner_token in the same lookup so the
+  // check costs no extra round-trip; the LEFT JOIN keeps the legacy null
+  // case alive when the flag is off.
+  if (isPlayerTokenEnforcementEnabled()) {
+    const ownership = await pool
+      .request()
+      .input('id', sql.Int, id)
+      .query<{ owner_token: string | null }>(`
+        SELECT TOP 1 p.owner_token
+        FROM game_sessions gs
+        JOIN players p ON p.id = gs.player_id
+        WHERE gs.id = @id;
+      `);
+    const owner = ownership.recordset[0];
+    const presentedToken = getPlayerTokenFromRequest(request);
+    if (!owner || !verifyPlayerOwnsRow(presentedToken, owner.owner_token)) {
+      return {
+        status: 401,
+        jsonBody: { ok: false, message: 'Unauthorized' },
+      };
+    }
+  }
+
   const boardStateJson = boardState ? JSON.stringify(boardState) : null;
   const result = await pool
     .request()

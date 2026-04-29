@@ -1,9 +1,16 @@
 <script setup>
-import { computed, ref, onMounted, defineAsyncComponent } from 'vue';
+import { computed, ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { STORAGE_KEYS } from './data/constants.js';
 import { loadString, removeKey, saveString } from './lib/storage.js';
 import { isPublicEmailDomain } from './lib/emailDomains.js';
-import { apiAdminLogout, apiAdminRefresh, apiGetPlayerState } from './lib/api.js';
+import {
+  apiAdminLogout,
+  apiAdminRefresh,
+  apiCreateSession,
+  apiGetPlayerState,
+  installPlayerAuthRefresher,
+} from './lib/api.js';
+import { clearPlayerToken } from './lib/playerToken.js';
 import { useBingoGame } from './composables/useBingoGame.js';
 import TopBar from './components/TopBar.vue';
 import AppTabs from './components/AppTabs.vue';
@@ -36,9 +43,31 @@ onMounted(() => {
   void checkRoute();
   window.addEventListener('hashchange', () => void checkRoute());
 
+  // Wire the api layer's 401-recovery hook so any game endpoint that returns
+  // 401 (stale token, admin reset, etc.) silently re-bootstraps the player
+  // session before retrying. The refresher reads the latest identity from
+  // localStorage so it works after onEmailContinue updates it.
+  installPlayerAuthRefresher(async () => {
+    const email = playerEmail.value || loadString(STORAGE_KEYS.email);
+    const name = playerName.value || loadString(STORAGE_KEYS.playerName);
+    if (!email || !name) return false;
+    const sessionId = loadString(STORAGE_KEYS.state) || `recover-${Date.now()}`;
+    const res = await apiCreateSession({
+      sessionId,
+      playerName: name,
+      email,
+      organization: playerOrganization.value || loadString(STORAGE_KEYS.organization) || undefined,
+    });
+    return Boolean(res.ok);
+  });
+
   if (identityReady.value) {
     syncPlayerState(playerEmail.value);
   }
+});
+
+onUnmounted(() => {
+  installPlayerAuthRefresher(null);
 });
 
 async function syncPlayerState(email) {
@@ -106,6 +135,11 @@ async function onAdminLogout() {
   await apiAdminLogout();
   sessionStorage.removeItem('admin_authenticated');
   sessionStorage.removeItem('admin_email');
+  // Admin and player tokens are independent, but clearing the player token on
+  // admin logout is a safe default for shared devices: it forces the next
+  // game-API call to re-bootstrap a session with whatever identity the next
+  // user enters.
+  clearPlayerToken();
   window.location.hash = '';
   view.value = 'game';
 }

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockPool, fakeRequest } from '../test-helpers/mockPool.js';
 
 vi.mock('../lib/db.js', () => ({ getPool: vi.fn() }));
@@ -7,8 +7,20 @@ import { getPool } from '../lib/db.js';
 import { handler } from './updateSession.js';
 
 describe('PATCH /sessions/{id} (updateSession)', () => {
+  let prevEnforce;
+
   beforeEach(() => {
     vi.mocked(getPool).mockReset();
+    // Legacy scenarios were written before token enforcement existed; keep them
+    // exercising the pre-enforcement path here. Dedicated enforcement tests
+    // live in updateSession.token.test.js.
+    prevEnforce = process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT;
+    process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT = 'false';
+  });
+
+  afterEach(() => {
+    if (prevEnforce === undefined) delete process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT;
+    else process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT = prevEnforce;
   });
 
   it('returns 400 when id is not a number', async () => {

@@ -11,5 +11,9 @@ COPY src/ ./src/
 COPY tsconfig.json ./
 RUN npm run build && npm prune --omit=dev
 
+# Drop root for runtime. The official node image ships a UID 1000 'node' user.
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 7071
 CMD ["node", "server.js"]

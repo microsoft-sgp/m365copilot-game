@@ -12,13 +12,15 @@ import {
 } from './adminAuth.js';
 import { ADMIN_COOKIE_NAMES } from './adminCookies.js';
 
-function fakeRequest(headerValue, authHeader, cookieHeader) {
+function fakeRequest(headerValue, authHeader, cookieHeader, originHeader) {
   return {
     headers: {
       get: (name) => {
-        if (name === 'x-admin-key') return headerValue;
-        if (name === 'authorization') return authHeader || null;
-        if (name === 'cookie') return cookieHeader || null;
+        const lower = name.toLowerCase();
+        if (lower === 'x-admin-key') return headerValue;
+        if (lower === 'authorization') return authHeader || null;
+        if (lower === 'cookie') return cookieHeader || null;
+        if (lower === 'origin') return originHeader || null;
         return null;
       },
     },
@@ -110,12 +112,14 @@ describe('verifyAdminKey', () => {
 });
 
 describe('verifyAdmin (JWT + key)', () => {
-  let prevKey, prevSecret;
+  let prevKey, prevSecret, prevOrigins;
 
   beforeEach(() => {
     prevKey = process.env.ADMIN_KEY;
     prevSecret = process.env.JWT_SECRET;
-    process.env.JWT_SECRET = 'test-jwt-secret-key-1234567890';
+    prevOrigins = process.env.ALLOWED_ORIGINS;
+    process.env.JWT_SECRET = 'test-jwt-secret-key-1234567890-pad-to-32';
+    process.env.ALLOWED_ORIGINS = 'https://app.example.com';
   });
 
   afterEach(() => {
@@ -123,6 +127,8 @@ describe('verifyAdmin (JWT + key)', () => {
     else process.env.ADMIN_KEY = prevKey;
     if (prevSecret === undefined) delete process.env.JWT_SECRET;
     else process.env.JWT_SECRET = prevSecret;
+    if (prevOrigins === undefined) delete process.env.ALLOWED_ORIGINS;
+    else process.env.ALLOWED_ORIGINS = prevOrigins;
   });
 
   it('accepts valid JWT in Authorization header', () => {
@@ -133,12 +139,38 @@ describe('verifyAdmin (JWT + key)', () => {
     expect(result.email).toBe('admin@test.com');
   });
 
-  it('accepts valid JWT in access cookie', () => {
+  it('accepts valid JWT in access cookie when Origin is allowed', () => {
     const token = signAdminToken('admin@test.com');
-    const req = fakeRequest(null, null, `${ADMIN_COOKIE_NAMES.access}=${token}`);
+    const req = fakeRequest(
+      null,
+      null,
+      `${ADMIN_COOKIE_NAMES.access}=${token}`,
+      'https://app.example.com',
+    );
     const result = verifyAdmin(req);
     expect(result.ok).toBe(true);
     expect(result.email).toBe('admin@test.com');
+  });
+
+  it('rejects cookie-bound JWT when Origin is not in allowlist', () => {
+    const token = signAdminToken('admin@test.com');
+    const req = fakeRequest(
+      null,
+      null,
+      `${ADMIN_COOKIE_NAMES.access}=${token}`,
+      'https://evil.example.com',
+    );
+    const result = verifyAdmin(req);
+    expect(result.ok).toBe(false);
+    expect(result.response.status).toBe(403);
+  });
+
+  it('rejects cookie-bound JWT when Origin is missing', () => {
+    const token = signAdminToken('admin@test.com');
+    const req = fakeRequest(null, null, `${ADMIN_COOKIE_NAMES.access}=${token}`);
+    const result = verifyAdmin(req);
+    expect(result.ok).toBe(false);
+    expect(result.response.status).toBe(403);
   });
 
   it('falls back to x-admin-key when no JWT', () => {
@@ -150,7 +182,12 @@ describe('verifyAdmin (JWT + key)', () => {
 
   it('allows break-glass x-admin-key when an invalid cookie is present', () => {
     process.env.ADMIN_KEY = 'my-key';
-    const req = fakeRequest('my-key', null, `${ADMIN_COOKIE_NAMES.access}=bad-token`);
+    const req = fakeRequest(
+      'my-key',
+      null,
+      `${ADMIN_COOKIE_NAMES.access}=bad-token`,
+      'https://app.example.com',
+    );
     const result = verifyAdmin(req);
     expect(result.ok).toBe(true);
   });
@@ -175,7 +212,12 @@ describe('verifyAdmin (JWT + key)', () => {
       process.env.JWT_SECRET,
       { expiresIn: '-1s' },
     );
-    const req = fakeRequest(null, null, `${ADMIN_COOKIE_NAMES.access}=${token}`);
+    const req = fakeRequest(
+      null,
+      null,
+      `${ADMIN_COOKIE_NAMES.access}=${token}`,
+      'https://app.example.com',
+    );
     const result = verifyAdmin(req);
     expect(result.ok).toBe(false);
     expect(result.response.jsonBody.message).toBe('Token expired');
@@ -195,9 +237,13 @@ describe('verifyAdmin (JWT + key)', () => {
 
   it('rejects invalid JWT signature', async () => {
     const jwt = await import('jsonwebtoken');
-    const token = jwt.default.sign({ email: 'admin@test.com', role: 'admin' }, 'wrong-secret', {
-      expiresIn: '1h',
-    });
+    const token = jwt.default.sign(
+      { email: 'admin@test.com', role: 'admin' },
+      'this-other-secret-is-also-32-chars-long!',
+      {
+        expiresIn: '1h',
+      },
+    );
     const req = fakeRequest(null, `Bearer ${token}`);
     const result = verifyAdmin(req);
     expect(result.ok).toBe(false);
@@ -210,7 +256,7 @@ describe('signAdminToken', () => {
 
   beforeEach(() => {
     prevSecret = process.env.JWT_SECRET;
-    process.env.JWT_SECRET = 'test-secret-123';
+    process.env.JWT_SECRET = 'test-secret-32-chars-pad-pad-pad-padding';
   });
 
   afterEach(() => {
@@ -228,10 +274,26 @@ describe('signAdminToken', () => {
     delete process.env.JWT_SECRET;
     expect(() => signAdminToken('admin@test.com')).toThrow();
   });
+
+  it('throws when JWT_SECRET is shorter than the required minimum', () => {
+    process.env.JWT_SECRET = 'too-short';
+    expect(() => signAdminToken('admin@test.com')).toThrow(/at least/i);
+  });
 });
 
 describe('hashOtp', () => {
-  it('produces consistent SHA-256 hash', () => {
+  let prevSecret;
+
+  beforeEach(() => {
+    prevSecret = process.env.JWT_SECRET;
+    delete process.env.JWT_SECRET;
+  });
+  afterEach(() => {
+    if (prevSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = prevSecret;
+  });
+
+  it('produces consistent SHA-256 hash without JWT_SECRET', () => {
     const h1 = hashOtp('123456');
     const h2 = hashOtp('123456');
     expect(h1).toBe(h2);
@@ -240,6 +302,14 @@ describe('hashOtp', () => {
 
   it('produces different hashes for different codes', () => {
     expect(hashOtp('123456')).not.toBe(hashOtp('654321'));
+  });
+
+  it('produces a different (HMAC) hash when JWT_SECRET is configured', () => {
+    const plain = hashOtp('123456');
+    process.env.JWT_SECRET = 'test-secret-32-chars-pad-pad-pad-padding';
+    const keyed = hashOtp('123456');
+    expect(keyed).toHaveLength(64);
+    expect(keyed).not.toBe(plain);
   });
 });
 
@@ -299,7 +369,7 @@ describe('admin step-up token', () => {
 
   beforeEach(() => {
     prevSecret = process.env.JWT_SECRET;
-    process.env.JWT_SECRET = 'test-secret-123';
+    process.env.JWT_SECRET = 'test-secret-32-chars-pad-pad-pad-padding';
   });
 
   afterEach(() => {

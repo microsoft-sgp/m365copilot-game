@@ -46,7 +46,13 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
     : 'org,player_name,email,event_type,event_key,keyword,submitted_at';
   const rows = result.recordset.map((r) => {
     const escapeCsv = (v: unknown) => {
-      const s = String(v ?? '');
+      let s = String(v ?? '');
+      // Neutralise spreadsheet formula injection: prefix any cell that starts
+      // with =, +, -, @, tab, or carriage return with a single quote so Excel /
+      // Sheets / Numbers treat the value as text rather than an expression.
+      if (/^[=+\-@\t\r]/.test(s)) {
+        s = `'${s}`;
+      }
       return s.includes(',') || s.includes('"') || s.includes('\n')
         ? `"${s.replace(/"/g, '""')}"`
         : s;

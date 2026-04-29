@@ -92,8 +92,9 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
     }
   }
 
-  // Generate 6-digit OTP
-  const code = String(randomInt(100000, 999999));
+  // Generate 6-digit OTP. randomInt's upper bound is exclusive, so we pass
+  // 1_000_000 to keep the full 100000-999999 inclusive range.
+  const code = String(randomInt(100000, 1_000_000));
   const codeHash = hashOtp(code);
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 

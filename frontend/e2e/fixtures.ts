@@ -5,6 +5,9 @@ export type MockApiState = {
   refreshRequests: number;
   loggedOut: boolean;
   events: unknown[];
+  // Captures the X-Player-Token header on every call after createSession so
+  // tests can assert the SPA threads the token through subsequent requests.
+  playerTokenHeaders: Array<{ method: string; path: string; token: string }>;
 };
 
 const now = new Date('2026-04-26T12:00:00.000Z').toISOString();
@@ -15,6 +18,7 @@ export async function mockApi(page: Page): Promise<MockApiState> {
     refreshRequests: 0,
     loggedOut: false,
     events: [],
+    playerTokenHeaders: [],
   };
 
   await page.route('**/api/**', async (route) => {
@@ -22,6 +26,14 @@ export async function mockApi(page: Page): Promise<MockApiState> {
     const url = new URL(request.url());
     const path = url.pathname;
     const method = request.method();
+
+    // Capture the X-Player-Token header on every game-API call (everything
+    // outside the admin portal) so tests can verify the SPA forwards the
+    // token issued by /api/sessions on subsequent calls.
+    if (!path.startsWith('/api/portal-api/')) {
+      const headerToken = request.headers()['x-player-token'] || '';
+      state.playerTokenHeaders.push({ method, path, token: headerToken });
+    }
 
     if (method === 'GET' && path === '/api/player/state') {
       return json(route, { player: null });
@@ -32,6 +44,9 @@ export async function mockApi(page: Page): Promise<MockApiState> {
         ok: true,
         gameSessionId: 101,
         packId: 1,
+        // Static fixture token so tests can assert exact equality on the
+        // X-Player-Token header forwarded with later calls.
+        playerToken: 'e2e-fixture-player-token',
         activeAssignment: {
           packId: 1,
           cycleNumber: 1,

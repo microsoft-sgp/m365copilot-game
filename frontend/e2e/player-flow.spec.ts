@@ -32,6 +32,16 @@ test('player can onboard, start an assigned pack, clear a line, and see activity
   await expect(page.locator('.tile.cleared')).toHaveCount(3);
   await expect(api.events.some((event) => event?.eventType === 'line_won')).toBeTruthy();
 
+  // After /api/sessions issues the playerToken, every subsequent game-API
+  // call MUST carry it in the X-Player-Token header (cookie-fallback path).
+  const subsequentEventCalls = api.playerTokenHeaders.filter(
+    (call) => call.path === '/api/events' && call.method === 'POST',
+  );
+  expect(subsequentEventCalls.length).toBeGreaterThan(0);
+  for (const call of subsequentEventCalls) {
+    expect(call.token).toBe('e2e-fixture-player-token');
+  }
+
   await page.reload();
   await expect(page.getByText('Pack #001')).toBeVisible();
   await expect(page.locator('.tile.cleared')).toHaveCount(3);

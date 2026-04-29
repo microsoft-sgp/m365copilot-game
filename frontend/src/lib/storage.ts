@@ -1,4 +1,5 @@
 import { STORAGE_KEYS } from '../data/constants.js';
+import { clearPlayerToken } from './playerToken.js';
 
 // Browser-storage adapters preserve the exact key names and value shapes
 // from the legacy implementation so existing players keep their progress.
@@ -51,4 +52,7 @@ export function clearAllGameData() {
   removeKey(STORAGE_KEYS.organization);
   removeKey(STORAGE_KEYS.lastPack);
   removeKey(STORAGE_KEYS.email);
+  // Clear the player session token too — the wiped identity should not be
+  // able to keep authenticating against the server.
+  clearPlayerToken();
 }
