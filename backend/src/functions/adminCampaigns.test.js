@@ -82,6 +82,91 @@ describe('adminCampaigns.createCampaign', () => {
       createCampaign(fakeRequest({ body: { id: 'X', displayName: 'X' }, headers }), {}),
     ).rejects.toThrow('boom');
   });
+
+  it('rejects javascript: copilotUrl with 400', async () => {
+    mockPool = createMockPool([]);
+    const res = await createCampaign(
+      fakeRequest({
+        body: {
+          id: 'XSS',
+          displayName: 'XSS',
+          copilotUrl: 'javascript:alert(1)',
+        },
+        headers,
+      }),
+      {},
+    );
+    expect(res.status).toBe(400);
+    expect(res.jsonBody.message).toMatch(/https:\/\//);
+    // Must not have made it to SQL.
+    expect(mockPool.calls).toHaveLength(0);
+  });
+
+  it('rejects http:// copilotUrl with 400', async () => {
+    mockPool = createMockPool([]);
+    const res = await createCampaign(
+      fakeRequest({
+        body: { id: 'INSEC', displayName: 'Insecure', copilotUrl: 'http://example.com/chat' },
+        headers,
+      }),
+      {},
+    );
+    expect(res.status).toBe(400);
+    expect(mockPool.calls).toHaveLength(0);
+  });
+
+  it('accepts a valid https:// copilotUrl', async () => {
+    mockPool = createMockPool([{ recordset: [], rowsAffected: [1] }]);
+    const res = await createCampaign(
+      fakeRequest({
+        body: { id: 'OK', displayName: 'Ok', copilotUrl: 'https://example.com/chat' },
+        headers,
+      }),
+      {},
+    );
+    expect(res.jsonBody.ok).toBe(true);
+    expect(mockPool.calls[0].inputs.copilotUrl).toBe('https://example.com/chat');
+  });
+
+  it('rejects out-of-range totalPacks with 400', async () => {
+    mockPool = createMockPool([]);
+    const res = await createCampaign(
+      fakeRequest({
+        body: { id: 'BIG', displayName: 'Big', totalPacks: 100000 },
+        headers,
+      }),
+      {},
+    );
+    expect(res.status).toBe(400);
+    expect(res.jsonBody.message).toMatch(/totalPacks/);
+    expect(mockPool.calls).toHaveLength(0);
+  });
+
+  it('rejects out-of-range totalWeeks with 400', async () => {
+    mockPool = createMockPool([]);
+    const res = await createCampaign(
+      fakeRequest({
+        body: { id: 'LONG', displayName: 'Long', totalWeeks: 999 },
+        headers,
+      }),
+      {},
+    );
+    expect(res.status).toBe(400);
+    expect(res.jsonBody.message).toMatch(/totalWeeks/);
+    expect(mockPool.calls).toHaveLength(0);
+  });
+
+  it('rejects zero or negative totalPacks with 400', async () => {
+    mockPool = createMockPool([]);
+    const res = await createCampaign(
+      fakeRequest({
+        body: { id: 'ZERO', displayName: 'Zero', totalPacks: 0 },
+        headers,
+      }),
+      {},
+    );
+    expect(res.status).toBe(400);
+  });
 });
 
 describe('adminCampaigns.updateCampaignSettings', () => {
@@ -106,6 +191,45 @@ describe('adminCampaigns.updateCampaignSettings', () => {
       {},
     );
     expect(res.status).toBe(404);
+  });
+
+  it('rejects data: copilotUrl with 400', async () => {
+    mockPool = createMockPool([]);
+    const res = await updateCampaignSettings(
+      fakeRequest({
+        params: { id: 'APR26' },
+        body: { copilotUrl: 'data:text/html,<script>alert(1)</script>' },
+        headers,
+      }),
+      {},
+    );
+    expect(res.status).toBe(400);
+    expect(res.jsonBody.message).toMatch(/https:\/\//);
+    expect(mockPool.calls).toHaveLength(0);
+  });
+
+  it('rejects out-of-range totalWeeks on update with 400', async () => {
+    mockPool = createMockPool([]);
+    const res = await updateCampaignSettings(
+      fakeRequest({
+        params: { id: 'APR26' },
+        body: { totalWeeks: 999 },
+        headers,
+      }),
+      {},
+    );
+    expect(res.status).toBe(400);
+    expect(mockPool.calls).toHaveLength(0);
+  });
+
+  it('passes null copilotUrl through when omitted so COALESCE preserves it', async () => {
+    mockPool = createMockPool([{ recordset: [], rowsAffected: [1] }]);
+    const res = await updateCampaignSettings(
+      fakeRequest({ params: { id: 'APR26' }, body: { displayName: 'Renamed' }, headers }),
+      {},
+    );
+    expect(res.jsonBody.ok).toBe(true);
+    expect(mockPool.calls[0].inputs.copilotUrl).toBeNull();
   });
 });
 

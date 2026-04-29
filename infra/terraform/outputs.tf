@@ -38,6 +38,21 @@ output "sql_database_name" {
   value       = azurerm_mssql_database.app.name
 }
 
+output "virtual_network_name" {
+  description = "Virtual network used for Function App VNet integration and SQL Private Link."
+  value       = azurerm_virtual_network.main.name
+}
+
+output "sql_private_endpoint_name" {
+  description = "Private Endpoint used by the Function App to reach Azure SQL."
+  value       = azurerm_private_endpoint.sql.name
+}
+
+output "sql_private_dns_zone_name" {
+  description = "Private DNS zone linked to the VNet for Azure SQL Private Link resolution."
+  value       = azurerm_private_dns_zone.sql.name
+}
+
 output "function_sql_identity_name" {
   description = "User-assigned managed identity name granted database access by the migration runner."
   value       = azurerm_user_assigned_identity.functions.name

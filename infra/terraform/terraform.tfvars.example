@@ -48,6 +48,11 @@ admin_emails = [
 # cache_ttl_org_domains_seconds     = 300
 # cache_ttl_leaderboard_seconds     = 30
 
+# Server-side enforcement of the per-player session token. MUST stay true in
+# production. Set to false only as an emergency rollback for the
+# player-session-auth capability.
+enable_player_token_enforcement = true
+
 # Azure Communication Services resources are globally scoped by Azure. The
 # data_location value is data residency, not the regional deployment location;
 # change only if your tenancy requires another supported ACS data location.

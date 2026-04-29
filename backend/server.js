@@ -87,6 +87,7 @@ const { handler: health } = await import('./dist/functions/health.js');
 const adminOrgs = await import('./dist/functions/adminOrganizations.js');
 const adminCampaigns = await import('./dist/functions/adminCampaigns.js');
 const adminPlayers = await import('./dist/functions/adminPlayers.js');
+const adminAdmins = await import('./dist/functions/adminAdmins.js');
 
 // Public routes
 app.get('/api/health', adapt({ handler: health }));
@@ -109,403 +110,39 @@ app.post('/api/portal-api/logout', adapt({ handler: logoutHandler }));
 app.get('/api/portal-api/dashboard', adapt({ handler: adminDashboard }));
 app.get('/api/portal-api/export', adapt({ handler: exportCsv }));
 
-// We need to extract the individual handlers from the multi-handler files
-// Since they use app.http() which is Azure Functions specific, we'll re-implement routing
-// by importing from the source directly
+// Multi-handler admin modules: register named exports through the same adapt()
+// helper used for single-handler files. This keeps dev/prod auth, validation,
+// and SQL behavior identical — the dev wrapper does not reimplement anything.
+const { listOrganizations, createOrganization, updateOrganization, deleteOrganization, addDomain, removeDomain } = adminOrgs;
+const { listCampaigns, createCampaign, updateCampaignSettings, clearCampaignData, resetLeaderboard } = adminCampaigns;
+const { searchPlayers, getPlayerDetail, deletePlayer, revokeSubmission } = adminPlayers;
+const { listAdmins, addAdmin, removeAdmin } = adminAdmins;
 
-// For multi-handler files, create inline adapters that call the right function
-async function createMultiHandlerAdapter(modulePath) {
-  const mod = await import(modulePath);
-  return mod;
-}
+// Admin organizations
+app.get('/api/portal-api/organizations', adapt({ handler: listOrganizations }));
+app.post('/api/portal-api/organizations', adapt({ handler: createOrganization }));
+app.put('/api/portal-api/organizations/:id', adapt({ handler: updateOrganization }));
+app.delete('/api/portal-api/organizations/:id', adapt({ handler: deleteOrganization }));
+app.post('/api/portal-api/organizations/:id/domains', adapt({ handler: addDomain }));
+app.delete('/api/portal-api/organizations/:id/domains/:domainId', adapt({ handler: removeDomain }));
 
-// Admin Organizations — extract handlers by re-reading the module
-// The handlers are registered via app.http() but we need direct access
-// Let's create a simple proxy approach
-async function adminOrgHandler(method, hasId, hasDomainId) {
-  const { verifyAdmin } = await import('./dist/lib/adminAuth.js');
-  const sql = (await import('mssql')).default;
+// Admin campaigns
+app.get('/api/portal-api/campaigns', adapt({ handler: listCampaigns }));
+app.post('/api/portal-api/campaigns', adapt({ handler: createCampaign }));
+app.put('/api/portal-api/campaigns/:id/settings', adapt({ handler: updateCampaignSettings }));
+app.post('/api/portal-api/campaigns/:id/clear', adapt({ handler: clearCampaignData }));
+app.post('/api/portal-api/campaigns/:id/reset-leaderboard', adapt({ handler: resetLeaderboard }));
 
-  return async (req, res) => {
-    try {
-      const fakeRequest = {
-        json: async () => req.body,
-        params: req.params,
-        query: { get: (k) => req.query[k] || null },
-        headers: { get: (k) => req.headers[k.toLowerCase()] || null },
-      };
+// Admin players + submissions
+app.get('/api/portal-api/players', adapt({ handler: searchPlayers }));
+app.get('/api/portal-api/players/:id', adapt({ handler: getPlayerDetail }));
+app.delete('/api/portal-api/players/:id', adapt({ handler: deletePlayer }));
+app.delete('/api/portal-api/submissions/:id', adapt({ handler: revokeSubmission }));
 
-      const auth = verifyAdmin(fakeRequest);
-      if (!auth.ok) return res.status(auth.response.status).json(auth.response.jsonBody);
-
-      const pool = await getPool();
-
-      if (method === 'GET' && !hasId) {
-        // List orgs
-        const result = await pool.request().query(`
-          SELECT o.id, o.name,
-            (SELECT od.id, od.domain FROM org_domains od WHERE od.org_id = o.id FOR JSON PATH) AS domains
-          FROM organizations o ORDER BY o.name;
-        `);
-        return res.json({
-          organizations: result.recordset.map((o) => ({
-            id: o.id,
-            name: o.name,
-            domains: o.domains ? JSON.parse(o.domains) : [],
-          })),
-        });
-      }
-      if (method === 'POST' && !hasId) {
-        // Create org
-        const name = (req.body.name || '').trim();
-        if (!name) return res.status(400).json({ ok: false, message: 'Name is required' });
-        try {
-          const result = await pool
-            .request()
-            .input('name', sql.NVarChar(100), name)
-            .query('INSERT INTO organizations (name) OUTPUT inserted.id VALUES (@name);');
-          return res.json({ ok: true, id: result.recordset[0].id });
-        } catch (err) {
-          if (err.number === 2627 || err.number === 2601)
-            return res.status(409).json({ ok: false, message: 'Organization already exists' });
-          throw err;
-        }
-      }
-      if (method === 'PUT' && hasId) {
-        const id = parseInt(req.params.id, 10);
-        const name = (req.body.name || '').trim();
-        if (!name) return res.status(400).json({ ok: false, message: 'Name is required' });
-        const result = await pool
-          .request()
-          .input('id', sql.Int, id)
-          .input('name', sql.NVarChar(100), name)
-          .query('UPDATE organizations SET name = @name WHERE id = @id;');
-        if (result.rowsAffected[0] === 0)
-          return res.status(404).json({ ok: false, message: 'Not found' });
-        return res.json({ ok: true });
-      }
-      if (method === 'DELETE' && hasId && !hasDomainId) {
-        const id = parseInt(req.params.id, 10);
-        const subs = await pool
-          .request()
-          .input('orgId', sql.Int, id)
-          .query('SELECT COUNT(*) AS cnt FROM submissions WHERE org_id = @orgId;');
-        if (subs.recordset[0].cnt > 0)
-          return res
-            .status(409)
-            .json({ ok: false, message: 'Cannot delete organization with existing submissions' });
-        await pool
-          .request()
-          .input('orgId', sql.Int, id)
-          .query('DELETE FROM org_domains WHERE org_id = @orgId;');
-        await pool
-          .request()
-          .input('id', sql.Int, id)
-          .query('DELETE FROM organizations WHERE id = @id;');
-        return res.json({ ok: true });
-      }
-      if (method === 'POST' && hasId) {
-        // Add domain
-        const orgId = parseInt(req.params.id, 10);
-        const domain = (req.body.domain || '').trim().toLowerCase();
-        if (!domain) return res.status(400).json({ ok: false, message: 'Domain is required' });
-        try {
-          await pool
-            .request()
-            .input('orgId', sql.Int, orgId)
-            .input('domain', sql.NVarChar(255), domain)
-            .query('INSERT INTO org_domains (org_id, domain) VALUES (@orgId, @domain);');
-          return res.json({ ok: true });
-        } catch (err) {
-          if (err.number === 2627 || err.number === 2601)
-            return res.status(409).json({ ok: false, message: 'Domain already mapped' });
-          throw err;
-        }
-      }
-      if (method === 'DELETE' && hasDomainId) {
-        const domainId = parseInt(req.params.domainId, 10);
-        await pool
-          .request()
-          .input('id', sql.Int, domainId)
-          .query('DELETE FROM org_domains WHERE id = @id;');
-        return res.json({ ok: true });
-      }
-      res.status(404).json({ ok: false, message: 'Not found' });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ ok: false, message: err.message });
-    }
-  };
-}
-
-// Admin Campaigns
-async function adminCampaignHandler(method, action) {
-  const { verifyAdmin } = await import('./dist/lib/adminAuth.js');
-  const sql = (await import('mssql')).default;
-
-  return async (req, res) => {
-    try {
-      const fakeRequest = {
-        json: async () => req.body,
-        params: req.params,
-        query: { get: (k) => req.query[k] || null },
-        headers: { get: (k) => req.headers[k.toLowerCase()] || null },
-      };
-      const auth = verifyAdmin(fakeRequest);
-      if (!auth.ok) return res.status(auth.response.status).json(auth.response.jsonBody);
-
-      const pool = await getPool();
-
-      if (method === 'GET') {
-        const result = await pool.request().query(`
-          SELECT c.id, c.display_name, c.total_packs, c.total_weeks, c.copilot_url, c.is_active, c.created_at,
-            (SELECT COUNT(DISTINCT gs.player_id) FROM game_sessions gs WHERE gs.campaign_id = c.id) AS total_players,
-            (SELECT COUNT(*) FROM game_sessions gs WHERE gs.campaign_id = c.id) AS total_sessions,
-            (SELECT COUNT(*) FROM submissions s WHERE s.campaign_id = c.id) AS total_submissions
-          FROM campaigns c ORDER BY c.created_at DESC;
-        `);
-        return res.json({
-          campaigns: result.recordset.map((c) => ({
-            id: c.id,
-            displayName: c.display_name,
-            totalPacks: c.total_packs,
-            totalWeeks: c.total_weeks,
-            copilotUrl: c.copilot_url,
-            isActive: c.is_active,
-            createdAt: c.created_at,
-            stats: {
-              totalPlayers: c.total_players,
-              totalSessions: c.total_sessions,
-              totalSubmissions: c.total_submissions,
-            },
-          })),
-        });
-      }
-      if (method === 'POST' && !action) {
-        const { id, displayName, totalPacks, totalWeeks, copilotUrl } = req.body;
-        if (!id || !displayName)
-          return res.status(400).json({ ok: false, message: 'id and displayName required' });
-        try {
-          await pool
-            .request()
-            .input('id', sql.NVarChar(20), id)
-            .input('dn', sql.NVarChar(100), displayName)
-            .input('tp', sql.Int, totalPacks || 999)
-            .input('tw', sql.Int, totalWeeks || 7)
-            .input('cu', sql.NVarChar(500), copilotUrl || 'https://m365.cloud.microsoft/chat')
-            .query(
-              `INSERT INTO campaigns (id, display_name, total_packs, total_weeks, copilot_url, is_active) VALUES (@id, @dn, @tp, @tw, @cu, 0);`,
-            );
-          return res.json({ ok: true });
-        } catch (err) {
-          if (err.number === 2627 || err.number === 2601)
-            return res.status(409).json({ ok: false, message: 'Campaign already exists' });
-          throw err;
-        }
-      }
-      if (method === 'PUT') {
-        const campaignId = req.params.id;
-        const { displayName, totalPacks, totalWeeks, copilotUrl, isActive } = req.body;
-        if (isActive)
-          await pool
-            .request()
-            .input('id', sql.NVarChar(20), campaignId)
-            .query('UPDATE campaigns SET is_active = 0 WHERE id != @id;');
-        await pool
-          .request()
-          .input('id', sql.NVarChar(20), campaignId)
-          .input('dn', sql.NVarChar(100), displayName)
-          .input('tp', sql.Int, totalPacks)
-          .input('tw', sql.Int, totalWeeks)
-          .input('cu', sql.NVarChar(500), copilotUrl)
-          .input('ia', sql.Bit, isActive ? 1 : 0)
-          .query(
-            `UPDATE campaigns SET display_name = COALESCE(@dn, display_name), total_packs = COALESCE(@tp, total_packs), total_weeks = COALESCE(@tw, total_weeks), copilot_url = COALESCE(@cu, copilot_url), is_active = @ia WHERE id = @id;`,
-          );
-        return res.json({ ok: true });
-      }
-      if (action === 'clear') {
-        const campaignId = req.params.id;
-        const events = await pool
-          .request()
-          .input('cid', sql.NVarChar(20), campaignId)
-          .query(
-            `DELETE te FROM tile_events te INNER JOIN game_sessions gs ON te.game_session_id = gs.id WHERE gs.campaign_id = @cid;`,
-          );
-        const sessions = await pool
-          .request()
-          .input('cid', sql.NVarChar(20), campaignId)
-          .query('DELETE FROM game_sessions WHERE campaign_id = @cid;');
-        const submissions = await pool
-          .request()
-          .input('cid', sql.NVarChar(20), campaignId)
-          .query('DELETE FROM submissions WHERE campaign_id = @cid;');
-        return res.json({
-          ok: true,
-          deleted: {
-            events: events.rowsAffected[0],
-            sessions: sessions.rowsAffected[0],
-            submissions: submissions.rowsAffected[0],
-          },
-        });
-      }
-      if (action === 'reset-leaderboard') {
-        const campaignId = req.params.id;
-        const result = await pool
-          .request()
-          .input('cid', sql.NVarChar(20), campaignId)
-          .query('DELETE FROM submissions WHERE campaign_id = @cid;');
-        return res.json({ ok: true, deleted: { submissions: result.rowsAffected[0] } });
-      }
-      res.status(404).json({ ok: false, message: 'Not found' });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ ok: false, message: err.message });
-    }
-  };
-}
-
-// Admin Players
-async function adminPlayerHandler(method, isList) {
-  const { verifyAdmin } = await import('./dist/lib/adminAuth.js');
-  const sql = (await import('mssql')).default;
-
-  return async (req, res) => {
-    try {
-      const fakeRequest = {
-        json: async () => req.body,
-        params: req.params,
-        query: { get: (k) => req.query[k] || null },
-        headers: { get: (k) => req.headers[k.toLowerCase()] || null },
-      };
-      const auth = verifyAdmin(fakeRequest);
-      if (!auth.ok) return res.status(auth.response.status).json(auth.response.jsonBody);
-
-      const pool = await getPool();
-
-      if (method === 'GET' && isList) {
-        const q = req.query.q || '';
-        const result = await pool
-          .request()
-          .input('q', sql.NVarChar(320), `%${q}%`)
-          .query(
-            `SELECT TOP 50 p.id, p.player_name, p.email, p.created_at, (SELECT COUNT(*) FROM game_sessions gs WHERE gs.player_id = p.id) AS session_count, (SELECT COUNT(*) FROM submissions s WHERE s.player_id = p.id) AS submission_count FROM players p WHERE p.email LIKE @q OR p.player_name LIKE @q ORDER BY p.created_at DESC;`,
-          );
-        return res.json({ players: result.recordset });
-      }
-      if (method === 'GET' && !isList) {
-        const id = parseInt(req.params.id, 10);
-        const player = await pool
-          .request()
-          .input('id', sql.Int, id)
-          .query(
-            'SELECT id, session_id, player_name, email, created_at FROM players WHERE id = @id;',
-          );
-        if (player.recordset.length === 0)
-          return res.status(404).json({ ok: false, message: 'Player not found' });
-        const sessions = await pool
-          .request()
-          .input('pid', sql.Int, id)
-          .query(
-            `SELECT id, pack_id, campaign_id, tiles_cleared, lines_won, keywords_earned, started_at, last_active_at FROM game_sessions WHERE player_id = @pid ORDER BY last_active_at DESC;`,
-          );
-        const submissions = await pool
-          .request()
-          .input('pid', sql.Int, id)
-          .query(
-            `SELECT s.id, o.name AS org, s.keyword, s.campaign_id, s.created_at FROM submissions s JOIN organizations o ON s.org_id = o.id WHERE s.player_id = @pid ORDER BY s.created_at DESC;`,
-          );
-        return res.json({
-          player: player.recordset[0],
-          sessions: sessions.recordset,
-          submissions: submissions.recordset,
-        });
-      }
-      if (method === 'DELETE') {
-        const id = parseInt(req.params.id, 10);
-        await pool
-          .request()
-          .input('pid', sql.Int, id)
-          .query(
-            `DELETE te FROM tile_events te INNER JOIN game_sessions gs ON te.game_session_id = gs.id WHERE gs.player_id = @pid;`,
-          );
-        await pool
-          .request()
-          .input('pid', sql.Int, id)
-          .query('DELETE FROM game_sessions WHERE player_id = @pid;');
-        await pool
-          .request()
-          .input('pid', sql.Int, id)
-          .query('DELETE FROM submissions WHERE player_id = @pid;');
-        await pool.request().input('id', sql.Int, id).query('DELETE FROM players WHERE id = @id;');
-        return res.json({ ok: true });
-      }
-      res.status(404).json({ ok: false, message: 'Not found' });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ ok: false, message: err.message });
-    }
-  };
-}
-
-// Admin submission revocation
-async function adminSubmissionHandler() {
-  const { verifyAdmin } = await import('./dist/lib/adminAuth.js');
-  const sql = (await import('mssql')).default;
-
-  return async (req, res) => {
-    try {
-      const fakeRequest = {
-        json: async () => req.body,
-        params: req.params,
-        query: { get: (k) => req.query[k] || null },
-        headers: { get: (k) => req.headers[k.toLowerCase()] || null },
-      };
-      const auth = verifyAdmin(fakeRequest);
-      if (!auth.ok) return res.status(auth.response.status).json(auth.response.jsonBody);
-
-      const pool = await getPool();
-      const id = parseInt(req.params.id, 10);
-      const result = await pool
-        .request()
-        .input('id', sql.Int, id)
-        .query('DELETE FROM submissions WHERE id = @id;');
-      if (result.rowsAffected[0] === 0)
-        return res.status(404).json({ ok: false, message: 'Submission not found' });
-      return res.json({ ok: true });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ ok: false, message: err.message });
-    }
-  };
-}
-
-// Register admin org routes
-app.get('/api/portal-api/organizations', await adminOrgHandler('GET', false, false));
-app.post('/api/portal-api/organizations', await adminOrgHandler('POST', false, false));
-app.put('/api/portal-api/organizations/:id', await adminOrgHandler('PUT', true, false));
-app.delete('/api/portal-api/organizations/:id', await adminOrgHandler('DELETE', true, false));
-app.post('/api/portal-api/organizations/:id/domains', await adminOrgHandler('POST', true, false));
-app.delete(
-  '/api/portal-api/organizations/:id/domains/:domainId',
-  await adminOrgHandler('DELETE', true, true),
-);
-
-// Register admin campaign routes
-app.get('/api/portal-api/campaigns', await adminCampaignHandler('GET'));
-app.post('/api/portal-api/campaigns', await adminCampaignHandler('POST'));
-app.put('/api/portal-api/campaigns/:id/settings', await adminCampaignHandler('PUT'));
-app.post('/api/portal-api/campaigns/:id/clear', await adminCampaignHandler('POST', 'clear'));
-app.post(
-  '/api/portal-api/campaigns/:id/reset-leaderboard',
-  await adminCampaignHandler('POST', 'reset-leaderboard'),
-);
-
-// Register admin player routes
-app.get('/api/portal-api/players', await adminPlayerHandler('GET', true));
-app.get('/api/portal-api/players/:id', await adminPlayerHandler('GET', false));
-app.delete('/api/portal-api/players/:id', await adminPlayerHandler('DELETE', false));
-app.delete('/api/portal-api/submissions/:id', await adminSubmissionHandler());
+// Admin user management
+app.get('/api/portal-api/admins', adapt({ handler: listAdmins }));
+app.post('/api/portal-api/admins', adapt({ handler: addAdmin }));
+app.delete('/api/portal-api/admins/:email', adapt({ handler: removeAdmin }));
 
 const PORT = process.env.PORT || 7071;
 app.listen(PORT, '0.0.0.0', () => {

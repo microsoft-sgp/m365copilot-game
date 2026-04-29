@@ -60,7 +60,7 @@ The system SHALL provide a server-side helper that verifies a presented token ag
 
 ### Requirement: Token enforcement feature flag
 
-The system SHALL respect an `ENABLE_PLAYER_TOKEN_ENFORCEMENT` environment variable that gates whether enforcement runs on protected endpoints, while issuance SHALL always run regardless of the flag.
+The system SHALL respect an `ENABLE_PLAYER_TOKEN_ENFORCEMENT` environment variable that gates whether enforcement runs on protected endpoints, while issuance SHALL always run regardless of the flag, AND the deployment infrastructure SHALL pin this flag to `"true"` for every shared environment so the in-code default is no longer the only safeguard.
 
 #### Scenario: Flag set to "false" disables enforcement
 
@@ -73,6 +73,12 @@ The system SHALL respect an `ENABLE_PLAYER_TOKEN_ENFORCEMENT` environment variab
 - **GIVEN** `ENABLE_PLAYER_TOKEN_ENFORCEMENT` is unset or any value other than `"false"`
 - **WHEN** any protected endpoint receives a request without a valid token
 - **THEN** the system MUST return HTTP 401 with `{ ok: false, message: "Unauthorized" }`
+
+#### Scenario: Deployment configuration pins enforcement on
+
+- **GIVEN** any environment provisioned via [infra/terraform/](infra/terraform/)
+- **WHEN** the deployed Function App's `app_settings` are inspected
+- **THEN** `ENABLE_PLAYER_TOKEN_ENFORCEMENT` MUST be set explicitly to the string `"true"` rather than relying on the in-code default of "anything other than `'false'` enables enforcement"
 
 ### Requirement: Token never returned outside issuance
 

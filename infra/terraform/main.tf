@@ -43,6 +43,14 @@ locals {
   acs_name               = substr("acs-${local.resource_prefix}-${local.suffix}", 0, 63)
   acs_email_name         = substr("acs-email-${local.resource_prefix}-${local.suffix}", 0, 63)
   redis_name             = substr("redis-${local.resource_prefix}-${local.suffix}", 0, 63)
+  virtual_network_name   = substr("vnet-${local.resource_prefix}-${local.suffix}", 0, 64)
+
+  function_integration_subnet_name = "snet-functions"
+  private_endpoint_subnet_name     = "snet-private-endpoints"
+  sql_private_dns_zone_name        = "privatelink.database.windows.net"
+  sql_private_endpoint_name        = substr("pep-sql-${local.resource_prefix}-${local.suffix}", 0, 80)
+  sql_private_service_name         = substr("psc-sql-${local.resource_prefix}-${local.suffix}", 0, 80)
+  sql_private_dns_link_name        = substr("pdnsl-sql-${local.resource_prefix}-${local.suffix}", 0, 80)
 
   acs_email_sender_address = "${var.acs_sender_username}@${azurerm_email_communication_service_domain.admin_otp.from_sender_domain}"
   allowed_origins = distinct(concat(
@@ -125,6 +133,38 @@ resource "azurerm_user_assigned_identity" "functions" {
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location
   tags                = local.tags
+}
+
+resource "azurerm_virtual_network" "main" {
+  name                = local.virtual_network_name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = var.location
+  address_space       = var.virtual_network_address_space
+  tags                = local.tags
+}
+
+resource "azurerm_subnet" "functions" {
+  name                 = local.function_integration_subnet_name
+  resource_group_name  = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = var.function_integration_subnet_address_prefixes
+
+  delegation {
+    name = "app-service"
+
+    service_delegation {
+      name    = "Microsoft.Web/serverFarms"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+    }
+  }
+}
+
+resource "azurerm_subnet" "private_endpoints" {
+  name                              = local.private_endpoint_subnet_name
+  resource_group_name               = azurerm_resource_group.main.name
+  virtual_network_name              = azurerm_virtual_network.main.name
+  address_prefixes                  = var.private_endpoint_subnet_address_prefixes
+  private_endpoint_network_policies = "Disabled"
 }
 
 resource "azurerm_role_assignment" "function_storage_blob_data_owner" {
@@ -217,7 +257,7 @@ resource "azurerm_mssql_server" "main" {
   location                      = var.sql_location
   version                       = "12.0"
   minimum_tls_version           = "1.2"
-  public_network_access_enabled = true
+  public_network_access_enabled = false
   tags                          = local.tags
 
   azuread_administrator {
@@ -251,6 +291,41 @@ resource "azurerm_mssql_firewall_rule" "allowed_clients" {
   server_id        = azurerm_mssql_server.main.id
   start_ip_address = each.value.start_ip_address
   end_ip_address   = each.value.end_ip_address
+}
+
+resource "azurerm_private_dns_zone" "sql" {
+  name                = local.sql_private_dns_zone_name
+  resource_group_name = azurerm_resource_group.main.name
+  tags                = local.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "sql" {
+  name                  = local.sql_private_dns_link_name
+  resource_group_name   = azurerm_resource_group.main.name
+  private_dns_zone_name = azurerm_private_dns_zone.sql.name
+  virtual_network_id    = azurerm_virtual_network.main.id
+  registration_enabled  = false
+  tags                  = local.tags
+}
+
+resource "azurerm_private_endpoint" "sql" {
+  name                = local.sql_private_endpoint_name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = var.sql_location
+  subnet_id           = azurerm_subnet.private_endpoints.id
+  tags                = local.tags
+
+  private_service_connection {
+    name                           = local.sql_private_service_name
+    private_connection_resource_id = azurerm_mssql_server.main.id
+    subresource_names              = ["sqlServer"]
+    is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    name                 = "default"
+    private_dns_zone_ids = [azurerm_private_dns_zone.sql.id]
+  }
 }
 
 resource "azurerm_communication_service" "admin_otp" {
@@ -383,6 +458,7 @@ resource "azurerm_linux_function_app" "api" {
   storage_uses_managed_identity = true
   https_only                    = true
   public_network_access_enabled = true
+  virtual_network_subnet_id     = azurerm_subnet.functions.id
   app_settings                  = local.app_settings
   tags                          = local.tags
 
@@ -398,6 +474,7 @@ resource "azurerm_linux_function_app" "api" {
     always_on                              = true
     ftps_state                             = "Disabled"
     http2_enabled                          = true
+    vnet_route_all_enabled                 = true
     pre_warmed_instance_count              = startswith(var.function_plan_sku_name, "EP") ? var.function_pre_warmed_instance_count : null
 
     application_stack {
@@ -415,6 +492,8 @@ resource "azurerm_linux_function_app" "api" {
     azurerm_key_vault_secret.admin_key,
     azurerm_key_vault_secret.jwt_secret,
     azurerm_key_vault_secret.redis_connection_string,
+    azurerm_private_dns_zone_virtual_network_link.sql,
+    azurerm_private_endpoint.sql,
     azurerm_role_assignment.function_storage_blob_data_owner,
     azurerm_role_assignment.function_storage_queue_data_contributor,
     azurerm_role_assignment.function_storage_table_data_contributor,

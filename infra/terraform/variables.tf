@@ -104,9 +104,9 @@ variable "enable_pack_assignment_lifecycle" {
 }
 
 variable "enable_player_token_enforcement" {
-  description = "Enforces opaque player session tokens on /api/sessions, /api/events, /api/submissions, /api/player/state, and /api/sessions/:id. Default false during the rollout window so the column can backfill before enforcement turns on."
+  description = "Enable server-side enforcement of the per-player session token on game-API mutations. MUST stay true in production. Set to false only as an emergency rollback for the player-session-auth capability."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "default_campaign_id" {
@@ -218,12 +218,30 @@ variable "sql_database_sku_name" {
 }
 
 variable "sql_allowed_ip_ranges" {
-  description = "Optional client IP firewall rules for running migrations from local machines. Azure services are allowed separately."
+  description = "Optional client IP firewall rules for running migrations from local machines. These only apply if SQL public network access is temporarily enabled."
   type = map(object({
     start_ip_address = string
     end_ip_address   = string
   }))
   default = {}
+}
+
+variable "virtual_network_address_space" {
+  description = "Address space for the VNet that hosts Function App integration and SQL Private Link."
+  type        = list(string)
+  default     = ["10.60.0.0/16"]
+}
+
+variable "function_integration_subnet_address_prefixes" {
+  description = "Subnet address prefixes delegated to Microsoft.Web/serverFarms for Function App regional VNet integration."
+  type        = list(string)
+  default     = ["10.60.1.0/24"]
+}
+
+variable "private_endpoint_subnet_address_prefixes" {
+  description = "Subnet address prefixes for Private Endpoint resources."
+  type        = list(string)
+  default     = ["10.60.2.0/24"]
 }
 
 variable "function_plan_sku_name" {
