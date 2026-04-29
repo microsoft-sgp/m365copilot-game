@@ -47,15 +47,15 @@ flowchart LR
    api --> appi[Application Insights\ntelemetry]
 ```
 
-| Layer               | Responsibility                                                                                                                        |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Layer               | Responsibility                                                                                                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Vue SPA             | Player onboarding, board play, keyword submission, activity view, and admin portal screens; Terraform hosts it on Linux App Service, while the manual guide can use Static Web Apps. |
-| Azure Functions API | HTTP endpoints for sessions, tile events, submissions, leaderboard, campaign config, admin auth, and admin operations.                |
-| Azure SQL           | Durable storage for game state, progression scoring, organization mappings, campaign settings, OTP hashes, and portal-managed admins. |
-| Azure Managed Redis | Optional cache-aside layer for active campaign config, organization domains, and leaderboard responses.                               |
-| ACS Email           | Production delivery for admin OTP login and sensitive admin-management step-up verification.                                          |
-| Key Vault           | Holds generated app secrets referenced by Function App settings.                                                                      |
-| Terraform           | Provisions Azure infrastructure in Korea Central for regional resources; Azure Communication Services is the only global control-plane exception. |
+| Azure Functions API | HTTP endpoints for sessions, tile events, submissions, leaderboard, campaign config, admin auth, and admin operations.                                                               |
+| Azure SQL           | Durable storage for game state, progression scoring, organization mappings, campaign settings, OTP hashes, and portal-managed admins.                                                |
+| Azure Managed Redis | Optional cache-aside layer for active campaign config, organization domains, and leaderboard responses.                                                                              |
+| ACS Email           | Production delivery for admin OTP login and sensitive admin-management step-up verification.                                                                                         |
+| Key Vault           | Holds generated app secrets referenced by Function App settings.                                                                                                                     |
+| Terraform           | Provisions Azure infrastructure in Korea Central for regional resources; Azure Communication Services is the only global control-plane exception.                                    |
 
 ## App flow
 
@@ -176,14 +176,32 @@ npm run format:check
 npm test
 ```
 
-For browser smoke coverage, run the Playwright suite from the frontend project. The suite starts Vite automatically and mocks API responses for deterministic player and admin flows:
+For browser functional coverage, run the fast Playwright suite from the frontend project. The suite starts Vite automatically, mocks API responses for deterministic player/admin flows, and checks hardening-sensitive browser contracts such as POST player-state lookup and cookie-backed admin refresh:
 
 ```bash
 cd frontend
 npm run e2e
 ```
 
-For a full-stack manual browser pass, run the root Docker Compose stack and exercise the same player/admin flows against the local backend and database.
+For full-stack smoke coverage, use only a local stack. Start Docker Compose or the backend/frontend dev servers, seed a local admin OTP, then run the gated suite:
+
+```bash
+docker compose up --build
+
+E2E_ENABLE_ADMIN_OTP_SEED=1 \
+ADMIN_E2E_EMAIL=admin@test.com \
+ADMIN_E2E_CODE=123456 \
+SQL_CONNECTION_STRING='Server=tcp:localhost,1433;Initial Catalog=bingo_db;User ID=sa;Password=BingoTest123!;Encrypt=false;TrustServerCertificate=true;' \
+npm run seed:e2e-admin-otp --prefix backend
+
+E2E_BASE_URL=http://localhost:8080 \
+E2E_API_BASE_URL=http://localhost:7071/api \
+ADMIN_E2E_EMAIL=admin@test.com \
+ADMIN_E2E_CODE=123456 \
+npm run e2e:fullstack --prefix frontend
+```
+
+Do not point the full-stack suite at shared Azure environments; it creates players, consumes an OTP, and exercises destructive admin boundary checks.
 
 ### Security notes for contributors
 

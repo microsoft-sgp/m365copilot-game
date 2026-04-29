@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockPool, fakeRequest } from '../test-helpers/mockPool.js';
-import { hashOtp } from '../lib/adminAuth.js';
 
 let mockPool;
 vi.mock('../lib/db.js', () => ({
@@ -83,6 +82,19 @@ describe('POST /api/portal-api/verify-otp', () => {
     expect(res.cookies.map((cookie) => cookie.name)).toEqual(['admin_access', 'admin_refresh']);
     expect(res.cookies.every((cookie) => cookie.httpOnly)).toBe(true);
     expect(res.cookies.every((cookie) => cookie.path === '/api/portal-api')).toBe(true);
+  });
+
+  it('returns already-used when atomic mark-used loses a race', async () => {
+    mockPool = createMockPool([
+      [],
+      [{ id: 1, expires_at: new Date(Date.now() + 300000).toISOString(), used: false }],
+      { recordset: [], rowsAffected: [0] },
+    ]);
+    const req = fakeRequest({ body: { email: 'admin@test.com', code: '123456' } });
+    const res = await handler(req, { log: vi.fn() });
+    expect(res.status).toBe(401);
+    expect(res.jsonBody.message).toMatch(/already used/i);
+    expect(res.cookies).toBeUndefined();
   });
 
   it('sets a short-lived step-up cookie for admin-management verification', async () => {

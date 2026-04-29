@@ -77,7 +77,7 @@ async function request<T = unknown>(
 }
 
 // Wrapper for game-API endpoints (PATCH /sessions/:id, POST /events,
-// POST /submissions, GET /player/state) that retries exactly once after
+// POST /submissions, POST /player/state) that retries exactly once after
 // re-bootstrapping the player session when a 401 indicates a stale token.
 // Falls back to the original 401 response if no refresher is installed or
 // the refresh did not yield a usable token.
@@ -124,7 +124,7 @@ export async function apiGetLeaderboard(campaign = 'APR26') {
 }
 
 export function apiGetPlayerState(email: string) {
-  return requestGame('GET', `/player/state?email=${encodeURIComponent(email)}`);
+  return requestGame('POST', '/player/state', { email });
 }
 
 export function apiGetCampaignConfig() {

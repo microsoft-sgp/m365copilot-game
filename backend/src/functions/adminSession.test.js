@@ -7,21 +7,30 @@ const { refreshHandler, logoutHandler } = await import('./adminSession.js');
 
 describe('admin session endpoints', () => {
   let prevSecret;
+  let prevOrigins;
 
   beforeEach(() => {
     prevSecret = process.env.JWT_SECRET;
+    prevOrigins = process.env.ALLOWED_ORIGINS;
     process.env.JWT_SECRET = 'test-jwt-secret-key-padded-to-min-32-chars';
+    process.env.ALLOWED_ORIGINS = 'https://app.example.com';
   });
 
   afterEach(() => {
     if (prevSecret === undefined) delete process.env.JWT_SECRET;
     else process.env.JWT_SECRET = prevSecret;
+    if (prevOrigins === undefined) delete process.env.ALLOWED_ORIGINS;
+    else process.env.ALLOWED_ORIGINS = prevOrigins;
   });
+
+  function adminRequest(headers = {}) {
+    return fakeRequest({ headers: { origin: 'https://app.example.com', ...headers } });
+  }
 
   it('rotates access and refresh cookies for a valid refresh cookie', async () => {
     const refreshToken = signAdminRefreshToken('admin@test.com');
     const res = await refreshHandler(
-      fakeRequest({ headers: { cookie: `${ADMIN_COOKIE_NAMES.refresh}=${refreshToken}` } }),
+      adminRequest({ cookie: `${ADMIN_COOKIE_NAMES.refresh}=${refreshToken}` }),
       { log: vi.fn() },
     );
 
@@ -35,7 +44,7 @@ describe('admin session endpoints', () => {
 
   it('rejects invalid refresh cookies without issuing auth cookies', async () => {
     const res = await refreshHandler(
-      fakeRequest({ headers: { cookie: `${ADMIN_COOKIE_NAMES.refresh}=bad-token` } }),
+      adminRequest({ cookie: `${ADMIN_COOKIE_NAMES.refresh}=bad-token` }),
       { log: vi.fn() },
     );
 
@@ -45,7 +54,7 @@ describe('admin session endpoints', () => {
   });
 
   it('clears auth cookies on logout', async () => {
-    const res = await logoutHandler(fakeRequest(), { log: vi.fn() });
+    const res = await logoutHandler(adminRequest(), { log: vi.fn() });
 
     expect(res.jsonBody).toEqual({ ok: true });
     expect(res.cookies.map((cookie) => cookie.name)).toEqual([
@@ -54,5 +63,26 @@ describe('admin session endpoints', () => {
       ADMIN_COOKIE_NAMES.stepUp,
     ]);
     expect(res.cookies.every((cookie) => cookie.maxAge === 0)).toBe(true);
+  });
+
+  it('rejects refresh when Origin is missing', async () => {
+    const refreshToken = signAdminRefreshToken('admin@test.com');
+    const res = await refreshHandler(
+      fakeRequest({ headers: { cookie: `${ADMIN_COOKIE_NAMES.refresh}=${refreshToken}` } }),
+      { log: vi.fn() },
+    );
+
+    expect(res.status).toBe(403);
+    expect(res.jsonBody).toEqual({ ok: false, message: 'Forbidden origin' });
+  });
+
+  it('rejects logout when Origin is forbidden', async () => {
+    const res = await logoutHandler(
+      fakeRequest({ headers: { origin: 'https://evil.example.com' } }),
+      { log: vi.fn() },
+    );
+
+    expect(res.status).toBe(403);
+    expect(res.jsonBody).toEqual({ ok: false, message: 'Forbidden origin' });
   });
 });

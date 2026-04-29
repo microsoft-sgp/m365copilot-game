@@ -128,7 +128,7 @@ describe('SetupPanel', () => {
       },
     });
 
-    const w = mount(SetupPanel);
+    mount(SetupPanel);
     await flushPromises();
 
     expect(apiCreateSession).toHaveBeenCalledWith({

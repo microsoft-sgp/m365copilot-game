@@ -19,7 +19,7 @@ npm ci
 npm run dev
 ```
 
-The dev server expects the backend API at `http://localhost:7071/api` through Vite proxy configuration. Start the backend from `../backend` with `npm start`, or use the root Docker Compose workflow for the full stack.
+For a real backend during local development, start the backend from `../backend` and launch Vite with `VITE_API_BASE=http://127.0.0.1:7071/api`. The Playwright full-stack script wires this automatically when it starts Vite.
 
 ## Build
 
@@ -39,13 +39,36 @@ npm run format:check
 npm test
 ```
 
-Run browser smoke tests from the frontend project:
+Run the fast browser functional suite from the frontend project:
 
 ```bash
 npm run e2e
 ```
 
-The smoke suite starts the Vite dev server automatically and mocks API responses in Playwright, so it does not require Docker or a live backend. Use `npm run e2e:ci` for CI-style line reporting. For a full-stack manual browser pass, start the root Docker Compose stack or the backend dev server separately and exercise the same flows against the real API.
+The fast suite starts the Vite dev server automatically and mocks API responses in Playwright, so it does not require Docker or a live backend. It covers player onboarding/gameplay, admin portal workflows, mobile grid layout, and hardening-sensitive browser contracts. Use `npm run e2e:ci` for CI-style line reporting.
+
+Run the full-stack smoke suite only against a local backend and database:
+
+```bash
+# from the repository root, in one terminal
+docker compose up --build
+
+# from another terminal, seed a local-only admin code
+E2E_ENABLE_ADMIN_OTP_SEED=1 \
+ADMIN_E2E_EMAIL=admin@test.com \
+ADMIN_E2E_CODE=123456 \
+SQL_CONNECTION_STRING='Server=tcp:localhost,1433;Initial Catalog=bingo_db;User ID=sa;Password=BingoTest123!;Encrypt=false;TrustServerCertificate=true;' \
+npm run seed:e2e-admin-otp --prefix backend
+
+# run the gated full-stack project
+E2E_BASE_URL=http://localhost:8080 \
+E2E_API_BASE_URL=http://localhost:7071/api \
+ADMIN_E2E_EMAIL=admin@test.com \
+ADMIN_E2E_CODE=123456 \
+npm run e2e:fullstack --prefix frontend
+```
+
+The full-stack suite is skipped unless `FULLSTACK_E2E=1` is set by the script. Keep it local; it creates player data and consumes the seeded admin OTP.
 
 ## Notes
 

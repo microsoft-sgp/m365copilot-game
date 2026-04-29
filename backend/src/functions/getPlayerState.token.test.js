@@ -18,7 +18,7 @@ const { handler } = await import('./getPlayerState.js');
 
 function tokenedRequest(email, token) {
   const headers = token ? { cookie: `${PLAYER_COOKIE_NAME}=${token}` } : {};
-  return fakeRequest({ query: { email }, headers });
+  return fakeRequest({ body: { email }, headers });
 }
 
 describe('getPlayerState token enforcement (flag on)', () => {

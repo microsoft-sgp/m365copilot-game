@@ -76,10 +76,13 @@ describe('public request() wrapper', () => {
     expect(fetchSpy.mock.calls[0][0]).toMatch(/leaderboard\?campaign=a%2Fb%20c$/);
   });
 
-  it('encodes email in player state URL', async () => {
+  it('posts player state email in the body', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ player: null }));
     await api.apiGetPlayerState('a+b@example.com');
-    expect(fetchSpy.mock.calls[0][0]).toMatch(/player\/state\?email=a%2Bb%40example\.com$/);
+    const [url, opts] = fetchSpy.mock.calls[0];
+    expect(url).toMatch(/player\/state$/);
+    expect(opts.method).toBe('POST');
+    expect(JSON.parse(opts.body)).toEqual({ email: 'a+b@example.com' });
   });
 
   it('apiGetCampaignConfig and apiGetOrgDomains use expected paths', async () => {

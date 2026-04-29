@@ -11,6 +11,11 @@ vi.mock('./lib/api.js', () => ({
   installPlayerAuthRefresher: vi.fn(),
 }));
 
+const gameMocks = vi.hoisted(() => ({
+  hydrateFromServer: vi.fn(),
+  setIdentity: vi.fn(),
+}));
+
 vi.mock('./lib/playerToken.js', () => ({
   clearPlayerToken: vi.fn(),
   getPlayerToken: vi.fn().mockReturnValue(''),
@@ -19,8 +24,8 @@ vi.mock('./lib/playerToken.js', () => ({
 
 vi.mock('./composables/useBingoGame.js', () => ({
   useBingoGame: () => ({
-    hydrateFromServer: vi.fn(),
-    setIdentity: vi.fn(),
+    hydrateFromServer: gameMocks.hydrateFromServer,
+    setIdentity: gameMocks.setIdentity,
   }),
 }));
 
@@ -43,12 +48,33 @@ const stubs = {
   ToastMessage: { template: '<div />' },
   GameFooter: { template: '<div />' },
   AdminLogin: { template: '<div data-test="admin-login" />' },
-  AdminLayout: { template: '<div data-test="admin-layout" />' },
+  AdminLayout: {
+    template: '<button data-test="admin-layout" @click="$emit(\'logout\')" />',
+    emits: ['logout'],
+  },
 };
+
+import {
+  apiAdminLogout,
+  apiAdminRefresh,
+  apiCreateSession,
+  apiGetPlayerState,
+  installPlayerAuthRefresher,
+} from './lib/api.js';
+import { clearPlayerToken } from './lib/playerToken.js';
 
 import App from './App.vue';
 
 beforeEach(() => {
+  vi.clearAllMocks();
+  apiGetPlayerState.mockResolvedValue({ ok: true, data: { player: null } });
+  apiAdminRefresh.mockResolvedValue({ ok: false, data: { message: 'Unauthorized' } });
+  apiAdminLogout.mockResolvedValue({ ok: true, data: { ok: true } });
+  apiCreateSession.mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { ok: true, gameSessionId: 1 },
+  });
   localStorage.clear();
   sessionStorage.clear();
   window.location.hash = '';
@@ -74,6 +100,42 @@ describe('App routing', () => {
     expect(wrapper.find('[data-test="topbar"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="apptabs"]').exists()).toBe(true);
     expect(localStorage.getItem('copilot_bingo_email')).toBe('ada@nus.edu.sg');
+    expect(gameMocks.setIdentity).toHaveBeenCalledWith({
+      email: 'ada@nus.edu.sg',
+      name: 'Ada',
+      organization: 'NUS',
+    });
+  });
+
+  it('keeps public-email players in the identity gate until organization is present', async () => {
+    localStorage.setItem('copilot_bingo_email', 'alex@gmail.com');
+    localStorage.setItem('copilot_bingo_player_name', 'Alex');
+
+    const wrapper = mount(App, { global: { stubs } });
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="email-continue"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="topbar"]').exists()).toBe(false);
+    expect(apiGetPlayerState).not.toHaveBeenCalled();
+  });
+
+  it('hydrates player state from the API when stored identity is ready', async () => {
+    localStorage.setItem('copilot_bingo_email', 'ada@nus.edu.sg');
+    localStorage.setItem('copilot_bingo_player_name', 'Ada');
+    apiGetPlayerState.mockResolvedValueOnce({
+      ok: true,
+      data: { player: { playerName: 'Ada', activeSession: null } },
+    });
+
+    const wrapper = mount(App, { global: { stubs } });
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="topbar"]').exists()).toBe(true);
+    expect(apiGetPlayerState).toHaveBeenCalledWith('ada@nus.edu.sg');
+    expect(gameMocks.hydrateFromServer).toHaveBeenCalledWith({
+      playerName: 'Ada',
+      activeSession: null,
+    });
   });
 
   it('opens admin login from the in-game help panel', async () => {
@@ -104,11 +166,65 @@ describe('App routing', () => {
     expect(wrapper.find('[data-test="admin-layout"]').exists()).toBe(true);
   });
 
+  it('routes to admin layout when cookie refresh succeeds', async () => {
+    apiAdminRefresh.mockResolvedValueOnce({ ok: true, data: { ok: true } });
+    window.location.hash = '#/admin';
+
+    const wrapper = mount(App, { global: { stubs } });
+    await flushPromises();
+
+    expect(apiAdminRefresh).toHaveBeenCalled();
+    expect(sessionStorage.getItem('admin_authenticated')).toBe('true');
+    expect(wrapper.find('[data-test="admin-layout"]').exists()).toBe(true);
+  });
+
   it('falls back to admin login when hash is #/admin without an active cookie session', async () => {
     window.location.hash = '#/admin';
     const wrapper = mount(App, { global: { stubs } });
     await flushPromises();
     expect(wrapper.find('[data-test="admin-login"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="admin-layout"]').exists()).toBe(false);
+  });
+
+  it('logs out of admin view and clears session hints plus player token', async () => {
+    sessionStorage.setItem('admin_authenticated', 'true');
+    sessionStorage.setItem('admin_email', 'admin@test.com');
+    window.location.hash = '#/admin';
+    const wrapper = mount(App, { global: { stubs } });
+    await flushPromises();
+
+    await wrapper.find('[data-test="admin-layout"]').trigger('click');
+    await flushPromises();
+
+    expect(apiAdminLogout).toHaveBeenCalled();
+    expect(sessionStorage.getItem('admin_authenticated')).toBeNull();
+    expect(sessionStorage.getItem('admin_email')).toBeNull();
+    expect(clearPlayerToken).toHaveBeenCalled();
+    expect(window.location.hash).toBe('');
+    expect(wrapper.find('[data-test="email-continue"]').exists()).toBe(true);
+  });
+
+  it('installs a player auth refresher that recreates the session from stored identity', async () => {
+    const wrapper = mount(App, { global: { stubs } });
+    await flushPromises();
+    await wrapper.find('[data-test="email-continue"]').trigger('click');
+    await flushPromises();
+
+    const refresher = installPlayerAuthRefresher.mock.calls.find(
+      ([fn]) => typeof fn === 'function',
+    )[0];
+    apiCreateSession.mockClear();
+
+    const result = await refresher();
+
+    expect(result).toBe(true);
+    expect(apiCreateSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: expect.any(String),
+        playerName: 'Ada',
+        email: 'ada@nus.edu.sg',
+        organization: 'NUS',
+      }),
+    );
   });
 });

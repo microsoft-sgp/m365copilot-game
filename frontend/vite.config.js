@@ -16,8 +16,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'text', 'html'],
-      include: ['src/**/*.{js,vue}'],
-      exclude: ['src/main.js', 'src/styles/**', '**/*.test.js'],
+      include: ['src/**/*.{js,ts,vue}'],
+      exclude: ['src/main.{js,ts}', 'src/styles/**', '**/*.test.{js,ts}'],
       // Floors enforced when running `npm run test:coverage`.
       // Raise these as gaps are closed (e.g. once the remaining admin views —
       // AdminCampaigns/Dashboard/Layout/Organizations/Players — are tested).

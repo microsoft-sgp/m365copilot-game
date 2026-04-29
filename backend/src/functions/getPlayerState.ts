@@ -7,6 +7,7 @@ import {
   isPlayerTokenEnforcementEnabled,
   verifyPlayerOwnsRow,
 } from '../lib/playerAuth.js';
+import { readJsonObject, stringValue } from './http.js';
 
 type SessionRecord = {
   id: number;
@@ -36,7 +37,8 @@ function mapSessionRecord(s: SessionRecord | undefined) {
 }
 
 export const handler = async (request: HttpRequest, context: InvocationContext) => {
-  const email = request.query.get('email');
+  const body = await readJsonObject(request);
+  const email = stringValue(body.email).trim().toLowerCase();
   if (!email) {
     return {
       status: 400,
@@ -148,7 +150,7 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
 };
 
 app.http('getPlayerState', {
-  methods: ['GET'],
+  methods: ['POST'],
   authLevel: 'anonymous',
   route: 'player/state',
   handler,

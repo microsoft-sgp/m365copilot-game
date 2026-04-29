@@ -154,6 +154,8 @@ az sql server create \
 
 ### 4b. Allow Azure services to connect
 
+> **Terraform note:** The repeatable Terraform deployment in [infra/terraform](infra/terraform/) does not use this public-firewall model. It keeps SQL public network access disabled and connects the Function App through VNet integration, a SQL Private Endpoint, and `privatelink.database.windows.net` Private DNS. Use the firewall steps below only for the manual learning path or a temporary rollback.
+
 ```bash
 az sql server firewall-rule create \
   --resource-group rg-bingo \
@@ -703,7 +705,35 @@ az functionapp config appsettings list \
   --output table
 ```
 
-Verify `SQL_CONNECTION_STRING` has the correct server name, database name, username, and password. Also confirm the firewall rule from Step 4b was created.
+Verify `SQL_CONNECTION_STRING` has the correct server name, database name, username, and password. Also confirm the firewall rule from Step 4b was created. For the Terraform deployment, verify the managed-identity SQL settings instead (`SQL_SERVER_FQDN`, `SQL_DATABASE_NAME`, `SQL_AUTHENTICATION`, and `SQL_MANAGED_IDENTITY_CLIENT_ID`).
+
+### API health is degraded and reports `database: down`
+
+For the Terraform deployment, SQL is private-only. Confirm the Function App is integrated with the VNet, route-all is enabled, SQL public access is disabled, and the health endpoint can reach the database:
+
+```bash
+az functionapp show \
+  --resource-group rg-m365copilot-game-dev \
+  --name func-m365copilot-game-dev-podka8 \
+  --query "{virtualNetworkSubnetId:virtualNetworkSubnetId,vnetRouteAllEnabled:siteConfig.vnetRouteAllEnabled}" \
+  -o json
+
+az sql server show \
+  --resource-group rg-m365copilot-game-dev \
+  --name sql-m365copilot-game-dev-kc-podka8 \
+  --query "{publicNetworkAccess:publicNetworkAccess}" \
+  -o json
+
+az network private-dns record-set a list \
+  --resource-group rg-m365copilot-game-dev \
+  --zone-name privatelink.database.windows.net \
+  --query "[].{name:name,records:aRecords[].ipv4Address}" \
+  -o json
+
+curl https://func-m365copilot-game-dev-podka8.azurewebsites.net/api/health
+```
+
+Expected: the Function App has a `virtualNetworkSubnetId`, `vnetRouteAllEnabled` is `true`, SQL `publicNetworkAccess` is `Disabled`, the private DNS zone has an A record for the SQL server, and `/api/health` returns `status: healthy` with `database: up`. If the private endpoint was just created, wait a minute for App Service networking and DNS propagation, then retry or restart the Function App.
 
 ### Admin OTP request returns "Could not send verification code"
 
@@ -802,7 +832,7 @@ az group delete --name rg-bingo --yes --no-wait
 
 ## Operational runbook: enabling player session token enforcement
 
-The backend issues an opaque `playerToken` to every player on `POST /api/sessions`, stored as a SHA-256 hash in `players.owner_token`. When `ENABLE_PLAYER_TOKEN_ENFORCEMENT=true`, the API rejects any `PATCH /api/sessions/:id`, `POST /api/events`, `POST /api/submissions`, or `GET /api/player/state` call whose token does not match the owning player.
+The backend issues an opaque `playerToken` to every player on `POST /api/sessions`, stored as a SHA-256 hash in `players.owner_token`. When `ENABLE_PLAYER_TOKEN_ENFORCEMENT=true`, the API rejects any `PATCH /api/sessions/:id`, `POST /api/events`, `POST /api/submissions`, or `POST /api/player/state` call whose token does not match the owning player.
 
 To avoid breaking existing players whose `owner_token` has not yet been claimed, deploy in two stages:
 

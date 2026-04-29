@@ -15,7 +15,7 @@ const { isPackAssignmentLifecycleEnabled, resolvePackAssignment } =
 
 const { handler } = await import('./getPlayerState.js');
 
-describe('GET /api/player/state', () => {
+describe('POST /api/player/state', () => {
   let prevEnforce;
 
   beforeEach(() => {
@@ -33,14 +33,14 @@ describe('GET /api/player/state', () => {
   });
 
   it('returns 400 when email is missing', async () => {
-    const req = fakeRequest({ query: {} });
+    const req = fakeRequest({ body: {} });
     const res = await handler(req, {});
     expect(res.status).toBe(400);
   });
 
   it('returns null player when email not found', async () => {
     mockPool = createMockPool([[]]);
-    const req = fakeRequest({ query: { email: 'unknown@test.com' } });
+    const req = fakeRequest({ body: { email: 'unknown@test.com' } });
     const res = await handler(req, {});
     expect(res.jsonBody.ok).toBe(true);
     expect(res.jsonBody.player).toBeNull();
@@ -64,7 +64,7 @@ describe('GET /api/player/state', () => {
         },
       ],
     ]);
-    const req = fakeRequest({ query: { email: 'alice@test.com' } });
+    const req = fakeRequest({ body: { email: 'alice@test.com' } });
     const res = await handler(req, {});
     expect(res.jsonBody.ok).toBe(true);
     expect(res.jsonBody.player.playerName).toBe('Alice');
@@ -74,7 +74,7 @@ describe('GET /api/player/state', () => {
 
   it('returns player with no sessions', async () => {
     mockPool = createMockPool([[{ id: 1, player_name: 'Bob', session_id: 'def456' }], []]);
-    const req = fakeRequest({ query: { email: 'bob@test.com' } });
+    const req = fakeRequest({ body: { email: 'bob@test.com' } });
     const res = await handler(req, {});
     expect(res.jsonBody.ok).toBe(true);
     expect(res.jsonBody.player.activeSession).toBeNull();
@@ -118,7 +118,7 @@ describe('GET /api/player/state', () => {
       ],
     ]);
 
-    const req = fakeRequest({ query: { email: 'alice@test.com' } });
+    const req = fakeRequest({ body: { email: 'alice@test.com' } });
     const res = await handler(req, {});
 
     expect(res.jsonBody.ok).toBe(true);
@@ -144,7 +144,7 @@ describe('GET /api/player/state', () => {
         },
       ],
     ]);
-    const res = await handler(fakeRequest({ query: { email: 'alice@test.com' } }), {});
+    const res = await handler(fakeRequest({ body: { email: 'alice@test.com' } }), {});
     expect(res.jsonBody.player.activeSession.boardState).toBeNull();
   });
 
@@ -153,7 +153,7 @@ describe('GET /api/player/state', () => {
       [{ id: 1, player_name: 'Alice', session_id: 'abc', org_id: 5, org_name: 'NUS' }],
       [],
     ]);
-    const res = await handler(fakeRequest({ query: { email: 'alice@test.com' } }), {});
+    const res = await handler(fakeRequest({ body: { email: 'alice@test.com' } }), {});
     expect(res.jsonBody.player.organization).toEqual({ id: 5, name: 'NUS' });
   });
 
@@ -162,7 +162,7 @@ describe('GET /api/player/state', () => {
       [{ id: 1, player_name: 'Alice', session_id: 'abc', org_id: null }],
       [],
     ]);
-    const res = await handler(fakeRequest({ query: { email: 'alice@test.com' } }), {});
+    const res = await handler(fakeRequest({ body: { email: 'alice@test.com' } }), {});
     expect(res.jsonBody.player.organization).toBeNull();
   });
 
@@ -181,7 +181,7 @@ describe('GET /api/player/state', () => {
       completedPackId: null,
     });
     mockPool = createMockPool([[{ id: 1, player_name: 'Alice', session_id: 'abc' }], []]);
-    const res = await handler(fakeRequest({ query: { email: 'alice@test.com' } }), {});
+    const res = await handler(fakeRequest({ body: { email: 'alice@test.com' } }), {});
     expect(res.jsonBody.player.activeSession).toBeNull();
     expect(res.jsonBody.player.activeAssignment.packId).toBe(1);
   });

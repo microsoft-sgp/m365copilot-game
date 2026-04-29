@@ -65,14 +65,14 @@ npm run format:check
 npm test
 ```
 
-When your change affects browser-visible player or admin behavior, also run the Playwright smoke suite from the frontend project. It starts Vite automatically and uses mocked API fixtures for deterministic smoke coverage:
+When your change affects browser-visible player or admin behavior, also run the fast Playwright suite from the frontend project. It starts Vite automatically and uses mocked API fixtures for deterministic player, admin, hardening-contract, and mobile coverage:
 
 ```bash
 cd frontend
 npm run e2e
 ```
 
-For full-stack browser checks against Azure SQL and the Functions API, start the root Docker Compose stack or the backend/frontend dev servers manually and repeat the same player and admin journeys.
+For full-stack browser checks against Azure SQL and the Functions API, use the gated local-only suite after starting Docker Compose or local dev servers and seeding an admin OTP. Run `npm run e2e:fullstack --prefix frontend` with `E2E_BASE_URL`, `E2E_API_BASE_URL`, `ADMIN_E2E_EMAIL`, and `ADMIN_E2E_CODE` set. Do not run it against shared Azure environments.
 
 For documentation-only changes, describe the review you performed, such as link checks, stale-term scans, or command examples checked for accuracy.
 

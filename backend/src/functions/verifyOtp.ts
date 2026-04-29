@@ -147,11 +147,18 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
     };
   }
 
-  // Mark OTP as used
-  await pool
+  const markUsedResult = await pool
     .request()
     .input('id', sql.Int, otp.id)
-    .query('UPDATE admin_otps SET used = 1 WHERE id = @id;');
+    .query('UPDATE admin_otps SET used = 1 WHERE id = @id AND used = 0;');
+
+  if (markUsedResult.rowsAffected?.[0] !== 1) {
+    logVerifyFailure(context, 'used_code', email, existingFailures);
+    return {
+      status: 401,
+      jsonBody: { ok: false, message: 'Code already used. Please request a new one.' },
+    };
+  }
 
   if (purpose === 'admin-management') {
     if (!['add-admin', 'remove-admin'].includes(action) || !targetEmail) {

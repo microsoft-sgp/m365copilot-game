@@ -70,7 +70,7 @@ function getAllowedOrigins(): string[] {
 // CORS already restricts which origins receive responses, but a malicious page
 // can still trigger a credentialed POST that mutates state if no server-side
 // check exists. We enforce the same allowlist on the receive path.
-function isAllowedOrigin(origin: string | null): boolean {
+export function isAllowedAdminOrigin(origin: string | null): boolean {
   if (!origin) return false;
   const allowed = getAllowedOrigins();
   if (allowed.length === 0) return false;
@@ -133,7 +133,7 @@ function verifyJwt(request: AdminRequest): JwtVerificationResult {
 
   // Cookie-bound auth: require an Origin header that matches the configured
   // allowlist. Bearer tokens are server-to-server and do not need this check.
-  if (cookieToken && !isAllowedOrigin(request.headers.get('origin'))) {
+  if (cookieToken && !isAllowedAdminOrigin(request.headers.get('origin'))) {
     return {
       ok: false,
       response: {

@@ -57,7 +57,14 @@ enable_player_token_enforcement = true
 # data_location value is data residency, not the regional deployment location;
 # change only if your tenancy requires another supported ACS data location.
 
-# Optional: allow a workstation to run sqlcmd migrations directly.
+# Private SQL networking defaults. Override only if these ranges conflict with
+# an existing network plan.
+# virtual_network_address_space                    = ["10.60.0.0/16"]
+# function_integration_subnet_address_prefixes     = ["10.60.1.0/24"]
+# private_endpoint_subnet_address_prefixes         = ["10.60.2.0/24"]
+
+# Optional: SQL public network access is disabled by the Terraform template, so
+# these firewall rules are useful only during a temporary public-access rollback.
 # sql_allowed_ip_ranges = {
 #   my_workstation = {
 #     start_ip_address = "203.0.113.10"

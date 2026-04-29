@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import { mockApi } from './fixtures';
+import { mockApi, proofForAnyTile, verifyTileByIndex } from './fixtures';
 
 const VIEWPORTS: { width: number; height: number; label: string }[] = [
   { width: 320, height: 568, label: '320px (iPhone SE 1st gen)' },
@@ -31,7 +31,12 @@ test.describe('mobile bingo grid layout', () => {
       const tileBoxes = await tiles.evaluateAll((els) =>
         els.map((el) => {
           const r = el.getBoundingClientRect();
-          return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), right: Math.round(r.right) };
+          return {
+            x: Math.round(r.x),
+            y: Math.round(r.y),
+            w: Math.round(r.width),
+            right: Math.round(r.right),
+          };
         }),
       );
       const distinctX = [...new Set(tileBoxes.map((b) => b.x))].sort((a, b) => a - b);
@@ -47,4 +52,32 @@ test.describe('mobile bingo grid layout', () => {
       expect(docWidth).toBeLessThanOrEqual(vp.width);
     });
   }
+
+  test('opens tile modal and closes win modal without horizontal overflow on a narrow viewport', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await setupBoard(page);
+
+    await page.locator('.tile').first().click();
+    await expect(page.locator('textarea')).toBeVisible();
+    await expectNoHorizontalOverflow(page, 320);
+    await page.getByRole('button', { name: '✕' }).click();
+    await expect(page.locator('textarea')).toBeHidden();
+
+    await verifyTileByIndex(page, 0, proofForAnyTile(1, 0));
+    await verifyTileByIndex(page, 1, proofForAnyTile(1, 1));
+    await verifyTileByIndex(page, 2, proofForAnyTile(1, 2));
+
+    await expect(page.getByText(/BINGO! Row 1/)).toBeVisible();
+    await expectNoHorizontalOverflow(page, 320);
+    await page.getByRole('button', { name: /keep playing/i }).click();
+    await expect(page.getByText(/BINGO! Row 1/)).toBeHidden();
+    await expectNoHorizontalOverflow(page, 320);
+  });
 });
+
+async function expectNoHorizontalOverflow(page: Page, viewportWidth: number) {
+  const docWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(docWidth).toBeLessThanOrEqual(viewportWidth);
+}

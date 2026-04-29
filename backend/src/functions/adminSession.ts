@@ -8,12 +8,22 @@ import {
   getCookie,
 } from '../lib/adminCookies.js';
 import {
+  isAllowedAdminOrigin,
   signAdminRefreshToken,
   signAdminToken,
   verifyAdminRefreshToken,
 } from '../lib/adminAuth.js';
 
-export const refreshHandler = async (request: HttpRequest, context: InvocationContext) => {
+function forbiddenOriginResponse() {
+  return {
+    status: 403,
+    jsonBody: { ok: false, message: 'Forbidden origin' },
+  };
+}
+
+export const refreshHandler = async (request: HttpRequest, _context: InvocationContext) => {
+  if (!isAllowedAdminOrigin(request.headers.get('origin'))) return forbiddenOriginResponse();
+
   const refreshToken = getCookie(request, ADMIN_COOKIE_NAMES.refresh);
   const verification = verifyAdminRefreshToken(refreshToken);
 
@@ -39,7 +49,9 @@ export const refreshHandler = async (request: HttpRequest, context: InvocationCo
   };
 };
 
-export const logoutHandler = async (request: HttpRequest, context: InvocationContext) => {
+export const logoutHandler = async (request: HttpRequest, _context: InvocationContext) => {
+  if (!isAllowedAdminOrigin(request.headers.get('origin'))) return forbiddenOriginResponse();
+
   return {
     cookies: clearAdminAuthCookies(),
     jsonBody: { ok: true },

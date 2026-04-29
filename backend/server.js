@@ -1,7 +1,6 @@
 // Lightweight Express wrapper that loads Azure Functions handlers
 // for local Docker testing. Not used in production (Azure Functions runtime).
 import express from 'express';
-import { getPool } from './dist/lib/db.js';
 
 const app = express();
 app.use(express.json());
@@ -98,7 +97,7 @@ app.post('/api/submissions', adapt({ handler: submitKeyword }));
 app.get('/api/leaderboard', adapt({ handler: getLeaderboard }));
 app.get('/api/campaigns/active', adapt({ handler: getActiveCampaign }));
 app.get('/api/organizations/domains', adapt({ handler: getOrgDomains }));
-app.get('/api/player/state', adapt({ handler: getPlayerState }));
+app.post('/api/player/state', adapt({ handler: getPlayerState }));
 
 // Admin auth
 app.post('/api/portal-api/request-otp', adapt({ handler: requestOtp }));
@@ -113,8 +112,21 @@ app.get('/api/portal-api/export', adapt({ handler: exportCsv }));
 // Multi-handler admin modules: register named exports through the same adapt()
 // helper used for single-handler files. This keeps dev/prod auth, validation,
 // and SQL behavior identical — the dev wrapper does not reimplement anything.
-const { listOrganizations, createOrganization, updateOrganization, deleteOrganization, addDomain, removeDomain } = adminOrgs;
-const { listCampaigns, createCampaign, updateCampaignSettings, clearCampaignData, resetLeaderboard } = adminCampaigns;
+const {
+  listOrganizations,
+  createOrganization,
+  updateOrganization,
+  deleteOrganization,
+  addDomain,
+  removeDomain,
+} = adminOrgs;
+const {
+  listCampaigns,
+  createCampaign,
+  updateCampaignSettings,
+  clearCampaignData,
+  resetLeaderboard,
+} = adminCampaigns;
 const { searchPlayers, getPlayerDetail, deletePlayer, revokeSubmission } = adminPlayers;
 const { listAdmins, addAdmin, removeAdmin } = adminAdmins;
 

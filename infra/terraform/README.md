@@ -7,8 +7,10 @@ This folder provisions the Azure resources needed by Copilot Chat Bingo.
 - Resource group `rg-m365copilot-game-dev` in `koreacentral`
 - Linux Azure App Service hosting the Vue frontend (built static assets)
 - Linux Azure Function App on a configurable Linux App Service plan for the Node.js API
+- Virtual network with separate subnets for Function App regional VNet integration and Private Endpoint resources
 - Storage Account required by Azure Functions
-- Azure SQL Server and `bingo_db` database (Korea Central)
+- Azure SQL Server and `bingo_db` database (Korea Central) with public network access disabled
+- SQL Private Endpoint plus `privatelink.database.windows.net` Private DNS zone linked to the VNet
 - Azure Managed Redis for cache-aside API responses
 - Azure Communication Services and Email Communication Service with an Azure-managed sender domain
   - Azure Communication Services resources are globally scoped by Azure. Their `data_location` defaults to `United States` for data residency and is the only non-Korea Central deployment exception.
@@ -53,7 +55,9 @@ Edit `terraform.tfvars` and replace `admin@test.com` with one or more real boots
 
 This deployment uses the existing `rg-m365copilot-game-dev` resource group in `koreacentral`. All regional resources (Function App, App Service, SQL, Managed Redis, Storage, Key Vault, App Insights) are deployed to `koreacentral`. Azure Communication Services is the only global control-plane exception; its `data_location` defaults to `United States` for data residency.
 
-If you want to run SQL migrations from your workstation, add your public IP to `sql_allowed_ip_ranges`.
+Azure SQL is private-only in this Terraform deployment. The Function App reaches SQL through regional VNet integration, a SQL Private Endpoint, and the linked `privatelink.database.windows.net` zone. The default network ranges are `10.60.0.0/16`, `10.60.1.0/24` for Function integration, and `10.60.2.0/24` for private endpoints; override `virtual_network_address_space`, `function_integration_subnet_address_prefixes`, and `private_endpoint_subnet_address_prefixes` only if they conflict with an existing network plan.
+
+`sql_allowed_ip_ranges` is retained for emergency or temporary public-access workflows only. It does not allow workstation migrations while SQL public network access remains disabled. To run migrations from a workstation, either connect from a network path that can resolve and reach the SQL private endpoint, or temporarily enable SQL public network access and apply the workstation firewall rule as a controlled rollback.
 
 Terraform includes the generated frontend App Service hostname in the Function App CORS allow-list automatically and sets credentialed admin cookies to `Secure` and `SameSite=None` for the App Service to Function App cross-origin deployment. Add any production custom frontend domains to `allowed_origins` before planning.
 
@@ -72,6 +76,8 @@ terraform validate
 terraform plan -out tfplan
 terraform apply tfplan
 ```
+
+This deployment intentionally disables SQL public network access. If Azure policy or a previous hardening step also disables public access on Key Vault, a full Terraform refresh from an ordinary workstation can fail while reading `azurerm_key_vault_secret` resources with `ForbiddenByConnection`. Prefer running Terraform from an approved network path that can reach the vault. For a known, reviewed graph-only reconciliation, `terraform plan -refresh=false` and `terraform apply -refresh=false` can be used, but review the resulting plan carefully because refreshless runs cannot detect unrelated live drift.
 
 ## Deploy Backend Code
 
@@ -149,6 +155,30 @@ az functionapp config appsettings list \
 	-o table
 ```
 
+Confirm the private SQL network path is in place and the API health probe can reach the database:
+
+```bash
+RESOURCE_GROUP_NAME=$(terraform -chdir=infra/terraform output -raw resource_group_name)
+FUNCTION_APP_NAME=$(terraform -chdir=infra/terraform output -raw function_app_name)
+SQL_PRIVATE_ENDPOINT_NAME=$(terraform -chdir=infra/terraform output -raw sql_private_endpoint_name)
+
+az functionapp show \
+	--resource-group "$RESOURCE_GROUP_NAME" \
+	--name "$FUNCTION_APP_NAME" \
+	--query "{virtualNetworkSubnetId:virtualNetworkSubnetId,vnetRouteAllEnabled:siteConfig.vnetRouteAllEnabled}" \
+	-o json
+
+az network private-endpoint show \
+	--resource-group "$RESOURCE_GROUP_NAME" \
+	--name "$SQL_PRIVATE_ENDPOINT_NAME" \
+	--query "{name:name,state:privateLinkServiceConnections[0].privateLinkServiceConnectionState.status}" \
+	-o json
+
+curl "$(terraform -chdir=infra/terraform output -raw function_app_url)/api/health"
+```
+
+The health response should include `"status":"healthy"` and `"database":"up"`.
+
 Open the frontend URL:
 
 ```bash
@@ -164,6 +194,7 @@ To test admin cookies, open browser DevTools after OTP login and confirm the API
 - Redis rollback: remove or clear the `REDIS_CONNECTION_STRING` app setting and restart the Function App. API endpoints continue to read from Azure SQL and skip cache writes.
 - Cookie/CORS rollback: keep `ADMIN_KEY` configured as the break-glass path for admin API calls. If browser login fails after a domain or CORS change, verify `ALLOWED_ORIGINS`, Function App CORS `support_credentials`, and the `ADMIN_COOKIE_SAMESITE=None`/`ADMIN_COOKIE_SECURE=true` settings before reverting application code.
 - Leaderboard rollback: set `LEADERBOARD_SOURCE=submissions`, restart the Function App, and verify the leaderboard endpoint before changing data.
+- SQL private networking rollback: temporarily enable SQL public network access and keep the existing firewall rules only long enough to restore service, then fix the Private Endpoint, Private DNS zone link, or Function App VNet integration and return SQL to private-only access.
 
 ## Notes
 
@@ -173,4 +204,4 @@ To test admin cookies, open browser DevTools after OTP login and confirm the API
 - Key Vault stores generated app secrets that are referenced by Function App settings. Keep production secrets and deployment tokens out of source control and public issue/PR content.
 - CSV exports and deployment logs can include personal or operational data. Handle them according to your organization's policies.
 - Storage shared-key access is disabled by policy. Terraform uses Azure AD storage operations, and the Function App deployment storage uses managed identity.
-- Azure SQL is deployed in `koreacentral` alongside app resources. Azure Communication Services is the only global resource exception and uses `data_location` (default `United States`) for data residency.
+- Azure SQL is deployed in `koreacentral` alongside app resources and is reached privately through the Function App integration subnet, SQL Private Endpoint, and `privatelink.database.windows.net` Private DNS zone. Azure Communication Services is the only global resource exception and uses `data_location` (default `United States`) for data residency.
