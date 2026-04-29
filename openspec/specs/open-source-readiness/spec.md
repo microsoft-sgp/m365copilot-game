@@ -88,7 +88,7 @@ The repository SHALL keep setup and deployment documentation consistent with the
 
 ### Requirement: Public Secret Hygiene
 
-The repository SHALL avoid committed production secrets and SHALL provide placeholder-only examples for local settings, deployment values, keys, connection strings, tokens, and Terraform variables.
+The repository SHALL avoid committed production secrets, SHALL provide placeholder-only examples for local settings, deployment values, keys, connection strings, tokens, and Terraform variables, AND Terraform state, which can contain provider-returned access keys, SHALL be held in a secure remote backend rather than on workstation disks for any environment beyond a one-off local plan-only experiment.
 
 #### Scenario: Maintainer scans public docs before release
 
@@ -101,3 +101,9 @@ The repository SHALL avoid committed production secrets and SHALL provide placeh
 - **GIVEN** a user copies sample local configuration
 - **WHEN** the sample contains credentials or keys
 - **THEN** the sample MUST clearly identify them as local-only or placeholder values and MUST tell users not to reuse them in shared, staging, or production environments
+
+#### Scenario: Terraform state is held in a remote backend
+
+- **GIVEN** any environment provisioned through `infra/terraform/`
+- **WHEN** an operator runs `terraform init`, `plan`, or `apply`
+- **THEN** state MUST be written only to the configured Azure Storage remote backend with Azure AD auth, the operator runbook MUST document deleting any pre-migration `terraform.tfstate*` files from local disk, and the documentation MUST state explicitly that any access key that was previously captured in a local state file MUST be rotated before treating the migration as complete
