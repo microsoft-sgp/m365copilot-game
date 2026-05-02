@@ -37,6 +37,19 @@ export function buildPromptFull(
   return promptTemplate.replace(/VERIFY-[A-Z0-9]+-PACK-TILE/g, concrete);
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function hasHeadingLine(proof: string, heading: string): boolean {
+  const escapedHeading = escapeRegExp(heading.trim());
+  const headingLine = new RegExp(
+    `^\\s*(?:#{1,6}\\s*)?${escapedHeading}(?:\\s*\\([^\\n]*\\))?\\s*$`,
+    'im',
+  );
+  return headingLine.test(proof);
+}
+
 // Verification engine — returns an array of error messages (empty when the
 // proof passes all rule checks). Behavior must remain compatible with the
 // legacy single-file implementation.
@@ -75,7 +88,7 @@ export function verifyStructure(
   }
   if (rules.headings) {
     rules.headings.forEach((h) => {
-      if (!new RegExp(`##\\s*${h}`, 'i').test(proof)) {
+      if (!hasHeadingLine(proof, h)) {
         errors.push(`Missing heading: ## ${h}`);
       }
     });

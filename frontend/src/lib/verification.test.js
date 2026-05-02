@@ -81,6 +81,23 @@ describe('verifyStructure', () => {
         [],
       );
     });
+    it('accepts standalone plain section labels', () => {
+      const proof = 'Strengths\nfoo\nWeaknesses\nbar';
+      expect(verifyStructure(proof, PID, TI, { headings: ['Strengths', 'Weaknesses'] })).toEqual(
+        [],
+      );
+    });
+    it('accepts markdown headings with prompt annotations', () => {
+      const proof = '## Introduction (15 min)\nfoo\n## Wrap-Up (10 min)\nbar';
+      expect(verifyStructure(proof, PID, TI, { headings: ['Introduction', 'Wrap-Up'] })).toEqual(
+        [],
+      );
+    });
+    it('rejects heading text that only appears inside prose', () => {
+      const proof = 'Here is what went well during revision.\nI learned a lot.';
+      const errs = verifyStructure(proof, PID, TI, { headings: ['What Went Well'] });
+      expect(errs).toEqual(['Missing heading: ## What Went Well']);
+    });
     it('flags each missing heading', () => {
       const proof = '## Strengths\nfoo';
       const errs = verifyStructure(proof, PID, TI, {
