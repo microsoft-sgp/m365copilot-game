@@ -5,6 +5,8 @@ import { formatAdminScoreEvent } from '../lib/adminScoreEventDisplay.js';
 
 const loading = ref(true);
 const dashboard = ref(null);
+const SESSION_TASK_TOTAL = 9;
+const SESSION_AWARD_TOTAL = 8;
 
 onMounted(async () => {
   const res = await apiAdminGetDashboard();
@@ -24,6 +26,20 @@ async function exportCsv() {
     a.click();
     URL.revokeObjectURL(url);
   }
+}
+
+function sessionProgressValue(value, total) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 0;
+  return Math.min(total, Math.max(0, Math.trunc(numericValue)));
+}
+
+function formatSessionProgress(value, total) {
+  return `${sessionProgressValue(value, total)}/${total}`;
+}
+
+function sessionProgressWidth(value, total) {
+  return `${Math.round((sessionProgressValue(value, total) / total) * 100)}%`;
 }
 </script>
 
@@ -67,7 +83,7 @@ async function exportCsv() {
             {{ dashboard.summary.avgTilesCleared }}
           </div>
           <div class="text-label-sm text-on-surface-variant">
-            Avg Tiles
+            Avg Tasks
           </div>
         </div>
       </div>
@@ -97,10 +113,10 @@ async function exportCsv() {
                   Pack
                 </th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">
-                  Tiles
+                  Tasks
                 </th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">
-                  Lines
+                  Awards
                 </th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">
                   Last Active
@@ -119,11 +135,45 @@ async function exportCsv() {
                 <td class="border-b border-outline-variant px-2 py-1.5">
                   {{ s.pack_id }}
                 </td>
-                <td class="border-b border-outline-variant px-2 py-1.5">
-                  {{ s.tiles_cleared }}/9
+                <td class="min-w-[8.5rem] border-b border-outline-variant px-2 py-1.5">
+                  <div class="flex items-center gap-2">
+                    <span class="min-w-9 font-semibold">
+                      {{ formatSessionProgress(s.tiles_cleared, SESSION_TASK_TOTAL) }}
+                    </span>
+                    <div
+                      class="progress-track min-w-16 flex-1"
+                      role="progressbar"
+                      aria-label="Tasks completed"
+                      :aria-valuenow="sessionProgressValue(s.tiles_cleared, SESSION_TASK_TOTAL)"
+                      aria-valuemin="0"
+                      :aria-valuemax="SESSION_TASK_TOTAL"
+                    >
+                      <div
+                        class="progress-fill"
+                        :style="{ width: sessionProgressWidth(s.tiles_cleared, SESSION_TASK_TOTAL) }"
+                      />
+                    </div>
+                  </div>
                 </td>
-                <td class="border-b border-outline-variant px-2 py-1.5">
-                  {{ s.lines_won }}
+                <td class="min-w-[8.5rem] border-b border-outline-variant px-2 py-1.5">
+                  <div class="flex items-center gap-2">
+                    <span class="min-w-9 font-semibold">
+                      {{ formatSessionProgress(s.lines_won, SESSION_AWARD_TOTAL) }}
+                    </span>
+                    <div
+                      class="progress-track min-w-16 flex-1"
+                      role="progressbar"
+                      aria-label="Awards earned"
+                      :aria-valuenow="sessionProgressValue(s.lines_won, SESSION_AWARD_TOTAL)"
+                      aria-valuemin="0"
+                      :aria-valuemax="SESSION_AWARD_TOTAL"
+                    >
+                      <div
+                        class="progress-fill"
+                        :style="{ width: sessionProgressWidth(s.lines_won, SESSION_AWARD_TOTAL) }"
+                      />
+                    </div>
+                  </div>
                 </td>
                 <td class="border-b border-outline-variant px-2 py-1.5">
                   {{ new Date(s.last_active_at).toLocaleString() }}

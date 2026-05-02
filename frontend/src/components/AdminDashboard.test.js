@@ -98,8 +98,13 @@ describe('AdminDashboard', () => {
     expect(wrapper.text()).toContain('12');
     expect(wrapper.text()).toContain('Players');
     expect(wrapper.text()).toContain('Top Org: NUS');
+    expect(wrapper.text()).toContain('Avg Tasks');
     expect(wrapper.text()).toContain('Recent Sessions');
     expect(wrapper.text()).toContain('Ada');
+    expect(wrapper.text()).toContain('Tasks');
+    expect(wrapper.text()).toContain('Awards');
+    expect(wrapper.text()).toContain('3/9');
+    expect(wrapper.text()).toContain('1/8');
     expect(wrapper.text()).toContain('Achievement');
     expect(wrapper.text()).toContain('Award Code');
     expect(wrapper.text()).toContain('Line completed');
@@ -112,7 +117,21 @@ describe('AdminDashboard', () => {
     expect(wrapper.text()).not.toContain('weekly_won');
     expect(wrapper.text()).not.toContain('legacy_submission');
     expect(wrapper.text()).not.toContain('bonus_award');
+    expect(wrapper.text()).not.toContain('Avg Tiles');
+    expect(wrapper.text()).not.toContain('Tiles');
+    expect(wrapper.text()).not.toContain('Lines');
     expect(wrapper.text()).toContain('CO-APR26-042-R1-TEST');
+
+    const progressbars = wrapper.findAll('[role="progressbar"]');
+    expect(progressbars).toHaveLength(2);
+    expect(progressbars[0].attributes('aria-label')).toBe('Tasks completed');
+    expect(progressbars[0].attributes('aria-valuenow')).toBe('3');
+    expect(progressbars[0].attributes('aria-valuemax')).toBe('9');
+    expect(progressbars[0].find('.progress-fill').attributes('style')).toContain('33%');
+    expect(progressbars[1].attributes('aria-label')).toBe('Awards earned');
+    expect(progressbars[1].attributes('aria-valuenow')).toBe('1');
+    expect(progressbars[1].attributes('aria-valuemax')).toBe('8');
+    expect(progressbars[1].find('.progress-fill').attributes('style')).toContain('13%');
   });
 
   it('exports dashboard CSV with the expected filename', async () => {
