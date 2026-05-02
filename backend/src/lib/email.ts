@@ -17,6 +17,71 @@ export type EmailSendResult =
       latencyMs: number;
     };
 
+type EmailContent = {
+  subject: string;
+  plainText: string;
+  html: string;
+};
+
+const ADMIN_OTP_SUBJECT = 'Your Capy verification code';
+
+function escapeHtml(value: string): string {
+  const entities: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+
+  return value.replace(/[&<>"']/g, (char) => entities[char] ?? char);
+}
+
+function renderAdminOtpEmail(code: string): EmailContent {
+  const safeCode = escapeHtml(code);
+  const displayCode = safeCode.split('').join(' ');
+
+  return {
+    subject: ADMIN_OTP_SUBJECT,
+    plainText: [
+      'Welcome to Capy',
+      '',
+      `Your verification code is: ${code}`,
+      '',
+      'This code expires in 10 minutes.',
+      '',
+      'If you did not request this code, you can safely ignore this email - no one can access your account without it.',
+      '',
+      'Thanks,',
+      'The Capy Team',
+    ].join('\n'),
+    html: `<!doctype html>
+<html lang="en">
+  <body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#202124;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f4f5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;max-width:560px;background:#ffffff;border:1px solid #dde1e6;border-radius:8px;">
+            <tr>
+              <td style="padding:40px 44px 36px 44px;">
+                <h1 style="margin:0 0 28px 0;font-size:26px;line-height:32px;font-weight:700;color:#202124;">Welcome to Capy</h1>
+                <p style="margin:0 0 14px 0;font-size:18px;line-height:28px;color:#4b4f5c;">Your verification code is:</p>
+                <div style="margin:0 0 30px 0;padding:26px 16px;border-radius:8px;background:#f1f1f3;text-align:center;font-size:36px;line-height:44px;font-weight:700;letter-spacing:10px;color:#202124;" aria-label="Verification code">${displayCode}</div>
+                <p style="margin:0 0 24px 0;font-size:18px;line-height:28px;color:#5f6470;">This code expires in 10 minutes.</p>
+                <p style="margin:0 0 24px 0;font-size:16px;line-height:26px;color:#6b7280;">If you did not request this code, you can safely ignore this email - no one can access your account without it.</p>
+                <div style="height:1px;background:#e5e7eb;margin:30px 0 28px 0;line-height:1px;">&nbsp;</div>
+                <p style="margin:0;font-size:16px;line-height:26px;color:#9ca3af;">Thanks,<br>The Capy Team</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`,
+  };
+}
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown email send error';
 }
@@ -53,10 +118,16 @@ function readEmailConfig(): EmailConfigResult {
     process.env.ACS_CONNECTION_STRING,
     process.env.SMTP_CONNECTION,
   );
-  const senderAddress = configuredValue(process.env.ACS_EMAIL_SENDER, process.env.ACS_SENDER_ADDRESS);
+  const senderAddress = configuredValue(
+    process.env.ACS_EMAIL_SENDER,
+    process.env.ACS_SENDER_ADDRESS,
+  );
 
   if (!connectionString || !senderAddress) return { ok: false, reason: 'missing' };
-  if (isUnresolvedKeyVaultReference(connectionString) || isUnresolvedKeyVaultReference(senderAddress)) {
+  if (
+    isUnresolvedKeyVaultReference(connectionString) ||
+    isUnresolvedKeyVaultReference(senderAddress)
+  ) {
     return { ok: false, reason: 'unresolved_reference' };
   }
 
@@ -103,12 +174,10 @@ export async function sendAdminOtpEmail(
   let messageId: string | undefined;
   try {
     const client = new EmailClient(emailConfig.connectionString);
+    const content = renderAdminOtpEmail(code);
     const poller = await client.beginSend({
       senderAddress: emailConfig.senderAddress,
-      content: {
-        subject: 'Your Copilot Bingo admin verification code',
-        plainText: `Your admin verification code is ${code}. It expires in 10 minutes.`,
-      },
+      content,
       recipients: {
         to: [{ address: email }],
       },

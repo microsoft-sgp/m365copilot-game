@@ -59,9 +59,52 @@ describe('sendAdminOtpEmail', () => {
     expect(result.ok).toBe(true);
     expect(typeof result.latencyMs).toBe('number');
     expect(result.messageId).toBe('op-123');
+    const sentMessage = beginSendMock.mock.calls[0][0];
     expect(EmailClientMock).toHaveBeenCalledWith(process.env.ACS_CONNECTION_STRING);
-    expect(beginSendMock.mock.calls[0][0].senderAddress).toBe('DoNotReply@example.com');
-    expect(beginSendMock.mock.calls[0][0].recipients.to[0].address).toBe('admin@test.com');
+    expect(sentMessage.senderAddress).toBe('DoNotReply@example.com');
+    expect(sentMessage.recipients.to[0].address).toBe('admin@test.com');
+    expect(sentMessage.content.subject).toBe('Your Capy verification code');
+    expect(sentMessage.content.plainText).toContain('Welcome to Capy');
+    expect(sentMessage.content.plainText).toContain('Your verification code is: 123456');
+    expect(sentMessage.content.plainText).toContain('This code expires in 10 minutes.');
+    expect(sentMessage.content.html).toContain('Welcome to Capy');
+    expect(sentMessage.content.html).toContain('Your verification code is:');
+    expect(sentMessage.content.html).toContain('1 2 3 4 5 6');
+    expect(sentMessage.content.html).toContain('This code expires in 10 minutes.');
+    expect(sentMessage.content.html).toContain('The Capy Team');
+    const emailBody = `${sentMessage.content.plainText}\n${sentMessage.content.html}`;
+    expect(emailBody).not.toContain('endpoint=https://example.communication.azure.com/');
+    expect(emailBody).not.toContain('accesskey=test');
+    expect(emailBody).not.toMatch(/jwt/i);
+    expect(emailBody).not.toMatch(/hash/i);
+    expect(emailBody).not.toMatch(/telemetry/i);
+    expect(emailBody).not.toMatch(/request ip/i);
+    expect(emailBody).not.toMatch(/203\.127\.164\.118/);
+    expect(emailBody).not.toMatch(/https?:\/\//i);
+    expect(emailBody).not.toMatch(/request a new/i);
+  });
+
+  it('keeps player recovery email payload unchanged', async () => {
+    process.env.ACS_CONNECTION_STRING =
+      'endpoint=https://example.communication.azure.com/;accesskey=test';
+    process.env.ACS_EMAIL_SENDER = 'DoNotReply@example.com';
+    beginSendMock.mockResolvedValue({
+      pollUntilDone: vi.fn(async () => ({ status: 'Succeeded', id: 'op-player' })),
+    });
+
+    const result = await sendPlayerRecoveryEmail('player@test.com', '123456', {
+      log: vi.fn(),
+      error: vi.fn(),
+    });
+
+    expect(result.ok).toBe(true);
+    const sentMessage = beginSendMock.mock.calls[0][0];
+    expect(sentMessage.senderAddress).toBe('DoNotReply@example.com');
+    expect(sentMessage.recipients.to[0].address).toBe('player@test.com');
+    expect(sentMessage.content).toEqual({
+      subject: 'Your Copilot Bingo player recovery code',
+      plainText: 'Your player recovery code is 123456. It expires in 10 minutes.',
+    });
   });
 
   it('reports provider failure', async () => {
