@@ -132,7 +132,12 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
   const otp = result.recordset[0];
 
   if (otp.used) {
-    logVerifyFailure(context, 'used_code', email, existingFailures);
+    const failures = await cacheIncrementWithTtl(
+      lockoutKey(email),
+      LOCKOUT_WINDOW_SECONDS,
+      context,
+    );
+    logVerifyFailure(context, 'used_code', email, failures);
     return {
       status: 401,
       jsonBody: { ok: false, message: 'Code already used. Please request a new one.' },
@@ -153,7 +158,12 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
     .query('UPDATE admin_otps SET used = 1 WHERE id = @id AND used = 0;');
 
   if (markUsedResult.rowsAffected?.[0] !== 1) {
-    logVerifyFailure(context, 'used_code', email, existingFailures);
+    const failures = await cacheIncrementWithTtl(
+      lockoutKey(email),
+      LOCKOUT_WINDOW_SECONDS,
+      context,
+    );
+    logVerifyFailure(context, 'used_code', email, failures);
     return {
       status: 401,
       jsonBody: { ok: false, message: 'Code already used. Please request a new one.' },

@@ -8,17 +8,17 @@ Defines the Azure Functions RESTful API backend for the Copilot Chat Bingo game:
 
 ### Requirement: Session creation endpoint
 
-The system SHALL expose `POST /api/sessions` to create or resume a player record and associated game session when a player starts a board, accepting email as the primary identity, enforcing server-authoritative pack assignment for the active campaign, AND issuing a player session token bound to the player's row.
+The system SHALL expose `POST /api/sessions` to create or resume a player record and associated game session when a player starts a board, accepting email as the primary identity, enforcing server-authoritative pack assignment for the active campaign, issuing a player session token bound to the player's row, AND identifying recoverable player ownership conflicts with a stable response code.
 
 #### Scenario: New player starts a board
 
 - **GIVEN** a player with a new email starts a board
 - **WHEN** the frontend sends `POST /api/sessions` with identity payload
-- **THEN** the system MUST create a player record keyed by email with a hashed `owner_token`, create or resolve an active pack assignment, create a game session for that assigned pack, set the `player_token` cookie on the response, and return `{ ok: true, gameSessionId: <id>, packId: <assignedPackId>, playerToken: <token> }`
+- **THEN** the system MUST create a player record keyed by email with a hashed `owner_token`, create or resolve an active pack assignment, create a game session for that assigned pack, set the `player_token` cookie on the response, create an active device-token record, and return `{ ok: true, gameSessionId: <id>, packId: <assignedPackId>, playerToken: <token> }`
 
 #### Scenario: Existing player resumes incomplete assignment
 
-- **GIVEN** a player whose email already exists and whose active assignment is incomplete, and whose request carries the matching player token
+- **GIVEN** a player whose email already exists and whose active assignment is incomplete, and whose request carries a matching player token
 - **WHEN** the frontend sends `POST /api/sessions` for the same campaign
 - **THEN** the system MUST reuse the existing player record, preserve canonical onboarding name, return the same assigned pack id, and MUST NOT rotate the token
 
@@ -32,19 +32,72 @@ The system SHALL expose `POST /api/sessions` to create or resume a player record
 
 - **GIVEN** a player whose email already exists with a non-null `owner_token`, and the request has no token or a non-matching token
 - **WHEN** the frontend sends `POST /api/sessions`
-- **THEN** the system MUST return HTTP 409 with `{ ok: false, message: "Identity in use" }`
+- **THEN** the system MUST return HTTP 409 with `{ ok: false, code: "PLAYER_RECOVERY_REQUIRED", message: "Identity in use" }` and MUST NOT return player profile, assignment, session, or board-state data
 
 #### Scenario: Legacy player without stored token
 
 - **GIVEN** a `players` row for the submitted email exists with `owner_token IS NULL`
 - **WHEN** the frontend sends `POST /api/sessions`
-- **THEN** the system MUST atomically populate `owner_token` with the hash of a newly generated token and return that token in the response
+- **THEN** the system MUST atomically populate `owner_token` with the hash of a newly generated token, create an active device-token record, and return that token in the response
 
 #### Scenario: Missing required fields
 
 - **GIVEN** a request missing required identity fields
 - **WHEN** the frontend sends `POST /api/sessions`
 - **THEN** the system MUST return `{ ok: false, message: "..." }` with HTTP 400
+
+### Requirement: Player recovery request endpoint
+
+The system SHALL expose `POST /api/player/recovery/request` to request a player recovery code for an existing player email while avoiding account enumeration.
+
+#### Scenario: Recovery request accepts valid email shape
+
+- **GIVEN** a syntactically valid email is supplied
+- **WHEN** the frontend sends `POST /api/player/recovery/request` with `{ email }`
+- **THEN** the endpoint MUST return a JSON response with `ok: true` unless rate-limited or the email service fails for a known player
+
+#### Scenario: Recovery request rejects invalid email shape
+
+- **GIVEN** the request body omits email or supplies a value without an `@` character
+- **WHEN** the frontend sends `POST /api/player/recovery/request`
+- **THEN** the endpoint MUST return HTTP 400 with `{ ok: false, message: "Valid email is required" }`
+
+#### Scenario: Recovery request does not require admin authorization
+
+- **GIVEN** the supplied email is not in the admin allow-list
+- **WHEN** the frontend sends `POST /api/player/recovery/request`
+- **THEN** the endpoint MUST evaluate only player recovery eligibility and MUST NOT require admin cookies, admin OTP, or `X-Admin-Key`
+
+### Requirement: Player recovery verification endpoint
+
+The system SHALL expose `POST /api/player/recovery/verify` to verify a player recovery code and return a new player session token for the existing player.
+
+#### Scenario: Successful verification response
+
+- **GIVEN** the supplied recovery code is valid for the supplied player email
+- **WHEN** the frontend sends `POST /api/player/recovery/verify` with `{ email, code }`
+- **THEN** the endpoint MUST return `{ ok: true, playerToken: <token> }`, MUST set the `player_token` cookie, and MUST NOT return admin authentication state
+
+#### Scenario: Verification rejects missing fields
+
+- **GIVEN** the request body omits email or code
+- **WHEN** the frontend sends `POST /api/player/recovery/verify`
+- **THEN** the endpoint MUST return HTTP 400 with `{ ok: false, message: "Email and code are required" }`
+
+#### Scenario: Verification rejects invalid code
+
+- **GIVEN** the supplied code is invalid, expired, already used, or not associated with the supplied email
+- **WHEN** the frontend sends `POST /api/player/recovery/verify`
+- **THEN** the endpoint MUST return HTTP 401 with `{ ok: false, message: "Invalid or expired code" }`
+
+### Requirement: Player recovery telemetry
+
+The system SHALL log player recovery attempts with non-sensitive structured fields.
+
+#### Scenario: Recovery request logging omits secrets
+
+- **WHEN** a recovery request or verification attempt is processed
+- **THEN** telemetry MUST include outcome and a non-reversible email hash, and MUST NOT include raw email addresses, recovery codes, raw player tokens, token hashes, or admin token values
 
 ### Requirement: Shared organization resolution
 
@@ -206,41 +259,47 @@ The system SHALL use the shared organization resolver for `POST /api/submissions
 
 ### Requirement: Player state retrieval endpoint
 
-The system SHALL expose `GET /api/player/state` to retrieve a player's game state by email for cross-device progress sync, including pack assignment lifecycle information, AND SHALL require a player session token matching the player record for the supplied email whenever enforcement is enabled.
+The system SHALL expose `POST /api/player/state` to retrieve a player's game state by email for cross-device progress sync, including pack assignment lifecycle information, AND SHALL require a player session token matching the player record for the supplied email whenever enforcement is enabled. The email MUST be carried in the JSON request body so it does not appear in URL access logs or request-URL telemetry.
 
 #### Scenario: Player with existing sessions and matching token
 
 - **GIVEN** a player with the given email has game sessions in the database, and the request token matches the player's `owner_token`
-- **WHEN** `GET /api/player/state?email=alice@nus.edu.sg` is called
+- **WHEN** `POST /api/player/state` is called with body `{ "email": "alice@nus.edu.sg" }`
 - **THEN** the system MUST return the player's active assignment and most recent active session including packId, board_state (cleared tiles, won lines, keywords, challenge profile), session counters, and session ID
 
 #### Scenario: Player with no sessions
 
 - **GIVEN** no player record exists for the given email
-- **WHEN** `GET /api/player/state?email=unknown@example.com` is called
+- **WHEN** `POST /api/player/state` is called with body `{ "email": "unknown@example.com" }`
 - **THEN** the system MUST return `{ ok: true, player: null }` indicating no existing state
 
 #### Scenario: Existing player without matching token returns null
 
 - **GIVEN** enforcement is enabled, a player record exists for the supplied email, and the request token does not match `players.owner_token`
-- **WHEN** `GET /api/player/state` is called
+- **WHEN** `POST /api/player/state` is called
 - **THEN** the system MUST return `{ ok: true, player: null }` (identical to the no-record branch) so the endpoint cannot be used as an existence oracle
 
 #### Scenario: Completed assignment rotates on state bootstrap
 
 - **GIVEN** the player's current assignment is complete and the request token matches
-- **WHEN** `GET /api/player/state` is called
+- **WHEN** `POST /api/player/state` is called
 - **THEN** the system MUST mark the old assignment completed and return a newly active assignment for the next cycle
 
-#### Scenario: Missing email parameter
+#### Scenario: Missing email field
 
-- **GIVEN** no email query parameter is provided
-- **WHEN** `GET /api/player/state` is called
+- **GIVEN** the request body lacks an `email` field, or the value is empty
+- **WHEN** `POST /api/player/state` is called
 - **THEN** the system MUST return HTTP 400 with `{ ok: false, message: "Email is required" }`
+
+#### Scenario: Email is not exposed in request URL
+
+- **GIVEN** any caller of the player-state endpoint
+- **WHEN** the request is dispatched
+- **THEN** the request URL MUST be exactly `/api/player/state` with no email query parameter and no email path segment, so the email never enters access logs or `requests.url` telemetry
 
 ### Requirement: Player token enforcement on game endpoints
 
-The system SHALL require a valid player session token (matching the addressed player's `owner_token`) on `PATCH /api/sessions/:id`, `POST /api/events`, `POST /api/submissions`, and `GET /api/player/state` whenever `ENABLE_PLAYER_TOKEN_ENFORCEMENT` is not set to `"false"`.
+The system SHALL require a valid player session token (matching the addressed player's `owner_token`) on `PATCH /api/sessions/:id`, `POST /api/events`, `POST /api/submissions`, and `POST /api/player/state` whenever `ENABLE_PLAYER_TOKEN_ENFORCEMENT` is not set to `"false"`.
 
 #### Scenario: Authorized session update
 

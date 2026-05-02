@@ -8,21 +8,15 @@ import {
   getCookie,
 } from '../lib/adminCookies.js';
 import {
-  isAllowedAdminOrigin,
+  requireAllowedOrigin,
   signAdminRefreshToken,
   signAdminToken,
   verifyAdminRefreshToken,
 } from '../lib/adminAuth.js';
 
-function forbiddenOriginResponse() {
-  return {
-    status: 403,
-    jsonBody: { ok: false, message: 'Forbidden origin' },
-  };
-}
-
 export const refreshHandler = async (request: HttpRequest, _context: InvocationContext) => {
-  if (!isAllowedAdminOrigin(request.headers.get('origin'))) return forbiddenOriginResponse();
+  const originError = requireAllowedOrigin(request);
+  if (originError) return originError;
 
   const refreshToken = getCookie(request, ADMIN_COOKIE_NAMES.refresh);
   const verification = verifyAdminRefreshToken(refreshToken);
@@ -50,7 +44,8 @@ export const refreshHandler = async (request: HttpRequest, _context: InvocationC
 };
 
 export const logoutHandler = async (request: HttpRequest, _context: InvocationContext) => {
-  if (!isAllowedAdminOrigin(request.headers.get('origin'))) return forbiddenOriginResponse();
+  const originError = requireAllowedOrigin(request);
+  if (originError) return originError;
 
   return {
     cookies: clearAdminAuthCookies(),

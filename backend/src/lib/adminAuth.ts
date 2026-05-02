@@ -77,6 +77,14 @@ export function isAllowedAdminOrigin(origin: string | null): boolean {
   return allowed.includes(origin);
 }
 
+export function requireAllowedOrigin(request: AdminRequest): ErrorResponse | null {
+  if (isAllowedAdminOrigin(request.headers.get('origin'))) return null;
+  return {
+    status: 403,
+    jsonBody: { ok: false, message: 'Forbidden origin' },
+  };
+}
+
 type AdminJwtPayload = JwtPayload & {
   email?: string;
   role?: string;
@@ -133,14 +141,11 @@ function verifyJwt(request: AdminRequest): JwtVerificationResult {
 
   // Cookie-bound auth: require an Origin header that matches the configured
   // allowlist. Bearer tokens are server-to-server and do not need this check.
-  if (cookieToken && !isAllowedAdminOrigin(request.headers.get('origin'))) {
-    return {
-      ok: false,
-      response: {
-        status: 403,
-        jsonBody: { ok: false, message: 'Forbidden origin' },
-      },
-    };
+  if (cookieToken) {
+    const originError = requireAllowedOrigin(request);
+    if (originError) {
+      return { ok: false, response: originError };
+    }
   }
 
   const secret = getJwtSecret();

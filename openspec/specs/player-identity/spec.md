@@ -52,13 +52,13 @@ The system SHALL conditionally show an organization input during onboarding when
 
 ### Requirement: Cross-device state retrieval
 
-The system SHALL retrieve a player's existing game state from the server when an email is entered, enabling progress to persist across devices.
+The system SHALL retrieve a player's existing game state from the server when an email is entered, enabling progress to persist across devices. Player email MUST be carried in the request body, never in the URL path or query string, so that addresses are not written to access logs or request-URL telemetry.
 
 #### Scenario: Player with existing server-side progress
 
 - **GIVEN** the player enters an email that has existing game sessions on the server
 - **WHEN** the email gate is submitted
-- **THEN** the system MUST call `GET /api/player/state?email=<email>`, receive the player's active session data (packId, cleared tiles, won lines, keywords, challenge profile), and hydrate the Vue reactive state from the server response
+- **THEN** the system MUST call `POST /api/player/state` with `{ email }` in the JSON body, receive the player's active session data (packId, cleared tiles, won lines, keywords, challenge profile), and hydrate the Vue reactive state from the server response
 
 #### Scenario: Player with no server-side progress
 
@@ -71,6 +71,12 @@ The system SHALL retrieve a player's existing game state from the server when an
 - **GIVEN** the API is unreachable when the player submits their email
 - **WHEN** the state retrieval request fails
 - **THEN** the system MUST proceed using localStorage state (if any) or fresh state, and display a subtle indicator that offline mode is active
+
+#### Scenario: Email never appears in request URL
+
+- **GIVEN** any client-side call to retrieve player state
+- **WHEN** the request is constructed and dispatched
+- **THEN** the request URL MUST be exactly `/api/player/state` with no query string carrying the email and no path segment containing the email
 
 ### Requirement: Email stored as identity anchor
 
@@ -138,7 +144,7 @@ The system SHALL capture the `playerToken` returned by `POST /api/sessions` and 
 
 ### Requirement: Player token forwarded on game API calls
 
-The system SHALL include the stored `playerToken` on every request to `PATCH /api/sessions/:id`, `POST /api/events`, `POST /api/submissions`, `GET /api/player/state`, and follow-up `POST /api/sessions` calls, using the `X-Player-Token` request header in addition to the HttpOnly cookie.
+The system SHALL include the stored `playerToken` on every request to `PATCH /api/sessions/:id`, `POST /api/events`, `POST /api/submissions`, `POST /api/player/state`, and follow-up `POST /api/sessions` calls, using the `X-Player-Token` request header in addition to the HttpOnly cookie.
 
 #### Scenario: Token forwarded as header
 
@@ -161,3 +167,63 @@ The system SHALL handle a 401 response from any game API endpoint by clearing th
 - **GIVEN** the SPA has a stored `playerToken` that no longer matches the server's `owner_token` (e.g. after admin reset)
 - **WHEN** `POST /api/events` returns HTTP 401
 - **THEN** the SPA MUST clear the stored token, call `POST /api/sessions` to obtain a fresh token, and retry the original `POST /api/events` exactly once
+
+### Requirement: Recoverable player identity conflict UX
+
+The system SHALL guide players through email-based recovery when the backend reports that their player email is already claimed but the current browser lacks matching ownership proof.
+
+#### Scenario: Setup detects recoverable identity conflict
+
+- **GIVEN** a player has entered onboarding identity and attempts to launch or sync a board from a browser without the matching player token
+- **WHEN** `POST /api/sessions` returns HTTP 409 with `code: "PLAYER_RECOVERY_REQUIRED"`
+- **THEN** the frontend MUST show a player recovery state for that email and MUST NOT show the error as an unrecoverable generic launch failure
+
+#### Scenario: Recovery request can be started from setup
+
+- **GIVEN** the frontend is showing the player recovery state for an email
+- **WHEN** the player requests a recovery code
+- **THEN** the frontend MUST call `POST /api/player/recovery/request` with the player's email and MUST show the code-entry step when the request succeeds
+
+#### Scenario: Successful recovery resumes board bootstrap
+
+- **GIVEN** the player has received a recovery code for their email
+- **WHEN** the player submits the correct code and `POST /api/player/recovery/verify` returns a `playerToken`
+- **THEN** the frontend MUST store the `playerToken` using the existing player-token storage mechanism, MUST retry session/bootstrap for the same identity, and MUST hydrate the active board from server state when available
+
+#### Scenario: Failed recovery keeps player out of local board
+
+- **GIVEN** the frontend is showing the player recovery state
+- **WHEN** recovery verification fails or is cancelled
+- **THEN** the frontend MUST keep the player outside the active board for that claimed email until recovery succeeds or the player chooses a different identity
+
+### Requirement: Local-only progress blocked during recovery
+
+The system SHALL prevent new local-only gameplay progress from being minted while player identity recovery is required.
+
+#### Scenario: Cached board is not launched after recoverable conflict
+
+- **GIVEN** localStorage contains cached board or pack data for an email
+- **WHEN** server bootstrap returns `PLAYER_RECOVERY_REQUIRED` for that email
+- **THEN** the frontend MUST NOT launch the cached board, verify additional tiles, mint new keywords, or record local-only progress before recovery succeeds
+
+#### Scenario: Existing active board pauses after ownership failure
+
+- **GIVEN** a player is viewing an active board and a game API call returns ownership failure for the current email
+- **WHEN** the frontend cannot re-bootstrap a valid player token automatically
+- **THEN** the frontend MUST pause further tile verification and keyword minting and MUST prompt for player recovery
+
+### Requirement: Player recovery remains separate from admin login
+
+The system SHALL present player recovery as a game identity flow, not as an admin login flow.
+
+#### Scenario: Admin button does not start player recovery
+
+- **GIVEN** a player is on the game surface and chooses the admin button
+- **WHEN** the admin login view is opened
+- **THEN** the frontend MUST use the admin OTP flow and MUST NOT treat admin OTP success or failure as player identity recovery
+
+#### Scenario: Player recovery does not mark admin authenticated
+
+- **GIVEN** a player successfully verifies a player recovery code
+- **WHEN** the frontend stores the recovered player token
+- **THEN** the frontend MUST NOT set `admin_authenticated`, `admin_email`, or any admin session state in browser storage

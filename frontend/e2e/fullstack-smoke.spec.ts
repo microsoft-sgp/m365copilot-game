@@ -33,7 +33,8 @@ test.describe('full-stack smoke', () => {
     await verifyTileByIndex(page, 1, proofForAnyTile(packId, 1));
     await verifyTileByIndex(page, 2, proofForAnyTile(packId, 2));
 
-    await expect(page.getByText(/BINGO/i)).toBeVisible();
+    await expect(page.getByText(/BINGO! Row 1/i)).toBeVisible();
+    await page.getByRole('button', { name: /keep playing/i }).click();
     await page.getByRole('button', { name: /activity/i }).click();
     await expect(page.getByText('Organization Leaderboard')).toBeVisible();
     await expect(page.getByText('NUS')).toBeVisible();

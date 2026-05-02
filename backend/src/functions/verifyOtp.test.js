@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockPool, fakeRequest } from '../test-helpers/mockPool.js';
 
+vi.mock('../lib/cache.js', () => ({
+  cacheDelete: vi.fn().mockResolvedValue(undefined),
+  cacheGetCounter: vi.fn().mockResolvedValue(0),
+  cacheIncrementWithTtl: vi.fn().mockResolvedValue(1),
+}));
+
+import { cacheIncrementWithTtl } from '../lib/cache.js';
+
 let mockPool;
 vi.mock('../lib/db.js', () => ({
   getPool: () => mockPool.pool,
@@ -16,6 +24,7 @@ describe('POST /api/portal-api/verify-otp', () => {
     prevSecret = process.env.JWT_SECRET;
     process.env.ADMIN_EMAILS = 'admin@test.com';
     process.env.JWT_SECRET = 'test-jwt-secret-key-padded-to-min-32-chars';
+    vi.mocked(cacheIncrementWithTtl).mockClear();
   });
 
   afterEach(() => {
@@ -56,6 +65,7 @@ describe('POST /api/portal-api/verify-otp', () => {
     const res = await handler(req, { log: vi.fn() });
     expect(res.status).toBe(401);
     expect(res.jsonBody.message).toMatch(/already used/i);
+    expect(cacheIncrementWithTtl).toHaveBeenCalledOnce();
   });
 
   it('returns 401 for expired OTP', async () => {
@@ -95,6 +105,7 @@ describe('POST /api/portal-api/verify-otp', () => {
     expect(res.status).toBe(401);
     expect(res.jsonBody.message).toMatch(/already used/i);
     expect(res.cookies).toBeUndefined();
+    expect(cacheIncrementWithTtl).toHaveBeenCalledOnce();
   });
 
   it('sets a short-lived step-up cookie for admin-management verification', async () => {

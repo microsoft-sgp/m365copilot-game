@@ -76,6 +76,31 @@ describe('admin session endpoints', () => {
     expect(res.jsonBody).toEqual({ ok: false, message: 'Forbidden origin' });
   });
 
+  it('rejects refresh when Origin is forbidden', async () => {
+    const refreshToken = signAdminRefreshToken('admin@test.com');
+    const res = await refreshHandler(
+      fakeRequest({
+        headers: {
+          origin: 'https://evil.example.com',
+          cookie: `${ADMIN_COOKIE_NAMES.refresh}=${refreshToken}`,
+        },
+      }),
+      { log: vi.fn() },
+    );
+
+    expect(res.status).toBe(403);
+    expect(res.jsonBody).toEqual({ ok: false, message: 'Forbidden origin' });
+    expect(res.cookies).toBeUndefined();
+  });
+
+  it('rejects logout when Origin is missing', async () => {
+    const res = await logoutHandler(fakeRequest(), { log: vi.fn() });
+
+    expect(res.status).toBe(403);
+    expect(res.jsonBody).toEqual({ ok: false, message: 'Forbidden origin' });
+    expect(res.cookies).toBeUndefined();
+  });
+
   it('rejects logout when Origin is forbidden', async () => {
     const res = await logoutHandler(
       fakeRequest({ headers: { origin: 'https://evil.example.com' } }),
@@ -84,5 +109,6 @@ describe('admin session endpoints', () => {
 
     expect(res.status).toBe(403);
     expect(res.jsonBody).toEqual({ ok: false, message: 'Forbidden origin' });
+    expect(res.cookies).toBeUndefined();
   });
 });
