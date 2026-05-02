@@ -33,8 +33,36 @@ const dashboardFixture = {
       player_name: 'Ada',
       org: 'NUS',
       event_type: 'line_won',
+      event_key: 'R1',
       keyword: 'CO-APR26-042-R1-TEST',
       created_at: '2026-04-29T00:00:00.000Z',
+    },
+    {
+      id: 8,
+      player_name: 'Grace',
+      org: 'Microsoft',
+      event_type: 'weekly_won',
+      event_key: 'W1',
+      keyword: 'CO-APR26-W1-042-WEEKLY',
+      created_at: '2026-04-29T01:00:00.000Z',
+    },
+    {
+      id: 9,
+      player_name: 'Lin',
+      org: 'SIM',
+      event_type: null,
+      event_key: null,
+      keyword: 'CO-APR26-042-R2-LEGACY',
+      created_at: '2026-04-29T02:00:00.000Z',
+    },
+    {
+      id: 10,
+      player_name: 'Noor',
+      org: 'SMU',
+      event_type: 'bonus_award',
+      event_key: 'B1',
+      keyword: 'CO-APR26-042-B1-BONUS',
+      created_at: '2026-04-29T03:00:00.000Z',
     },
   ],
 };
@@ -72,6 +100,18 @@ describe('AdminDashboard', () => {
     expect(wrapper.text()).toContain('Top Org: NUS');
     expect(wrapper.text()).toContain('Recent Sessions');
     expect(wrapper.text()).toContain('Ada');
+    expect(wrapper.text()).toContain('Achievement');
+    expect(wrapper.text()).toContain('Award Code');
+    expect(wrapper.text()).toContain('Line completed');
+    expect(wrapper.text()).toContain('Task 1');
+    expect(wrapper.text()).toContain('Weekly award earned');
+    expect(wrapper.text()).toContain('Week 1');
+    expect(wrapper.text()).toContain('Legacy keyword submission');
+    expect(wrapper.text()).toContain('Bonus Award');
+    expect(wrapper.text()).not.toContain('line_won');
+    expect(wrapper.text()).not.toContain('weekly_won');
+    expect(wrapper.text()).not.toContain('legacy_submission');
+    expect(wrapper.text()).not.toContain('bonus_award');
     expect(wrapper.text()).toContain('CO-APR26-042-R1-TEST');
   });
 

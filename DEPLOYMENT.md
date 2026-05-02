@@ -350,6 +350,8 @@ Admin portal login depends on email OTP delivery. In production, configure Azure
 
 > **Important:** OTP email sending fails in production if either `ACS_CONNECTION_STRING` or `ACS_EMAIL_SENDER` is missing. The backend invalidates any OTP row whose email send fails, so users must request a fresh code after a provider or configuration issue is fixed.
 
+> **Key Vault note:** If you store `ACS_CONNECTION_STRING` as a Function App Key Vault reference and Key Vault public network access is disabled, the Function App must have a private network path to Key Vault. Use VNet integration, a Key Vault Private Endpoint, a linked `privatelink.vaultcore.azure.net` Private DNS zone, and a managed identity with secret `Get`/`List` access. A literal app setting value beginning with `@Microsoft.KeyVault(` means the reference did not resolve.
+
 > **Region note:** Azure Communication Services is globally scoped. Choose the email data location required by your tenancy; the Terraform template defaults `communication_data_location` to `United States` while all regional app resources remain in Korea Central.
 
 ### 7c. Create Redis cache
@@ -382,6 +384,7 @@ az functionapp config appsettings set \
   --name func-bingo-api \
   --resource-group rg-bingo \
   --settings \
+    "NODE_ENV=production" \
     "SQL_CONNECTION_STRING=Server=tcp:sql-bingo-server.database.windows.net,1433;Initial Catalog=bingo_db;User ID=bingoadmin;Password=<YourStrongPassword123!>;Encrypt=true;TrustServerCertificate=false;" \
     "ADMIN_KEY=<pick-a-strong-secret-for-admin-access>" \
     "JWT_SECRET=<random-64-character-string-for-jwt-signing>" \
@@ -762,6 +765,20 @@ az functionapp config appsettings list \
 ```
 
 Confirm `ACS_CONNECTION_STRING` is from the Communication Services resource, `ACS_EMAIL_SENDER` exactly matches a verified sender address, and the requesting email is in `ADMIN_EMAILS` or active in the portal-managed admin list. After fixing settings, request a new OTP; failed-send OTPs are invalidated and cannot be reused.
+
+If either `ACS_CONNECTION_STRING` or another secret-backed app setting uses a Key Vault reference, inspect the reference status rather than the secret value:
+
+```bash
+SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+az rest \
+  --method get \
+  --url "https://management.azure.com/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-bingo/providers/Microsoft.Web/sites/func-bingo-api/config/configreferences/appsettings/ACS_CONNECTION_STRING?api-version=2022-03-01" \
+  --query "{status:properties.status,details:properties.details}" \
+  -o json
+```
+
+Expected status is `Resolved`. `AccessToKeyVaultDenied` means the Function App cannot reach or read the vault; verify the Key Vault reference identity, secret `Get`/`List` access, Function App VNet integration, route-all, Key Vault Private Endpoint approval, and the `privatelink.vaultcore.azure.net` DNS zone link. In Application Insights or Function App logs, this can also appear as `Invalid connection string @Microsoft.KeyVault(...)` when the email helper receives the unresolved reference. The same shared email system is used by admin OTP and player recovery, so fix this before asking users to request new codes.
 
 ### Admin can log in but cannot add or disable admins
 

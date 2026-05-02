@@ -51,6 +51,10 @@ locals {
   sql_private_endpoint_name        = substr("pep-sql-${local.resource_prefix}-${local.suffix}", 0, 80)
   sql_private_service_name         = substr("psc-sql-${local.resource_prefix}-${local.suffix}", 0, 80)
   sql_private_dns_link_name        = substr("pdnsl-sql-${local.resource_prefix}-${local.suffix}", 0, 80)
+  key_vault_private_dns_zone_name  = "privatelink.vaultcore.azure.net"
+  key_vault_private_endpoint_name  = substr("pep-kv-${local.resource_prefix}-${local.suffix}", 0, 80)
+  key_vault_private_service_name   = substr("psc-kv-${local.resource_prefix}-${local.suffix}", 0, 80)
+  key_vault_private_dns_link_name  = substr("pdnsl-kv-${local.resource_prefix}-${local.suffix}", 0, 80)
 
   acs_email_sender_address = "${var.acs_sender_username}@${azurerm_email_communication_service_domain.admin_otp.from_sender_domain}"
   allowed_origins = distinct(concat(
@@ -60,6 +64,7 @@ locals {
 
   app_settings = {
     AzureWebJobsFeatureFlags = "EnableWorkerIndexing"
+    NODE_ENV                 = "production"
     # The Functions host talks to the storage account using the
     # user-assigned managed identity.
     AzureWebJobsStorage__credential   = "managedidentity"
@@ -69,8 +74,8 @@ locals {
     SQL_DATABASE_NAME                 = azurerm_mssql_database.app.name
     SQL_AUTHENTICATION                = "azure-active-directory-msi-app-service"
     SQL_MANAGED_IDENTITY_CLIENT_ID    = azurerm_user_assigned_identity.functions.client_id
-    ADMIN_KEY                         = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.admin_key.id})"
-    JWT_SECRET                        = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.jwt_secret.id})"
+    ADMIN_KEY                         = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.admin_key.versionless_id})"
+    JWT_SECRET                        = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.jwt_secret.versionless_id})"
     ADMIN_EMAILS                      = join(",", var.admin_emails)
     ADMIN_ACCESS_TTL_SECONDS          = tostring(var.admin_access_ttl_seconds)
     ADMIN_REFRESH_TTL_SECONDS         = tostring(var.admin_refresh_ttl_seconds)
@@ -79,9 +84,9 @@ locals {
     ADMIN_COOKIE_SAMESITE             = "None"
     ADMIN_COOKIE_PATH                 = "/api/portal-api"
     ALLOWED_ORIGINS                   = join(",", local.allowed_origins)
-    ACS_CONNECTION_STRING             = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.acs_connection_string.id})"
+    ACS_CONNECTION_STRING             = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.acs_connection_string.versionless_id})"
     ACS_EMAIL_SENDER                  = local.acs_email_sender_address
-    REDIS_CONNECTION_STRING           = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.redis_connection_string.id})"
+    REDIS_CONNECTION_STRING           = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.redis_connection_string.versionless_id})"
     CACHE_TTL_ACTIVE_CAMPAIGN_SECONDS = tostring(var.cache_ttl_active_campaign_seconds)
     CACHE_TTL_ORG_DOMAINS_SECONDS     = tostring(var.cache_ttl_org_domains_seconds)
     CACHE_TTL_LEADERBOARD_SECONDS     = tostring(var.cache_ttl_leaderboard_seconds)
@@ -221,14 +226,15 @@ resource "azurerm_role_assignment" "deployer_storage_blob_data_owner" {
 }
 
 resource "azurerm_key_vault" "main" {
-  name                       = local.key_vault_name
-  resource_group_name        = azurerm_resource_group.main.name
-  location                   = var.location
-  tenant_id                  = data.azurerm_client_config.current.tenant_id
-  sku_name                   = "standard"
-  soft_delete_retention_days = 7
-  purge_protection_enabled   = true
-  tags                       = local.tags
+  name                          = local.key_vault_name
+  resource_group_name           = azurerm_resource_group.main.name
+  location                      = var.location
+  tenant_id                     = data.azurerm_client_config.current.tenant_id
+  sku_name                      = "standard"
+  public_network_access_enabled = var.key_vault_public_network_access_enabled
+  soft_delete_retention_days    = 7
+  purge_protection_enabled      = true
+  tags                          = local.tags
 
   access_policy {
     tenant_id = data.azurerm_client_config.current.tenant_id
@@ -325,6 +331,41 @@ resource "azurerm_private_endpoint" "sql" {
   private_dns_zone_group {
     name                 = "default"
     private_dns_zone_ids = [azurerm_private_dns_zone.sql.id]
+  }
+}
+
+resource "azurerm_private_dns_zone" "key_vault" {
+  name                = local.key_vault_private_dns_zone_name
+  resource_group_name = azurerm_resource_group.main.name
+  tags                = local.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "key_vault" {
+  name                  = local.key_vault_private_dns_link_name
+  resource_group_name   = azurerm_resource_group.main.name
+  private_dns_zone_name = azurerm_private_dns_zone.key_vault.name
+  virtual_network_id    = azurerm_virtual_network.main.id
+  registration_enabled  = false
+  tags                  = local.tags
+}
+
+resource "azurerm_private_endpoint" "key_vault" {
+  name                = local.key_vault_private_endpoint_name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = var.location
+  subnet_id           = azurerm_subnet.private_endpoints.id
+  tags                = local.tags
+
+  private_service_connection {
+    name                           = local.key_vault_private_service_name
+    private_connection_resource_id = azurerm_key_vault.main.id
+    subresource_names              = ["vault"]
+    is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    name                 = "default"
+    private_dns_zone_ids = [azurerm_private_dns_zone.key_vault.id]
   }
 }
 
@@ -467,6 +508,7 @@ resource "azurerm_linux_function_app" "api" {
   ftp_publish_basic_authentication_enabled       = false
   webdeploy_publish_basic_authentication_enabled = false
   virtual_network_subnet_id                      = azurerm_subnet.functions.id
+  key_vault_reference_identity_id                = azurerm_user_assigned_identity.functions.id
   app_settings                                   = local.app_settings
   tags                                           = local.tags
 
@@ -500,6 +542,9 @@ resource "azurerm_linux_function_app" "api" {
     azurerm_key_vault_secret.admin_key,
     azurerm_key_vault_secret.jwt_secret,
     azurerm_key_vault_secret.redis_connection_string,
+    azurerm_key_vault_access_policy.function_secrets,
+    azurerm_private_dns_zone_virtual_network_link.key_vault,
+    azurerm_private_endpoint.key_vault,
     azurerm_private_dns_zone_virtual_network_link.sql,
     azurerm_private_endpoint.sql,
     azurerm_role_assignment.function_storage_blob_data_owner,
@@ -511,7 +556,7 @@ resource "azurerm_linux_function_app" "api" {
 resource "azurerm_key_vault_access_policy" "function_secrets" {
   key_vault_id = azurerm_key_vault.main.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_linux_function_app.api.identity[0].principal_id
+  object_id    = azurerm_user_assigned_identity.functions.principal_id
 
   secret_permissions = [
     "Get",

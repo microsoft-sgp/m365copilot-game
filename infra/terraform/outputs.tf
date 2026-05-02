@@ -53,6 +53,21 @@ output "sql_private_dns_zone_name" {
   value       = azurerm_private_dns_zone.sql.name
 }
 
+output "key_vault_private_endpoint_name" {
+  description = "Private Endpoint used by the Function App to resolve Key Vault-backed app settings."
+  value       = azurerm_private_endpoint.key_vault.name
+}
+
+output "key_vault_private_dns_zone_name" {
+  description = "Private DNS zone linked to the VNet for Key Vault Private Link resolution."
+  value       = azurerm_private_dns_zone.key_vault.name
+}
+
+output "function_key_vault_reference_identity_client_id" {
+  description = "Client ID of the user-assigned managed identity used for Function App Key Vault references."
+  value       = azurerm_user_assigned_identity.functions.client_id
+}
+
 output "function_sql_identity_name" {
   description = "User-assigned managed identity name granted database access by the migration runner."
   value       = azurerm_user_assigned_identity.functions.name

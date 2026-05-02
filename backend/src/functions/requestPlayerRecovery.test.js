@@ -16,6 +16,10 @@ function request(email) {
   return fakeRequest({ body: { email } });
 }
 
+function recoveryRequestCalls(ctx) {
+  return ctx.log.mock.calls.filter(([event]) => event === 'player_recovery_request');
+}
+
 describe('requestPlayerRecovery', () => {
   beforeEach(() => {
     vi.mocked(getPool).mockReset();
@@ -103,5 +107,33 @@ describe('requestPlayerRecovery', () => {
     expect(res.status).toBe(503);
     expect(res.jsonBody.message).toContain('Could not send recovery code');
     expect(calls[3].query).toMatch(/UPDATE player_recovery_otps SET used = 1/);
+  });
+
+  it('marks the code used and logs not_configured when ACS settings are unresolved', async () => {
+    vi.mocked(sendPlayerRecoveryEmail).mockResolvedValueOnce({
+      ok: false,
+      status: 'not_configured',
+      error: 'ACS Email is not configured',
+      latencyMs: 0,
+    });
+    const { pool, calls } = createMockPool([
+      { recordset: [{ id: 11, owner_token: 'hash' }] },
+      { recordset: [] },
+      { recordset: [{ id: 31 }] },
+      { recordset: [], rowsAffected: [1] },
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+    const ctx = context();
+
+    const res = await handler(request('ada@example.com'), ctx);
+
+    expect(res.status).toBe(503);
+    expect(res.jsonBody.message).toContain('Could not send recovery code');
+    expect(calls[3].query).toMatch(/UPDATE player_recovery_otps SET used = 1/);
+    const events = recoveryRequestCalls(ctx);
+    expect(events).toHaveLength(1);
+    expect(events[0][1].outcome).toBe('email_failed');
+    expect(events[0][1].acs_send_status).toBe('not_configured');
+    expect(events[0][1].email_hash).toMatch(/^[0-9a-f]{12}$/);
   });
 });

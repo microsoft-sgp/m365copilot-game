@@ -25,6 +25,44 @@ function getErrorName(error: unknown): string | undefined {
   return error instanceof Error ? error.name : undefined;
 }
 
+function configuredValue(primary: string | undefined, fallback: string | undefined): string {
+  const primaryValue = primary?.trim() ?? '';
+  if (primaryValue) return primaryValue;
+  return fallback?.trim() ?? '';
+}
+
+function isUnresolvedKeyVaultReference(value: string): boolean {
+  return value.trim().startsWith('@Microsoft.KeyVault(');
+}
+
+function notConfiguredResult(): EmailSendResult {
+  return {
+    ok: false,
+    error: 'ACS Email is not configured',
+    status: 'not_configured',
+    latencyMs: 0,
+  };
+}
+
+type EmailConfigResult =
+  | { ok: true; connectionString: string; senderAddress: string }
+  | { ok: false; reason: 'missing' | 'unresolved_reference' };
+
+function readEmailConfig(): EmailConfigResult {
+  const connectionString = configuredValue(
+    process.env.ACS_CONNECTION_STRING,
+    process.env.SMTP_CONNECTION,
+  );
+  const senderAddress = configuredValue(process.env.ACS_EMAIL_SENDER, process.env.ACS_SENDER_ADDRESS);
+
+  if (!connectionString || !senderAddress) return { ok: false, reason: 'missing' };
+  if (isUnresolvedKeyVaultReference(connectionString) || isUnresolvedKeyVaultReference(senderAddress)) {
+    return { ok: false, reason: 'unresolved_reference' };
+  }
+
+  return { ok: true, connectionString, senderAddress };
+}
+
 function readMessageId(poller: unknown, pollResult: unknown): string | undefined {
   // ACS LRO pollers expose the operation id in a couple of places depending on
   // the SDK version. Read defensively and treat absence as non-fatal.
@@ -52,27 +90,21 @@ export async function sendAdminOtpEmail(
   context: LoggerLike = console,
 ): Promise<EmailSendResult> {
   const start = Date.now();
-  const connectionString = process.env.ACS_CONNECTION_STRING || process.env.SMTP_CONNECTION || '';
-  const senderAddress = process.env.ACS_EMAIL_SENDER || process.env.ACS_SENDER_ADDRESS || '';
+  const emailConfig = readEmailConfig();
 
-  if (!connectionString || !senderAddress) {
-    if (process.env.NODE_ENV !== 'production') {
+  if (!emailConfig.ok) {
+    if (emailConfig.reason === 'missing' && process.env.NODE_ENV !== 'production') {
       context.log?.(`[DEV] Admin OTP for ${email}: ${code}`);
       return { ok: true, skipped: true, latencyMs: Date.now() - start };
     }
-    return {
-      ok: false,
-      error: 'ACS Email is not configured',
-      status: 'not_configured',
-      latencyMs: 0,
-    };
+    return notConfiguredResult();
   }
 
   let messageId: string | undefined;
   try {
-    const client = new EmailClient(connectionString);
+    const client = new EmailClient(emailConfig.connectionString);
     const poller = await client.beginSend({
-      senderAddress,
+      senderAddress: emailConfig.senderAddress,
       content: {
         subject: 'Your Copilot Bingo admin verification code',
         plainText: `Your admin verification code is ${code}. It expires in 10 minutes.`,
@@ -119,26 +151,20 @@ export async function sendPlayerRecoveryEmail(
   context: LoggerLike = console,
 ): Promise<EmailSendResult> {
   const start = Date.now();
-  const connectionString = process.env.ACS_CONNECTION_STRING || process.env.SMTP_CONNECTION || '';
-  const senderAddress = process.env.ACS_EMAIL_SENDER || process.env.ACS_SENDER_ADDRESS || '';
+  const emailConfig = readEmailConfig();
 
-  if (!connectionString || !senderAddress) {
-    if (process.env.NODE_ENV !== 'production') {
+  if (!emailConfig.ok) {
+    if (emailConfig.reason === 'missing' && process.env.NODE_ENV !== 'production') {
       return { ok: true, skipped: true, latencyMs: Date.now() - start };
     }
-    return {
-      ok: false,
-      error: 'ACS Email is not configured',
-      status: 'not_configured',
-      latencyMs: 0,
-    };
+    return notConfiguredResult();
   }
 
   let messageId: string | undefined;
   try {
-    const client = new EmailClient(connectionString);
+    const client = new EmailClient(emailConfig.connectionString);
     const poller = await client.beginSend({
-      senderAddress,
+      senderAddress: emailConfig.senderAddress,
       content: {
         subject: 'Your Copilot Bingo player recovery code',
         plainText: `Your player recovery code is ${code}. It expires in 10 minutes.`,

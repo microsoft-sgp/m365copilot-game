@@ -14,7 +14,8 @@ This folder provisions the Azure resources needed by Copilot Chat Bingo.
 - Azure Managed Redis for cache-aside API responses
 - Azure Communication Services and Email Communication Service with an Azure-managed sender domain
   - Azure Communication Services resources are globally scoped by Azure. Their `data_location` defaults to `United States` for data residency and is the only non-Korea Central deployment exception.
-- Key Vault for generated app secrets
+- Key Vault for generated app secrets, with public network access disabled by default
+- Key Vault Private Endpoint plus `privatelink.vaultcore.azure.net` Private DNS zone linked to the VNet so Function App Key Vault references can resolve privately
 - Log Analytics workspace and Application Insights
 
 Terraform provisions cloud resources only. Application publishing and SQL schema migrations are separate steps after `terraform apply`.
@@ -59,6 +60,8 @@ Azure SQL is private-only in this Terraform deployment. The Function App reaches
 
 `sql_allowed_ip_ranges` is retained for emergency or temporary public-access workflows only. It does not allow workstation migrations while SQL public network access remains disabled. To run migrations from a workstation, either connect from a network path that can resolve and reach the SQL private endpoint, or temporarily enable SQL public network access and apply the workstation firewall rule as a controlled rollback.
 
+Key Vault is also private-only by default. Function App Key Vault references use the Terraform-managed user-assigned identity, which has secret `Get`/`List` access, and resolve through the Key Vault Private Endpoint plus `privatelink.vaultcore.azure.net` Private DNS zone. Keep `key_vault_public_network_access_enabled=false` for shared environments. Set it to `true` only as a short-lived bootstrap or rollback measure from an approved workstation, then apply again with `false` after the private endpoint and DNS path are healthy.
+
 Terraform includes the generated frontend App Service hostname in the Function App CORS allow-list automatically and sets credentialed admin cookies to `Secure` and `SameSite=None` for the App Service to Function App cross-origin deployment. Add any production custom frontend domains to `allowed_origins` before planning.
 
 The default Azure Managed Redis SKU is `Balanced_B0` for dev/test cost control. Use `redis_sku_name` to choose a larger Balanced, ComputeOptimized, or FlashOptimized SKU for production throughput and resilience requirements. The default database uses encrypted client traffic, `NoCluster` for compatibility with the app's single-endpoint Redis client, and `AllKeysLRU` eviction for cache-aside entries.
@@ -77,7 +80,7 @@ terraform plan -out tfplan
 terraform apply tfplan
 ```
 
-This deployment intentionally disables SQL public network access. If Azure policy or a previous hardening step also disables public access on Key Vault, a full Terraform refresh from an ordinary workstation can fail while reading `azurerm_key_vault_secret` resources with `ForbiddenByConnection`. Prefer running Terraform from an approved network path that can reach the vault. For a known, reviewed graph-only reconciliation, `terraform plan -refresh=false` and `terraform apply -refresh=false` can be used, but review the resulting plan carefully because refreshless runs cannot detect unrelated live drift.
+This deployment intentionally disables SQL public network access and Key Vault public network access. A full Terraform refresh from an ordinary workstation can fail while reading `azurerm_key_vault_secret` resources with `ForbiddenByConnection`. Prefer running Terraform from an approved network path that can reach the vault. For a known, reviewed graph-only reconciliation, `terraform plan -refresh=false` and `terraform apply -refresh=false` can be used, but review the resulting plan carefully because refreshless runs cannot detect unrelated live drift.
 
 ## Deploy Backend Code
 
@@ -157,6 +160,14 @@ az functionapp config appsettings list \
 	-o table
 ```
 
+Confirm Key Vault references are resolved without printing app setting values or secret URIs:
+
+```bash
+infra/terraform/check-keyvault-references.sh
+```
+
+Expected status for `ACS_CONNECTION_STRING`, `ADMIN_KEY`, `JWT_SECRET`, and `REDIS_CONNECTION_STRING` is `Resolved`. If any status is `AccessToKeyVaultDenied`, confirm the Function App uses the `function_key_vault_reference_identity_client_id` output, the identity has Key Vault secret `Get`/`List` permissions, the Key Vault Private Endpoint is approved, and the VNet is linked to `privatelink.vaultcore.azure.net`.
+
 Confirm the private SQL network path is in place and the API health probe can reach the database:
 
 ```bash
@@ -181,6 +192,28 @@ curl "$(terraform -chdir=infra/terraform output -raw function_app_url)/api/healt
 
 The health response should include `"status":"healthy"` and `"database":"up"`.
 
+Confirm the private Key Vault network path is in place:
+
+```bash
+RESOURCE_GROUP_NAME=$(terraform -chdir=infra/terraform output -raw resource_group_name)
+FUNCTION_APP_NAME=$(terraform -chdir=infra/terraform output -raw function_app_name)
+KEY_VAULT_PRIVATE_ENDPOINT_NAME=$(terraform -chdir=infra/terraform output -raw key_vault_private_endpoint_name)
+
+az network private-endpoint show \
+	--resource-group "$RESOURCE_GROUP_NAME" \
+	--name "$KEY_VAULT_PRIVATE_ENDPOINT_NAME" \
+	--query "{name:name,state:privateLinkServiceConnections[0].privateLinkServiceConnectionState.status}" \
+	-o json
+
+az functionapp show \
+	--resource-group "$RESOURCE_GROUP_NAME" \
+	--name "$FUNCTION_APP_NAME" \
+	--query "{keyVaultReferenceIdentity:keyVaultReferenceIdentity,virtualNetworkSubnetId:virtualNetworkSubnetId,vnetRouteAllEnabled:siteConfig.vnetRouteAllEnabled}" \
+	-o json
+```
+
+The Function App should show a `keyVaultReferenceIdentity`, a `virtualNetworkSubnetId`, and `vnetRouteAllEnabled: true`; the Key Vault Private Endpoint connection should be `Approved`.
+
 Open the frontend URL:
 
 ```bash
@@ -188,6 +221,25 @@ terraform -chdir=infra/terraform output -raw frontend_web_app_url
 ```
 
 Open the frontend, complete onboarding with a test name and email address, and confirm the API assigns a pack and renders the 3x3 board. Admin login is available at `#/admin/login`. The initial bootstrap admin list comes from `admin_emails` in `terraform.tfvars`.
+
+To test ACS Email locally against the real provider, set the same sender and connection string in your shell, start the backend against a local or test database, and request an OTP for an allowed admin email:
+
+```bash
+# Terminal 1
+cd backend
+ACS_CONNECTION_STRING='<acs-connection-string>' \
+ACS_EMAIL_SENDER='DoNotReply@<your-verified-email-domain>' \
+ADMIN_EMAILS='admin@example.com' \
+NODE_ENV=production \
+npm start
+
+# Terminal 2
+curl -X POST http://localhost:7071/api/portal-api/request-otp \
+	-H 'Content-Type: application/json' \
+	--data '{"email":"admin@example.com"}'
+```
+
+Do not paste literal Key Vault reference strings into local ACS variables. A value that starts with `@Microsoft.KeyVault(` is treated as unresolved configuration and returns `not_configured` before the ACS SDK is constructed. Keep local ACS values in environment variables or an untracked local settings file only; do not commit `local.settings.json`, connection strings, sender secrets, or copied Key Vault reference URIs.
 
 To test admin cookies, open browser DevTools after OTP login and confirm the API response sets `admin_access` and `admin_refresh` cookies as `HttpOnly`, `Secure`, and `SameSite=None`. The frontend should not store JWT token strings in `sessionStorage` or `localStorage`.
 
@@ -197,6 +249,7 @@ To test admin cookies, open browser DevTools after OTP login and confirm the API
 - Cookie/CORS rollback: keep `ADMIN_KEY` configured as the break-glass path for admin API calls. If browser login fails after a domain or CORS change, verify `ALLOWED_ORIGINS`, Function App CORS `support_credentials`, and the `ADMIN_COOKIE_SAMESITE=None`/`ADMIN_COOKIE_SECURE=true` settings before reverting application code.
 - Leaderboard rollback: set `LEADERBOARD_SOURCE=submissions`, restart the Function App, and verify the leaderboard endpoint before changing data.
 - SQL private networking rollback: temporarily enable SQL public network access and keep the existing firewall rules only long enough to restore service, then fix the Private Endpoint, Private DNS zone link, or Function App VNet integration and return SQL to private-only access.
+- Key Vault private networking rollback: set `key_vault_public_network_access_enabled=true` only long enough to restore Function App Key Vault reference resolution or run a controlled Terraform operation from an approved workstation. Return the value to `false` after the Key Vault Private Endpoint, Private DNS zone link, Function App VNet integration, and Key Vault reference identity are healthy.
 
 ## Notes
 

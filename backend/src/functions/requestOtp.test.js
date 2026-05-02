@@ -24,16 +24,20 @@ function getSendAttemptCalls(context) {
 }
 
 describe('POST /api/portal-api/request-otp', () => {
-  let prevEmails, prevNodeEnv, prevConnection, prevSender;
+  let prevEmails, prevNodeEnv, prevConnection, prevSender, prevSmtpConnection, prevLegacySender;
 
   beforeEach(() => {
     prevEmails = process.env.ADMIN_EMAILS;
     prevNodeEnv = process.env.NODE_ENV;
     prevConnection = process.env.ACS_CONNECTION_STRING;
     prevSender = process.env.ACS_EMAIL_SENDER;
+    prevSmtpConnection = process.env.SMTP_CONNECTION;
+    prevLegacySender = process.env.ACS_SENDER_ADDRESS;
     process.env.ADMIN_EMAILS = 'admin@test.com,boss@test.com';
     delete process.env.ACS_CONNECTION_STRING;
     delete process.env.ACS_EMAIL_SENDER;
+    delete process.env.SMTP_CONNECTION;
+    delete process.env.ACS_SENDER_ADDRESS;
     beginSendMock.mockReset();
     EmailClientMock.mockClear();
   });
@@ -47,6 +51,10 @@ describe('POST /api/portal-api/request-otp', () => {
     else process.env.ACS_CONNECTION_STRING = prevConnection;
     if (prevSender === undefined) delete process.env.ACS_EMAIL_SENDER;
     else process.env.ACS_EMAIL_SENDER = prevSender;
+    if (prevSmtpConnection === undefined) delete process.env.SMTP_CONNECTION;
+    else process.env.SMTP_CONNECTION = prevSmtpConnection;
+    if (prevLegacySender === undefined) delete process.env.ACS_SENDER_ADDRESS;
+    else process.env.ACS_SENDER_ADDRESS = prevLegacySender;
   });
 
   it('returns 500 when ADMIN_EMAILS is not configured', async () => {
@@ -138,6 +146,32 @@ describe('POST /api/portal-api/request-otp', () => {
     const res = await handler(req, ctx);
     expect(res.status).toBe(503);
     expect(mockPool.calls[3].query).toContain('UPDATE admin_otps SET used = 1');
+    const events = getSendAttemptCalls(ctx);
+    expect(events).toHaveLength(1);
+    expect(events[0][1].outcome).toBe('acs_failed');
+    expect(events[0][1].acs_send_status).toBe('not_configured');
+    expect(events[0][1].email_hash).toMatch(/^[0-9a-f]{12}$/);
+  });
+
+  it('invalidates OTP when ACS connection string is an unresolved Key Vault reference', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.ACS_CONNECTION_STRING =
+      '@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/acs-connection-string/version)';
+    process.env.ACS_EMAIL_SENDER = 'DoNotReply@example.com';
+    mockPool = createMockPool([
+      [],
+      [],
+      { recordset: [{ id: 13 }], rowsAffected: [1] },
+      { recordset: [], rowsAffected: [1] },
+    ]);
+    const ctx = { log: vi.fn(), error: vi.fn() };
+    const req = fakeRequest({ body: { email: 'admin@test.com' } });
+
+    const res = await handler(req, ctx);
+
+    expect(res.status).toBe(503);
+    expect(mockPool.calls[3].query).toContain('UPDATE admin_otps SET used = 1');
+    expect(EmailClientMock).not.toHaveBeenCalled();
     const events = getSendAttemptCalls(ctx);
     expect(events).toHaveLength(1);
     expect(events[0][1].outcome).toBe('acs_failed');

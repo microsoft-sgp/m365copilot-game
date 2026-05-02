@@ -205,6 +205,12 @@ variable "redis_public_network_access_enabled" {
   default     = true
 }
 
+variable "key_vault_public_network_access_enabled" {
+  description = "Whether Key Vault allows public network access. Keep false for shared environments after private endpoint and private DNS are configured; set true only for controlled bootstrap or rollback from an approved workstation."
+  type        = bool
+  default     = false
+}
+
 variable "sql_database_name" {
   description = "Azure SQL database name."
   type        = string

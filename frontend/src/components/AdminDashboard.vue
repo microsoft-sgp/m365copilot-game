@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { apiAdminGetDashboard, apiAdminExportCsv } from '../lib/api.js';
+import { formatAdminScoreEvent } from '../lib/adminScoreEventDisplay.js';
 
 const loading = ref(true);
 const dashboard = ref(null);
@@ -157,10 +158,10 @@ async function exportCsv() {
                   Org
                 </th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">
-                  Event
+                  Achievement
                 </th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">
-                  Keyword
+                  Award Code
                 </th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">
                   Awarded
@@ -180,7 +181,15 @@ async function exportCsv() {
                   {{ s.org }}
                 </td>
                 <td class="border-b border-outline-variant px-2 py-1.5">
-                  {{ s.event_type || 'legacy_submission' }}
+                  <div class="font-semibold">
+                    {{ formatAdminScoreEvent(s).label }}
+                  </div>
+                  <div
+                    v-if="formatAdminScoreEvent(s).detail"
+                    class="text-label-sm text-on-surface-variant"
+                  >
+                    {{ formatAdminScoreEvent(s).detail }}
+                  </div>
                 </td>
                 <td class="border-b border-outline-variant px-2 py-1.5 font-mono text-label-sm">
                   {{ s.keyword }}

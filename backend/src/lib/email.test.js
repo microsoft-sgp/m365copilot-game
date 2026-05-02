@@ -11,15 +11,21 @@ vi.mock('@azure/communication-email', () => ({
   EmailClient: EmailClientMock,
 }));
 
-const { sendAdminOtpEmail } = await import('./email.js');
+const { sendAdminOtpEmail, sendPlayerRecoveryEmail } = await import('./email.js');
 
 describe('sendAdminOtpEmail', () => {
-  let prevConnection, prevSender, prevNodeEnv;
+  let prevConnection, prevSender, prevNodeEnv, prevSmtpConnection, prevLegacySender;
 
   beforeEach(() => {
     prevConnection = process.env.ACS_CONNECTION_STRING;
     prevSender = process.env.ACS_EMAIL_SENDER;
     prevNodeEnv = process.env.NODE_ENV;
+    prevSmtpConnection = process.env.SMTP_CONNECTION;
+    prevLegacySender = process.env.ACS_SENDER_ADDRESS;
+    delete process.env.ACS_CONNECTION_STRING;
+    delete process.env.ACS_EMAIL_SENDER;
+    delete process.env.SMTP_CONNECTION;
+    delete process.env.ACS_SENDER_ADDRESS;
     beginSendMock.mockReset();
     EmailClientMock.mockClear();
   });
@@ -31,6 +37,10 @@ describe('sendAdminOtpEmail', () => {
     else process.env.ACS_EMAIL_SENDER = prevSender;
     if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = prevNodeEnv;
+    if (prevSmtpConnection === undefined) delete process.env.SMTP_CONNECTION;
+    else process.env.SMTP_CONNECTION = prevSmtpConnection;
+    if (prevLegacySender === undefined) delete process.env.ACS_SENDER_ADDRESS;
+    else process.env.ACS_SENDER_ADDRESS = prevLegacySender;
   });
 
   it('sends through ACS Email when configured', async () => {
@@ -100,6 +110,44 @@ describe('sendAdminOtpEmail', () => {
     expect(result.status).toBe('not_configured');
     expect(result.error).toBe('ACS Email is not configured');
     expect(result.latencyMs).toBe(0);
+  });
+
+  it('reports not_configured without constructing ACS client when connection string is unresolved', async () => {
+    process.env.NODE_ENV = 'test';
+    process.env.ACS_CONNECTION_STRING =
+      '@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/acs-connection-string/version)';
+    process.env.ACS_EMAIL_SENDER = 'DoNotReply@example.com';
+    const context = { log: vi.fn(), error: vi.fn() };
+
+    const result = await sendAdminOtpEmail('admin@test.com', '123456', context);
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe('not_configured');
+    expect(result.error).toBe('ACS Email is not configured');
+    expect(result.latencyMs).toBe(0);
+    expect(EmailClientMock).not.toHaveBeenCalled();
+    expect(beginSendMock).not.toHaveBeenCalled();
+    expect(context.log).not.toHaveBeenCalled();
+    expect(context.error).not.toHaveBeenCalled();
+  });
+
+  it('reports not_configured without constructing ACS client when sender is unresolved', async () => {
+    process.env.ACS_CONNECTION_STRING =
+      'endpoint=https://example.communication.azure.com/;accesskey=test';
+    process.env.ACS_EMAIL_SENDER =
+      '@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/acs-email-sender/version)';
+
+    const result = await sendPlayerRecoveryEmail('player@test.com', '123456', {
+      log: vi.fn(),
+      error: vi.fn(),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe('not_configured');
+    expect(result.error).toBe('ACS Email is not configured');
+    expect(result.latencyMs).toBe(0);
+    expect(EmailClientMock).not.toHaveBeenCalled();
+    expect(beginSendMock).not.toHaveBeenCalled();
   });
 
   it('allows local development without ACS configuration', async () => {
