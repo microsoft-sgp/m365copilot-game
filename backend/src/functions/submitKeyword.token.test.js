@@ -47,7 +47,7 @@ describe('submitKeyword token enforcement (flag on)', () => {
   it('returns 401 when an existing player has a token and the request has none', async () => {
     const realHash = hashPlayerToken(generatePlayerToken());
     const { pool, calls } = createMockPool([
-      { recordset: [{ owner_token: realHash }] }, // owner lookup
+      { recordset: [{ id: 11, owner_token: realHash }] }, // owner lookup
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
@@ -59,7 +59,10 @@ describe('submitKeyword token enforcement (flag on)', () => {
 
   it('returns 401 when the token does not match the existing player', async () => {
     const realHash = hashPlayerToken(generatePlayerToken());
-    const { pool } = createMockPool([{ recordset: [{ owner_token: realHash }] }]);
+    const { pool } = createMockPool([
+      { recordset: [{ id: 11, owner_token: realHash }] },
+      { recordset: [] },
+    ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
     const res = await handler(tokenedRequest({ body: body(), token: 'attacker' }));
@@ -69,7 +72,7 @@ describe('submitKeyword token enforcement (flag on)', () => {
   it('proceeds normally when the token matches the existing player', async () => {
     const token = generatePlayerToken();
     const { pool } = createMockPool([
-      { recordset: [{ owner_token: hashPlayerToken(token) }] }, // owner lookup
+      { recordset: [{ id: 11, owner_token: hashPlayerToken(token) }] }, // owner lookup
       { recordset: [{ id: 11 }] }, // player MERGE
       { recordset: [], rowsAffected: [1] }, // submissions INSERT
       { recordset: [{ cnt: 0 }] }, // org dupe check
@@ -95,7 +98,7 @@ describe('submitKeyword token enforcement (flag on)', () => {
 
   it('allows token-less requests when the existing player row has no owner_token (legacy)', async () => {
     const { pool } = createMockPool([
-      { recordset: [{ owner_token: null }] }, // owner lookup: legacy null token
+      { recordset: [{ id: 11, owner_token: null }] }, // owner lookup: legacy null token
       { recordset: [{ id: 11 }] }, // player MERGE
       { recordset: [], rowsAffected: [1] },
       { recordset: [{ cnt: 0 }] },

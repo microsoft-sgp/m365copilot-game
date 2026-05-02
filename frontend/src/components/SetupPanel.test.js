@@ -3,12 +3,23 @@ import { flushPromises, mount } from '@vue/test-utils';
 
 vi.mock('../lib/api.js', () => ({
   apiCreateSession: vi.fn().mockResolvedValue({ ok: false, data: null }),
+  apiGetPlayerState: vi.fn().mockResolvedValue({ ok: true, data: { player: null } }),
+  apiPlayerRecoveryRequest: vi.fn().mockResolvedValue({ ok: true, data: { ok: true } }),
+  apiPlayerRecoveryVerify: vi.fn().mockResolvedValue({ ok: true, data: { playerToken: 'token' } }),
   apiUpdateSession: vi.fn().mockResolvedValue({ ok: false, data: null }),
   apiRecordEvent: vi.fn().mockResolvedValue({ ok: false, data: null }),
+  isPlayerRecoveryRequiredResponse: vi.fn(
+    (res) => res.status === 409 && res.data?.code === 'PLAYER_RECOVERY_REQUIRED',
+  ),
 }));
 
 import { useBingoGame } from '../composables/useBingoGame.js';
-import { apiCreateSession } from '../lib/api.js';
+import {
+  apiCreateSession,
+  apiGetPlayerState,
+  apiPlayerRecoveryRequest,
+  apiPlayerRecoveryVerify,
+} from '../lib/api.js';
 import SetupPanel from './SetupPanel.vue';
 
 beforeEach(() => {
@@ -28,6 +39,13 @@ beforeEach(() => {
   state.packId = 0;
   state.gameSessionId = null;
   state.challengeProfile = null;
+  state.recoveryRequired = false;
+  state.recoveryEmail = '';
+  state.recoveryMessage = '';
+  apiCreateSession.mockResolvedValue({ ok: false, data: null });
+  apiGetPlayerState.mockResolvedValue({ ok: true, data: { player: null } });
+  apiPlayerRecoveryRequest.mockResolvedValue({ ok: true, data: { ok: true } });
+  apiPlayerRecoveryVerify.mockResolvedValue({ ok: true, data: { playerToken: 'token' } });
 });
 
 afterEach(() => vi.clearAllMocks());
@@ -174,5 +192,80 @@ describe('SetupPanel', () => {
       .trigger('click');
     expect(w.text()).toContain('complete onboarding identity');
     expect(useBingoGame().state.boardActive).toBe(false);
+  });
+
+  it('shows recovery UI and requests a recovery code', async () => {
+    localStorage.setItem('copilot_bingo_email', 'ada@example.com');
+    const { state } = useBingoGame();
+    state.recoveryRequired = true;
+    state.recoveryEmail = 'ada@example.com';
+
+    const w = mount(SetupPanel);
+    await flushPromises();
+
+    expect(w.text()).toContain('Player Recovery');
+    expect(w.text()).toContain('ada@example.com');
+    expect(w.findAll('button').find((b) => b.text().includes('Launch Board')).attributes('disabled')).toBeDefined();
+
+    await w.findAll('button').find((b) => b.text().includes('Send Code')).trigger('click');
+    await flushPromises();
+
+    expect(apiPlayerRecoveryRequest).toHaveBeenCalledWith('ada@example.com');
+    expect(w.text()).toContain('Recovery code sent');
+  });
+
+  it('verifies recovery, retries session bootstrap, and hydrates server board state without admin state', async () => {
+    localStorage.setItem('copilot_bingo_email', 'ada@example.com');
+    sessionStorage.removeItem('admin_authenticated');
+    sessionStorage.removeItem('admin_email');
+    const { state } = useBingoGame();
+    state.recoveryRequired = true;
+    state.recoveryEmail = 'ada@example.com';
+    state.assignedPackId = 42;
+    apiCreateSession.mockResolvedValue({
+      ok: true,
+      data: { gameSessionId: 123, packId: 42, activeAssignment: { packId: 42 } },
+    });
+    apiGetPlayerState.mockResolvedValue({
+      ok: true,
+      data: {
+        player: {
+          playerName: 'Ada',
+          activeAssignment: { packId: 42, cycleNumber: 1 },
+          activeSession: {
+            gameSessionId: 123,
+            packId: 42,
+            boardState: {
+              cleared: [true, false, false, false, false, false, false, false, false],
+              wonLines: [],
+              keywords: [],
+            },
+          },
+        },
+      },
+    });
+
+    const w = mount(SetupPanel);
+    await flushPromises();
+    await w.findAll('button').find((b) => b.text().includes('Send Code')).trigger('click');
+    await flushPromises();
+    await w.find('input[placeholder="000000"]').setValue('123456');
+    await w.findAll('button').find((b) => b.text().includes('Verify Code')).trigger('click');
+    await flushPromises();
+
+    expect(apiPlayerRecoveryVerify).toHaveBeenCalledWith('ada@example.com', '123456');
+    expect(apiCreateSession).toHaveBeenCalledWith({
+      sessionId: 'test-session',
+      playerName: 'Ada',
+      email: 'ada@example.com',
+      packId: 42,
+    });
+    expect(apiGetPlayerState).toHaveBeenCalledWith('ada@example.com');
+    expect(state.recoveryRequired).toBe(false);
+    expect(state.boardActive).toBe(true);
+    expect(state.gameSessionId).toBe(123);
+    expect(state.cleared[0]).toBe(true);
+    expect(sessionStorage.getItem('admin_authenticated')).toBeNull();
+    expect(sessionStorage.getItem('admin_email')).toBeNull();
   });
 });

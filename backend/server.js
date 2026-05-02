@@ -15,7 +15,7 @@ app.use((req, res, next) => {
   const allowedOrigin = allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
   res.header('Access-Control-Allow-Origin', allowedOrigin);
   res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Key');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Key, X-Player-Token');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
@@ -78,6 +78,8 @@ const { handler: getOrgDomains } = await import('./dist/functions/getOrgDomains.
 const { handler: getPlayerState } = await import('./dist/functions/getPlayerState.js');
 const { handler: requestOtp } = await import('./dist/functions/requestOtp.js');
 const { handler: verifyOtp } = await import('./dist/functions/verifyOtp.js');
+const { handler: requestPlayerRecovery } = await import('./dist/functions/requestPlayerRecovery.js');
+const { handler: verifyPlayerRecovery } = await import('./dist/functions/verifyPlayerRecovery.js');
 const { refreshHandler, logoutHandler } = await import('./dist/functions/adminSession.js');
 const { handler: health } = await import('./dist/functions/health.js');
 
@@ -98,6 +100,8 @@ app.get('/api/leaderboard', adapt({ handler: getLeaderboard }));
 app.get('/api/campaigns/active', adapt({ handler: getActiveCampaign }));
 app.get('/api/organizations/domains', adapt({ handler: getOrgDomains }));
 app.post('/api/player/state', adapt({ handler: getPlayerState }));
+app.post('/api/player/recovery/request', adapt({ handler: requestPlayerRecovery }));
+app.post('/api/player/recovery/verify', adapt({ handler: verifyPlayerRecovery }));
 
 // Admin auth
 app.post('/api/portal-api/request-otp', adapt({ handler: requestOtp }));

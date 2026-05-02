@@ -1,14 +1,25 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { TOTAL_PACKS, STORAGE_KEYS } from '../data/constants.js';
-import { loadString } from '../lib/storage.js';
+import { loadString, removeKey } from '../lib/storage.js';
+import {
+  apiGetPlayerState,
+  apiPlayerRecoveryRequest,
+  apiPlayerRecoveryVerify,
+} from '../lib/api.js';
 import { useBingoGame } from '../composables/useBingoGame.js';
 
-const { ensurePackAssignment, startBoard, state } = useBingoGame();
+const { clearRecoveryRequired, ensurePackAssignment, hydrateFromServer, startBoard, state } =
+  useBingoGame();
 
 const error = ref('');
+const recoveryStatus = ref('');
+const recoveryCode = ref('');
+const codeRequested = ref(false);
 const assigning = ref(false);
 const launching = ref(false);
+const requestingCode = ref(false);
+const verifyingCode = ref(false);
 
 const assignedPack = computed(
   () => state.assignedPackId || Number(loadString(STORAGE_KEYS.lastPack) || 0),
@@ -22,6 +33,9 @@ const cycleText = computed(() => {
   return `Cycle ${state.assignmentCycle}`;
 });
 const statusText = computed(() => {
+  if (state.recoveryRequired) {
+    return 'Recovery is required before this board can continue.';
+  }
   if (state.assignmentRotated && state.completedPackId) {
     return `Great work completing Pack #${String(state.completedPackId).padStart(3, '0')}! A new pack has been assigned.`;
   }
@@ -30,6 +44,7 @@ const statusText = computed(() => {
   }
   return 'Fetching your assigned pack...';
 });
+const recoveryEmail = computed(() => state.recoveryEmail || loadString(STORAGE_KEYS.email));
 
 async function syncAssignment() {
   if (assignedPack.value || assigning.value) return;
@@ -41,7 +56,9 @@ async function syncAssignment() {
   assigning.value = true;
   try {
     const result = await ensurePackAssignment({ name, email, organization });
-    if (!result?.ok && !assignedPack.value) {
+    if (result?.recoveryRequired) {
+      error.value = '';
+    } else if (!result?.ok && !assignedPack.value) {
       error.value = result?.message || 'Unable to resolve your assigned pack. Please try again.';
     }
   } finally {
@@ -77,6 +94,79 @@ async function launch() {
     launching.value = false;
   }
 }
+
+async function requestRecoveryCode() {
+  error.value = '';
+  recoveryStatus.value = '';
+  const email = recoveryEmail.value;
+  if (!email) {
+    error.value = 'Email is required for recovery.';
+    return;
+  }
+  requestingCode.value = true;
+  try {
+    const res = await apiPlayerRecoveryRequest(email);
+    if (res.ok) {
+      codeRequested.value = true;
+      recoveryStatus.value = 'Recovery code sent.';
+      return;
+    }
+    error.value = res.data?.message || 'Could not request a recovery code.';
+  } finally {
+    requestingCode.value = false;
+  }
+}
+
+async function verifyRecoveryCode() {
+  error.value = '';
+  recoveryStatus.value = '';
+  const name = loadString(STORAGE_KEYS.playerName);
+  const email = recoveryEmail.value;
+  const organization = loadString(STORAGE_KEYS.organization);
+  const code = recoveryCode.value.trim();
+  if (!email || !code) {
+    error.value = 'Email and code are required.';
+    return;
+  }
+  verifyingCode.value = true;
+  try {
+    const verify = await apiPlayerRecoveryVerify(email, code);
+    if (!verify.ok) {
+      error.value = verify.data?.message || 'Invalid or expired code.';
+      return;
+    }
+
+    clearRecoveryRequired();
+    const launchResult = await startBoard({
+      name,
+      email,
+      organization,
+      packId: Number(assignedPack.value || 0) || undefined,
+    });
+    if (!launchResult?.ok) {
+      error.value = launchResult?.message || 'Unable to resume your board.';
+      return;
+    }
+
+    const stateResult = await apiGetPlayerState(email);
+    if (stateResult.ok && stateResult.data?.player) {
+      hydrateFromServer(stateResult.data.player);
+    }
+    recoveryStatus.value = 'Recovery complete.';
+  } finally {
+    verifyingCode.value = false;
+  }
+}
+
+function cancelRecovery() {
+  clearRecoveryRequired();
+  removeKey(STORAGE_KEYS.email);
+  removeKey(STORAGE_KEYS.playerName);
+  removeKey(STORAGE_KEYS.organization);
+  removeKey(STORAGE_KEYS.lastPack);
+  removeKey(STORAGE_KEYS.state);
+  window.location.reload();
+}
 </script>
 
 <template>
@@ -103,10 +193,63 @@ async function launch() {
       </p>
     </div>
 
+    <div
+      v-if="state.recoveryRequired"
+      class="mb-4 rounded-[12px] border border-outline-variant bg-surface-container p-4"
+    >
+      <div class="field-label mb-2">
+        Player Recovery
+      </div>
+      <p class="mb-3 text-label-md text-on-surface-variant">
+        {{ recoveryEmail }} needs a recovery code before this board can continue.
+      </p>
+      <div class="flex flex-wrap gap-2.5">
+        <button
+          class="btn btn-secondary"
+          :disabled="requestingCode || verifyingCode"
+          @click="requestRecoveryCode"
+        >
+          {{ requestingCode ? 'Sending...' : codeRequested ? 'Send Again' : 'Send Code' }}
+        </button>
+        <button
+          class="btn btn-secondary"
+          :disabled="requestingCode || verifyingCode"
+          @click="cancelRecovery"
+        >
+          Use Different Email
+        </button>
+      </div>
+      <div
+        v-if="codeRequested"
+        class="mt-3 flex flex-wrap gap-2.5"
+      >
+        <input
+          v-model="recoveryCode"
+          class="input max-w-[180px]"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          placeholder="000000"
+        >
+        <button
+          class="btn btn-primary"
+          :disabled="requestingCode || verifyingCode"
+          @click="verifyRecoveryCode"
+        >
+          {{ verifyingCode ? 'Verifying...' : 'Verify Code' }}
+        </button>
+      </div>
+      <p
+        v-if="recoveryStatus"
+        class="mt-2 text-xs text-on-surface-variant"
+      >
+        {{ recoveryStatus }}
+      </p>
+    </div>
+
     <div class="mt-4 flex flex-wrap gap-2.5">
       <button
         class="btn btn-primary"
-        :disabled="assigning || launching"
+        :disabled="assigning || launching || state.recoveryRequired"
         @click="launch"
       >
         {{ assigning ? 'Assigning...' : launching ? 'Starting...' : '🚀 Launch Board' }}

@@ -86,6 +86,7 @@ describe('POST /sessions (createSession)', () => {
     const { pool, calls } = createMockPool([
       { recordset: [] }, // resolvePlayerToken: no existing player
       { recordset: [{ id: 11 }] },
+      { recordset: [], rowsAffected: [1] }, // device token insert
       { recordset: [{ id: 99 }] },
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
@@ -203,6 +204,7 @@ describe('POST /sessions (createSession)', () => {
     const { pool, calls } = createMockPool([
       { recordset: [] }, // resolvePlayerToken: new player
       { recordset: [{ id: 11 }] },
+      { recordset: [], rowsAffected: [1] }, // device token insert
       { recordset: [] },
       { recordset: [{ id: 301 }] },
     ]);
@@ -218,7 +220,7 @@ describe('POST /sessions (createSession)', () => {
     expect(res.jsonBody.activeAssignment.rotated).toBe(true);
     expect(res.jsonBody.activeAssignment.completedPackId).toBe(9);
     expect(typeof res.jsonBody.playerToken).toBe('string');
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
   });
 
   it('reuses existing session by assignment id in lifecycle mode', async () => {
@@ -239,6 +241,7 @@ describe('POST /sessions (createSession)', () => {
     const { pool } = createMockPool([
       { recordset: [] }, // resolvePlayerToken: new player
       { recordset: [{ id: 11 }] },
+      { recordset: [], rowsAffected: [1] }, // device token insert
       { recordset: [{ id: 909 }] },
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
@@ -265,11 +268,12 @@ describe('POST /sessions (createSession)', () => {
       completedPackId: null,
     });
 
-    // Order: resolvePlayerToken SELECT (no row), player upsert, first SELECT
-    // (no row), INSERT (conflict), second SELECT (row from racer)
+    // Order: resolvePlayerToken SELECT (no row), player upsert, device-token
+    // insert, first SELECT (no row), INSERT (conflict), second SELECT (row from racer)
     const { pool, calls } = createMockPool([
       { recordset: [] },
       { recordset: [{ id: 11 }] },
+      { recordset: [], rowsAffected: [1] },
       { recordset: [] },
       sqlError(2627),
       { recordset: [{ id: 999 }] },
@@ -281,7 +285,7 @@ describe('POST /sessions (createSession)', () => {
     );
 
     expect(res.jsonBody).toMatchObject({ ok: true, gameSessionId: 999, packId: 12 });
-    expect(calls).toHaveLength(5);
+    expect(calls).toHaveLength(6);
   });
 
   it('rethrows non-uniqueness errors during lifecycle INSERT', async () => {
@@ -302,6 +306,7 @@ describe('POST /sessions (createSession)', () => {
     const { pool } = createMockPool([
       { recordset: [] }, // resolvePlayerToken: new player
       { recordset: [{ id: 11 }] },
+      { recordset: [], rowsAffected: [1] }, // device token insert
       { recordset: [] },
       sqlError(50000, 'something else'),
     ]);

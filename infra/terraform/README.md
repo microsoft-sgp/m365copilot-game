@@ -101,6 +101,8 @@ Use the backend migration runner to apply these files against the provisioned da
 6. `database/006-admin-users.sql`
 7. `database/007-active-pack-assignment-counts.sql`
 8. `database/008-player-organization-attribution.sql`
+9. `database/009-player-owner-token.sql`
+10. `database/010-player-recovery.sql`
 
 Run the migrations with Microsoft Entra authentication and grant the Function App managed identity database access:
 

@@ -13,6 +13,21 @@ export type ApiResponse<T = unknown> = {
   blob?: Blob;
 };
 
+export const PLAYER_RECOVERY_REQUIRED = 'PLAYER_RECOVERY_REQUIRED';
+
+type MaybeRecoveryResponse = {
+  code?: string;
+};
+
+type PlayerRecoveryVerifyResponse = {
+  playerToken?: string;
+};
+
+export function isPlayerRecoveryRequiredResponse(res: ApiResponse<unknown>): boolean {
+  const data = res.data as MaybeRecoveryResponse | null;
+  return res.status === 409 && data?.code === PLAYER_RECOVERY_REQUIRED;
+}
+
 // Optional consumer-supplied callback for re-bootstrapping the player session
 // when a game endpoint returns 401. The callback should call apiCreateSession
 // with the player's onboarding identity; api.ts will pick up the new token
@@ -100,6 +115,22 @@ export function apiCreateSession(payload: Record<string, unknown>) {
   return request<{ playerToken?: string }>('POST', '/sessions', payload).then((res) => {
     // Capture the issued token transparently so call sites do not need to
     // remember to persist it. Failed calls leave the existing token alone.
+    if (res.ok && res.data && typeof res.data.playerToken === 'string') {
+      setPlayerToken(res.data.playerToken);
+    }
+    return res;
+  });
+}
+
+export function apiPlayerRecoveryRequest(email: string) {
+  return request('POST', '/player/recovery/request', { email });
+}
+
+export function apiPlayerRecoveryVerify(email: string, code: string) {
+  return request<PlayerRecoveryVerifyResponse>('POST', '/player/recovery/verify', {
+    email,
+    code,
+  }).then((res) => {
     if (res.ok && res.data && typeof res.data.playerToken === 'string') {
       setPlayerToken(res.data.playerToken);
     }

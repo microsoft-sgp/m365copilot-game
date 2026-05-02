@@ -8,14 +8,15 @@ import {
   generatePlayerToken,
   getPlayerTokenFromRequest,
   hashPlayerToken,
-  verifyPlayerOwnsRow,
+  createPlayerDeviceToken,
+  verifyPlayerTokenForPlayer,
 } from '../lib/playerAuth.js';
 import { createPlayerTokenCookie } from '../lib/playerCookies.js';
 import { isDuplicateSqlKeyError, numberValue, readJsonObject, stringValue } from './http.js';
 
 type ResolvedToken =
   | { kind: 'new'; token: string; hash: string }
-  | { kind: 'reused'; token: string }
+  | { kind: 'reused'; token: string; hash?: string; persistDeviceToken?: boolean }
   | { kind: 'conflict' };
 
 // Resolve the player session token for the email path before any session work.
@@ -46,7 +47,13 @@ async function resolvePlayerToken(
     // Existing player who already claimed their identity. Reject anything other
     // than the matching token to prevent silent takeover via the email-keyed
     // MERGE that this endpoint historically allowed.
-    if (verifyPlayerOwnsRow(presentedToken, row.owner_token)) {
+    if (
+      await verifyPlayerTokenForPlayer(pool, {
+        playerId: row.id,
+        ownerTokenHash: row.owner_token,
+        presentedToken,
+      })
+    ) {
       return { kind: 'reused', token: presentedToken };
     }
     return { kind: 'conflict' };
@@ -65,7 +72,7 @@ async function resolvePlayerToken(
     .query('UPDATE players SET owner_token = @hash WHERE id = @id AND owner_token IS NULL;');
 
   if (claim.rowsAffected[0] === 1) {
-    return { kind: 'reused', token: newToken };
+    return { kind: 'reused', token: newToken, hash: newHash, persistDeviceToken: true };
   }
 
   // Race lost between SELECT and UPDATE. Re-fetch and verify the presented
@@ -78,7 +85,13 @@ async function resolvePlayerToken(
       'SELECT owner_token FROM players WHERE email = @email;',
     );
   const winnerHash = refetched.recordset[0]?.owner_token ?? null;
-  if (verifyPlayerOwnsRow(presentedToken, winnerHash)) {
+  if (
+    await verifyPlayerTokenForPlayer(pool, {
+      playerId: row.id,
+      ownerTokenHash: winnerHash,
+      presentedToken,
+    })
+  ) {
     return { kind: 'reused', token: presentedToken };
   }
   return { kind: 'conflict' };
@@ -199,7 +212,7 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
     if (resolvedToken.kind === 'conflict') {
       return {
         status: 409,
-        jsonBody: { ok: false, message: 'Identity in use' },
+        jsonBody: { ok: false, code: 'PLAYER_RECOVERY_REQUIRED', message: 'Identity in use' },
       };
     }
   }
@@ -214,6 +227,12 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
     orgId,
     ownerTokenHashForInsert,
   });
+
+  if (resolvedToken?.kind === 'new') {
+    await createPlayerDeviceToken(pool, playerId, resolvedToken.hash);
+  } else if (resolvedToken?.kind === 'reused' && resolvedToken.persistDeviceToken && resolvedToken.hash) {
+    await createPlayerDeviceToken(pool, playerId, resolvedToken.hash);
+  }
 
   // Helper: every successful return path includes the token in the body and
   // sets the HttpOnly cookie. Non-email legacy path (no token) returns as-is.

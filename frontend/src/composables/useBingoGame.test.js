@@ -5,6 +5,9 @@ vi.mock('../lib/api.js', () => ({
   apiCreateSession: vi.fn().mockResolvedValue({ ok: false, data: null }),
   apiUpdateSession: vi.fn().mockResolvedValue({ ok: false, data: null }),
   apiRecordEvent: vi.fn().mockResolvedValue({ ok: false, data: null }),
+  isPlayerRecoveryRequiredResponse: vi.fn(
+    (res) => res.status === 409 && res.data?.code === 'PLAYER_RECOVERY_REQUIRED',
+  ),
 }));
 
 // Swap the pack generator for a predictable 9-tile fixture whose verify
@@ -46,6 +49,9 @@ function resetState() {
   state.keywords = [];
   state.challengeProfile = null;
   state.boardActive = false;
+  state.recoveryRequired = false;
+  state.recoveryEmail = '';
+  state.recoveryMessage = '';
 }
 
 beforeEach(() => {
@@ -103,6 +109,22 @@ describe('useBingoGame.ensurePackAssignment', () => {
 
     expect(result).toEqual({ ok: true, packId: 42 });
     expect(apiCreateSession).not.toHaveBeenCalled();
+  });
+
+  it('enters recovery-required state when session creation returns recoverable 409', async () => {
+    apiCreateSession.mockResolvedValue({
+      ok: false,
+      status: 409,
+      data: { ok: false, code: 'PLAYER_RECOVERY_REQUIRED', message: 'Identity in use' },
+    });
+
+    const { ensurePackAssignment, state } = useBingoGame();
+    const result = await ensurePackAssignment({ name: 'Ada', email: 'ada@example.com' });
+
+    expect(result.recoveryRequired).toBe(true);
+    expect(state.recoveryRequired).toBe(true);
+    expect(state.recoveryEmail).toBe('ada@example.com');
+    expect(state.boardActive).toBe(false);
   });
 });
 
@@ -212,6 +234,25 @@ describe('useBingoGame.startBoard', () => {
     expect(state.gameSessionId).toBe(456);
   });
 
+  it('does not launch cached local board state after a recoverable conflict', async () => {
+    apiCreateSession.mockResolvedValue({
+      ok: false,
+      status: 409,
+      data: { ok: false, code: 'PLAYER_RECOVERY_REQUIRED', message: 'Identity in use' },
+    });
+    const { startBoard, state } = useBingoGame();
+    state.assignedPackId = 77;
+    localStorage.setItem('copilot_bingo_last_pack', '77');
+
+    const result = await startBoard({ name: 'Ada', email: 'ada@example.com', packId: 77 });
+
+    expect(result.recoveryRequired).toBe(true);
+    expect(state.recoveryRequired).toBe(true);
+    expect(state.boardActive).toBe(false);
+    expect(state.tiles).toEqual([]);
+    expect(state.packId).toBe(0);
+  });
+
   it('continues when apiCreateSession rejects', async () => {
     apiCreateSession.mockRejectedValue(new Error('network'));
     const { startBoard, state } = useBingoGame();
@@ -233,6 +274,17 @@ describe('useBingoGame.resetBoard', () => {
 });
 
 describe('useBingoGame.verifyTile', () => {
+  it('blocks tile verification while recovery is required', () => {
+    const { setRecoveryRequired, startBoard, verifyTile, state } = useBingoGame();
+    startBoard({ name: 'Ada', packId: 1 });
+    setRecoveryRequired('ada@example.com');
+
+    const result = verifyTile(0, 'PASS please');
+
+    expect(result.ok).toBe(false);
+    expect(state.cleared).toEqual(new Array(9).fill(false));
+  });
+
   it('returns errors and does not clear the tile on invalid proof', () => {
     const { startBoard, verifyTile, state } = useBingoGame();
     startBoard({ name: 'Ada', packId: 1 });
@@ -319,6 +371,19 @@ describe('useBingoGame.verifyTile', () => {
     expect(id).toBe(42);
     expect(counts).toMatchObject({ tilesCleared: 1, linesWon: 0, keywordsEarned: 0 });
     expect(counts.boardState).toBeDefined();
+  });
+
+  it('pauses the board when a game API ownership failure remains after refresh', async () => {
+    apiRecordEvent.mockResolvedValue({ ok: false, status: 401, data: { ok: false } });
+    const { startBoard, verifyTile, state } = useBingoGame();
+    await startBoard({ name: 'Ada', email: 'ada@example.com', packId: 1 });
+    state.gameSessionId = 42;
+
+    verifyTile(0, 'PASS please');
+    await Promise.resolve();
+
+    expect(state.recoveryRequired).toBe(true);
+    expect(state.boardActive).toBe(false);
   });
 
   it('advances currentWeek after a weekly mint when elapsed time permits', () => {

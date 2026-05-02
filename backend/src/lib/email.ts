@@ -112,3 +112,69 @@ export async function sendAdminOtpEmail(
     };
   }
 }
+
+export async function sendPlayerRecoveryEmail(
+  email: string,
+  code: string,
+  context: LoggerLike = console,
+): Promise<EmailSendResult> {
+  const start = Date.now();
+  const connectionString = process.env.ACS_CONNECTION_STRING || process.env.SMTP_CONNECTION || '';
+  const senderAddress = process.env.ACS_EMAIL_SENDER || process.env.ACS_SENDER_ADDRESS || '';
+
+  if (!connectionString || !senderAddress) {
+    if (process.env.NODE_ENV !== 'production') {
+      return { ok: true, skipped: true, latencyMs: Date.now() - start };
+    }
+    return {
+      ok: false,
+      error: 'ACS Email is not configured',
+      status: 'not_configured',
+      latencyMs: 0,
+    };
+  }
+
+  let messageId: string | undefined;
+  try {
+    const client = new EmailClient(connectionString);
+    const poller = await client.beginSend({
+      senderAddress,
+      content: {
+        subject: 'Your Copilot Bingo player recovery code',
+        plainText: `Your player recovery code is ${code}. It expires in 10 minutes.`,
+      },
+      recipients: {
+        to: [{ address: email }],
+      },
+    });
+
+    if (typeof poller.pollUntilDone === 'function') {
+      const result = await poller.pollUntilDone();
+      messageId = readMessageId(poller, result);
+      if (result?.status && result.status !== 'Succeeded') {
+        return {
+          ok: false,
+          error: `ACS Email send ended with status ${result.status}`,
+          status: 'non_succeeded',
+          acsStatus: result.status,
+          messageId,
+          latencyMs: Date.now() - start,
+        };
+      }
+    } else {
+      messageId = readMessageId(poller, undefined);
+    }
+
+    return { ok: true, messageId, latencyMs: Date.now() - start };
+  } catch (err) {
+    context.error?.('Failed to send player recovery email', err);
+    return {
+      ok: false,
+      error: getErrorMessage(err),
+      status: 'exception',
+      errorName: getErrorName(err),
+      messageId,
+      latencyMs: Date.now() - start,
+    };
+  }
+}

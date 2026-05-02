@@ -38,6 +38,7 @@ describe('createSession player token issuance', () => {
     const { pool, calls } = createMockPool([
       { recordset: [] }, // resolvePlayerToken: no row
       { recordset: [{ id: 11 }] }, // upsertPlayer
+      { recordset: [], rowsAffected: [1] }, // device token insert
       { recordset: [{ id: 99 }] }, // session insert
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
@@ -59,6 +60,7 @@ describe('createSession player token issuance', () => {
     // Upsert INSERT branch should carry the hash of the issued token.
     const upsertInputs = calls[1].inputs;
     expect(upsertInputs.ownerTokenHash).toBe(hashPlayerToken(res.jsonBody.playerToken));
+    expect(calls[2].query).toMatch(/INSERT INTO player_device_tokens/);
   });
 
   it('reuses the same token when an existing player presents a matching one', async () => {
@@ -82,11 +84,12 @@ describe('createSession player token issuance', () => {
     expect(res.jsonBody.playerToken).toBe(existingToken);
   });
 
-  it('returns 409 Identity in use when an existing player presents a wrong token', async () => {
+  it('returns recoverable 409 Identity in use when an existing player presents a wrong token', async () => {
     const realToken = generatePlayerToken();
     const realHash = hashPlayerToken(realToken);
     const { pool } = createMockPool([
       { recordset: [{ id: 11, owner_token: realHash }] }, // resolvePlayerToken: mismatch
+      { recordset: [] }, // no active device token match
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
@@ -98,7 +101,11 @@ describe('createSession player token issuance', () => {
     );
 
     expect(res.status).toBe(409);
-    expect(res.jsonBody).toEqual({ ok: false, message: 'Identity in use' });
+    expect(res.jsonBody).toEqual({
+      ok: false,
+      code: 'PLAYER_RECOVERY_REQUIRED',
+      message: 'Identity in use',
+    });
   });
 
   it('returns 409 when an existing player has a token but the request has none', async () => {
@@ -123,6 +130,7 @@ describe('createSession player token issuance', () => {
       { recordset: [{ id: 11, owner_token: null }] }, // resolvePlayerToken: legacy row
       { recordset: [], rowsAffected: [1] }, // claim UPDATE: won
       { recordset: [{ id: 11 }] }, // upsertPlayer
+      { recordset: [], rowsAffected: [1] }, // device token insert
       { recordset: [{ id: 99 }] }, // session insert
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
@@ -138,6 +146,7 @@ describe('createSession player token issuance', () => {
     expect(calls[1].query).toMatch(/UPDATE players SET owner_token = @hash/);
     // The hash sent to the UPDATE matches the issued token.
     expect(calls[1].inputs.hash).toBe(hashPlayerToken(res.jsonBody.playerToken));
+    expect(calls[3].query).toMatch(/INSERT INTO player_device_tokens/);
   });
 
   it('returns 409 when the legacy claim races and the presented token does not match the winner', async () => {
@@ -146,6 +155,7 @@ describe('createSession player token issuance', () => {
       { recordset: [{ id: 11, owner_token: null }] }, // legacy row at SELECT time
       { recordset: [], rowsAffected: [0] }, // claim UPDATE: lost
       { recordset: [{ owner_token: winnerHash }] }, // refetch
+      { recordset: [] }, // no active device token match
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
@@ -181,6 +191,29 @@ describe('createSession player token issuance', () => {
     expect(res.jsonBody.ok).toBe(true);
     expect(res.jsonBody.playerToken).toBe(winnerToken);
   });
+
+  it('resumes an existing player when a recovered active device token matches', async () => {
+    const ownerToken = generatePlayerToken();
+    const deviceToken = generatePlayerToken();
+    const { pool } = createMockPool([
+      { recordset: [{ id: 11, owner_token: hashPlayerToken(ownerToken) }] },
+      { recordset: [{ token_hash: hashPlayerToken(deviceToken) }] },
+      { recordset: [], rowsAffected: [1] }, // device last_seen update
+      { recordset: [{ id: 11 }] }, // upsertPlayer
+      { recordset: [{ id: 99 }] }, // session insert
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      tokenedRequest({
+        body: { sessionId: 's', playerName: 'Ada', packId: 1, email: 'ada@smu.edu.sg' },
+        token: deviceToken,
+      }),
+    );
+
+    expect(res.jsonBody.ok).toBe(true);
+    expect(res.jsonBody.playerToken).toBe(deviceToken);
+  });
 });
 
 describe('createSession token issuance is independent of enforcement flag', () => {
@@ -210,6 +243,7 @@ describe('createSession token issuance is independent of enforcement flag', () =
     const { pool } = createMockPool([
       { recordset: [] }, // resolvePlayerToken: no row
       { recordset: [{ id: 11 }] }, // upsert
+      { recordset: [], rowsAffected: [1] }, // device token insert
       { recordset: [{ id: 99 }] }, // session
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);

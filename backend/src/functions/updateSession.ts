@@ -4,7 +4,7 @@ import { getPool } from '../lib/db.js';
 import {
   getPlayerTokenFromRequest,
   isPlayerTokenEnforcementEnabled,
-  verifyPlayerOwnsRow,
+  verifyPlayerTokenForPlayer,
 } from '../lib/playerAuth.js';
 import { numberValue, readJsonObject } from './http.js';
 
@@ -33,15 +33,22 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
     const ownership = await pool
       .request()
       .input('id', sql.Int, id)
-      .query<{ owner_token: string | null }>(`
-        SELECT TOP 1 p.owner_token
+      .query<{ player_id: number; owner_token: string | null }>(`
+        SELECT TOP 1 p.id AS player_id, p.owner_token
         FROM game_sessions gs
         JOIN players p ON p.id = gs.player_id
         WHERE gs.id = @id;
       `);
     const owner = ownership.recordset[0];
     const presentedToken = getPlayerTokenFromRequest(request);
-    if (!owner || !verifyPlayerOwnsRow(presentedToken, owner.owner_token)) {
+    if (
+      !owner ||
+      !(await verifyPlayerTokenForPlayer(pool, {
+        playerId: owner.player_id,
+        ownerTokenHash: owner.owner_token,
+        presentedToken,
+      }))
+    ) {
       return {
         status: 401,
         jsonBody: { ok: false, message: 'Unauthorized' },

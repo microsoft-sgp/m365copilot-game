@@ -5,7 +5,7 @@ import { isPackAssignmentLifecycleEnabled, resolvePackAssignment } from '../lib/
 import {
   getPlayerTokenFromRequest,
   isPlayerTokenEnforcementEnabled,
-  verifyPlayerOwnsRow,
+  verifyPlayerTokenForPlayer,
 } from '../lib/playerAuth.js';
 import { readJsonObject, stringValue } from './http.js';
 
@@ -72,7 +72,13 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
   // oracle (the original H2 finding).
   if (isPlayerTokenEnforcementEnabled() && player.owner_token) {
     const presentedToken = getPlayerTokenFromRequest(request);
-    if (!verifyPlayerOwnsRow(presentedToken, player.owner_token)) {
+    if (
+      !(await verifyPlayerTokenForPlayer(pool, {
+        playerId: player.id,
+        ownerTokenHash: player.owner_token,
+        presentedToken,
+      }))
+    ) {
       return {
         jsonBody: { ok: true, player: null },
       };

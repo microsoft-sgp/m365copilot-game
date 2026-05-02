@@ -18,6 +18,16 @@ Please check:
 - [DEPLOYMENT.md](DEPLOYMENT.md) and [infra/terraform/README.md](infra/terraform/README.md) for Azure deployment guidance
 - Function App logs, browser console output, and database migration output for actionable errors
 
+## Player recovery and private windows
+
+Players can use the same email as a game player and, if authorized, as an admin. Player recovery and admin OTP are separate flows: admin OTP only signs into the portal, while player recovery only reissues a player token after the player verifies access to their game email.
+
+If a player opens a private window, a new browser, or a cookie-restricted session, they may no longer have the `player_token` proof for an existing player email. In that case the game pauses board launch and asks for a player recovery code. After the code is verified, the backend issues a new device token and reloads the player's SQL-backed board state.
+
+For support triage, check Function App logs for `player_recovery_request` and `player_recovery_verify` events. These logs use email hashes and outcomes; they do not include raw email addresses, recovery codes, player tokens, or token hashes. If recovery email delivery fails, verify `ACS_CONNECTION_STRING` and `ACS_EMAIL_SENDER` before asking the player to request a new code.
+
+Rollback: deploy the previous frontend first to restore the generic conflict behavior, then disable or remove the player recovery endpoints. The recovery tables are additive; existing `players.owner_token` credentials, sessions, assignments, and board state remain valid.
+
 ## Data and privacy
 
 Deployers are responsible for their own event data handling. The app can store player names, player emails, gameplay progress, admin emails, OTP metadata, and CSV exports. Protect exports and deployment logs according to your organization's privacy, retention, and access-control policies.

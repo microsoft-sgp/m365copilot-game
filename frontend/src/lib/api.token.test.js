@@ -87,6 +87,41 @@ describe('apiCreateSession token capture', () => {
   });
 });
 
+describe('player recovery API helpers', () => {
+  it('requests a player recovery code for the supplied email', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true }));
+    const res = await api.apiPlayerRecoveryRequest('ada@example.com');
+    expect(res.ok).toBe(true);
+    const [url, opts] = fetchSpy.mock.calls[0];
+    expect(url).toMatch(/\/player\/recovery\/request$/);
+    expect(opts.method).toBe('POST');
+    expect(JSON.parse(opts.body)).toEqual({ email: 'ada@example.com' });
+  });
+
+  it('captures playerToken returned from successful recovery verification', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true, playerToken: 'recovered-token' }));
+    const res = await api.apiPlayerRecoveryVerify('ada@example.com', '123456');
+    expect(res.ok).toBe(true);
+    expect(getPlayerToken()).toBe('recovered-token');
+    const [url, opts] = fetchSpy.mock.calls[0];
+    expect(url).toMatch(/\/player\/recovery\/verify$/);
+    expect(JSON.parse(opts.body)).toEqual({ email: 'ada@example.com', code: '123456' });
+  });
+
+  it('identifies recoverable player conflicts by stable response code', () => {
+    expect(
+      api.isPlayerRecoveryRequiredResponse({
+        ok: false,
+        status: 409,
+        data: { ok: false, code: api.PLAYER_RECOVERY_REQUIRED },
+      }),
+    ).toBe(true);
+    expect(
+      api.isPlayerRecoveryRequiredResponse({ ok: false, status: 409, data: { ok: false } }),
+    ).toBe(false);
+  });
+});
+
 describe('401 retry path on game-API endpoints', () => {
   it('clears the token, calls the refresher, and retries once on 401', async () => {
     setPlayerToken('stale');

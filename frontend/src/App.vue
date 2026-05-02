@@ -9,6 +9,7 @@ import {
   apiCreateSession,
   apiGetPlayerState,
   installPlayerAuthRefresher,
+  isPlayerRecoveryRequiredResponse,
 } from './lib/api.js';
 import { clearPlayerToken } from './lib/playerToken.js';
 import { useBingoGame } from './composables/useBingoGame.js';
@@ -26,7 +27,7 @@ import GameFooter from './components/GameFooter.vue';
 const AdminLogin = defineAsyncComponent(() => import('./components/AdminLogin.vue'));
 const AdminLayout = defineAsyncComponent(() => import('./components/AdminLayout.vue'));
 
-const { hydrateFromServer, setIdentity } = useBingoGame();
+const { hydrateFromServer, setIdentity, setRecoveryRequired } = useBingoGame();
 
 const activeTab = ref('game');
 const playerEmail = ref(loadString(STORAGE_KEYS.email));
@@ -58,6 +59,10 @@ onMounted(() => {
       email,
       organization: playerOrganization.value || loadString(STORAGE_KEYS.organization) || undefined,
     });
+    if (isPlayerRecoveryRequiredResponse(res)) {
+      setRecoveryRequired(email, 'Recover this player identity to continue.');
+      return false;
+    }
     return Boolean(res.ok);
   });
 

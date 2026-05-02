@@ -13,6 +13,8 @@ import './functions/getPlayerState.js';
 import './functions/health.js';
 import './functions/recordEvent.js';
 import './functions/requestOtp.js';
+import './functions/requestPlayerRecovery.js';
 import './functions/submitKeyword.js';
 import './functions/updateSession.js';
 import './functions/verifyOtp.js';
+import './functions/verifyPlayerRecovery.js';

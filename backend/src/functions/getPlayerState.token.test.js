@@ -46,6 +46,7 @@ describe('getPlayerState token enforcement (flag on)', () => {
     const realHash = hashPlayerToken(generatePlayerToken());
     mockPool = createMockPool([
       [{ id: 1, player_name: 'Alice', session_id: 'abc', owner_token: realHash }],
+      [],
     ]);
     const res = await handler(tokenedRequest('alice@test.com', 'attacker'), {});
     expect(res.jsonBody).toEqual({ ok: true, player: null });

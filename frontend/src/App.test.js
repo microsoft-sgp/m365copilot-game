@@ -9,11 +9,15 @@ vi.mock('./lib/api.js', () => ({
     .fn()
     .mockResolvedValue({ ok: true, status: 200, data: { ok: true, gameSessionId: 1 } }),
   installPlayerAuthRefresher: vi.fn(),
+  isPlayerRecoveryRequiredResponse: vi.fn(
+    (res) => res.status === 409 && res.data?.code === 'PLAYER_RECOVERY_REQUIRED',
+  ),
 }));
 
 const gameMocks = vi.hoisted(() => ({
   hydrateFromServer: vi.fn(),
   setIdentity: vi.fn(),
+  setRecoveryRequired: vi.fn(),
 }));
 
 vi.mock('./lib/playerToken.js', () => ({
@@ -26,6 +30,7 @@ vi.mock('./composables/useBingoGame.js', () => ({
   useBingoGame: () => ({
     hydrateFromServer: gameMocks.hydrateFromServer,
     setIdentity: gameMocks.setIdentity,
+    setRecoveryRequired: gameMocks.setRecoveryRequired,
   }),
 }));
 
@@ -225,6 +230,30 @@ describe('App routing', () => {
         email: 'ada@nus.edu.sg',
         organization: 'NUS',
       }),
+    );
+  });
+
+  it('player auth refresher enters recovery state on recoverable conflict', async () => {
+    const wrapper = mount(App, { global: { stubs } });
+    await flushPromises();
+    await wrapper.find('[data-test="email-continue"]').trigger('click');
+    await flushPromises();
+
+    const refresher = installPlayerAuthRefresher.mock.calls.find(
+      ([fn]) => typeof fn === 'function',
+    )[0];
+    apiCreateSession.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      data: { ok: false, code: 'PLAYER_RECOVERY_REQUIRED', message: 'Identity in use' },
+    });
+
+    const result = await refresher();
+
+    expect(result).toBe(false);
+    expect(gameMocks.setRecoveryRequired).toHaveBeenCalledWith(
+      'ada@nus.edu.sg',
+      'Recover this player identity to continue.',
     );
   });
 });

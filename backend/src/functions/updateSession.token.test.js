@@ -27,7 +27,7 @@ describe('updateSession token enforcement (flag on)', () => {
 
   it('returns 401 when no token is presented', async () => {
     const { pool } = createMockPool([
-      { recordset: [{ owner_token: hashPlayerToken('real') }] }, // ownership lookup
+      { recordset: [{ player_id: 11, owner_token: hashPlayerToken('real') }] }, // ownership lookup
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
@@ -38,7 +38,8 @@ describe('updateSession token enforcement (flag on)', () => {
 
   it('returns 401 when the token does not match the owner hash', async () => {
     const { pool } = createMockPool([
-      { recordset: [{ owner_token: hashPlayerToken(generatePlayerToken()) }] },
+      { recordset: [{ player_id: 11, owner_token: hashPlayerToken(generatePlayerToken()) }] },
+      { recordset: [] },
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
@@ -65,7 +66,7 @@ describe('updateSession token enforcement (flag on)', () => {
   it('passes through to the UPDATE when the token matches', async () => {
     const token = generatePlayerToken();
     const { pool, calls } = createMockPool([
-      { recordset: [{ owner_token: hashPlayerToken(token) }] },
+      { recordset: [{ player_id: 11, owner_token: hashPlayerToken(token) }] },
       { recordset: [], rowsAffected: [1] },
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
@@ -84,7 +85,7 @@ describe('updateSession token enforcement (flag on)', () => {
   it('accepts the token from the X-Player-Token header when no cookie is present', async () => {
     const token = generatePlayerToken();
     const { pool } = createMockPool([
-      { recordset: [{ owner_token: hashPlayerToken(token) }] },
+      { recordset: [{ player_id: 11, owner_token: hashPlayerToken(token) }] },
       { recordset: [], rowsAffected: [1] },
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);

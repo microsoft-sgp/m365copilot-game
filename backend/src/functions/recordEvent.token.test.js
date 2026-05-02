@@ -65,6 +65,7 @@ describe('recordEvent token enforcement (flag on)', () => {
           },
         ],
       },
+      { recordset: [] },
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 

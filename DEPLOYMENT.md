@@ -206,7 +206,7 @@ Replace `sql-bingo-server` with your actual server name and the password with th
 
 ## Step 5 — Run the database migrations
 
-The database needs eight SQL scripts to create the tables, seed organization data, add campaign/admin support, add progression-scoring storage, add pack-assignment lifecycle storage, add portal-managed admin users, add active pack assignment lookup support, and persist player organization attribution.
+The database needs the SQL scripts in `database/` to create the tables, seed organization data, add campaign/admin support, add progression-scoring storage, add pack-assignment lifecycle storage, add portal-managed admin users, add active pack assignment lookup support, persist player organization attribution, enforce player ownership tokens, and support player recovery/device tokens.
 
 ### Option A — Azure Portal Query Editor (easiest, no extra tools)
 
@@ -222,6 +222,8 @@ The database needs eight SQL scripts to create the tables, seed organization dat
 10. Paste the contents of `database/006-admin-users.sql` into the editor and click **Run**.
 11. Paste the contents of `database/007-active-pack-assignment-counts.sql` into the editor and click **Run**.
 12. Paste the contents of `database/008-player-organization-attribution.sql` into the editor and click **Run**.
+13. Paste the contents of `database/009-player-owner-token.sql` into the editor and click **Run**.
+14. Paste the contents of `database/010-player-recovery.sql` into the editor and click **Run**.
 
 ### Option B — sqlcmd (command line)
 
@@ -279,6 +281,18 @@ sqlcmd -S sql-bingo-server.database.windows.net \
   -U bingoadmin \
   -P '<YourStrongPassword123!>' \
   -i database/008-player-organization-attribution.sql
+
+sqlcmd -S sql-bingo-server.database.windows.net \
+  -d bingo_db \
+  -U bingoadmin \
+  -P '<YourStrongPassword123!>' \
+  -i database/009-player-owner-token.sql
+
+sqlcmd -S sql-bingo-server.database.windows.net \
+  -d bingo_db \
+  -U bingoadmin \
+  -P '<YourStrongPassword123!>' \
+  -i database/010-player-recovery.sql
 ```
 
 ### Option C — Azure Data Studio (GUI)

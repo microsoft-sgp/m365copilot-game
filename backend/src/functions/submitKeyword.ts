@@ -7,7 +7,7 @@ import { getDefaultCampaignId, invalidateLeaderboardCache } from '../lib/cache.j
 import {
   getPlayerTokenFromRequest,
   isPlayerTokenEnforcementEnabled,
-  verifyPlayerOwnsRow,
+  verifyPlayerTokenForPlayer,
 } from '../lib/playerAuth.js';
 import { isDuplicateSqlKeyError, readJsonObject, stringValue } from './http.js';
 
@@ -49,13 +49,19 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
     const lookup = await pool
       .request()
       .input('email', sql.NVarChar(320), email)
-      .query<{ owner_token: string | null }>(
-        'SELECT TOP 1 owner_token FROM players WHERE email = @email;',
+      .query<{ id: number; owner_token: string | null }>(
+        'SELECT TOP 1 id, owner_token FROM players WHERE email = @email;',
       );
-    const existingHash = lookup.recordset[0]?.owner_token ?? null;
-    if (existingHash) {
+    const existingPlayer = lookup.recordset[0];
+    if (existingPlayer?.owner_token) {
       const presentedToken = getPlayerTokenFromRequest(request);
-      if (!verifyPlayerOwnsRow(presentedToken, existingHash)) {
+      if (
+        !(await verifyPlayerTokenForPlayer(pool, {
+          playerId: existingPlayer.id,
+          ownerTokenHash: existingPlayer.owner_token,
+          presentedToken,
+        }))
+      ) {
         return {
           status: 401,
           jsonBody: { ok: false, message: 'Unauthorized' },

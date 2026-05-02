@@ -6,7 +6,7 @@ import { invalidateLeaderboardCache } from '../lib/cache.js';
 import {
   getPlayerTokenFromRequest,
   isPlayerTokenEnforcementEnabled,
-  verifyPlayerOwnsRow,
+  verifyPlayerTokenForPlayer,
 } from '../lib/playerAuth.js';
 import { isDuplicateSqlKeyError, numberValue, readJsonObject, stringValue } from './http.js';
 
@@ -54,7 +54,13 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
   if (isPlayerTokenEnforcementEnabled()) {
     const presentedToken = getPlayerTokenFromRequest(request);
     const ownerHash = check.recordset[0]?.owner_token ?? null;
-    if (!verifyPlayerOwnsRow(presentedToken, ownerHash)) {
+    if (
+      !(await verifyPlayerTokenForPlayer(pool, {
+        playerId: check.recordset[0].player_id,
+        ownerTokenHash: ownerHash,
+        presentedToken,
+      }))
+    ) {
       return {
         status: 401,
         jsonBody: { ok: false, message: 'Unauthorized' },

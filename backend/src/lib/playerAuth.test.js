@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   constantTimeEqualHex,
+  createPlayerDeviceToken,
   generatePlayerToken,
   getPlayerTokenFromRequest,
   hashPlayerToken,
   isPlayerTokenEnforcementEnabled,
+  verifyPlayerTokenForPlayer,
   verifyPlayerOwnsRow,
 } from './playerAuth.js';
 import {
@@ -12,6 +14,7 @@ import {
   clearPlayerTokenCookie,
   createPlayerTokenCookie,
 } from './playerCookies.js';
+import { createMockPool } from '../test-helpers/mockPool.js';
 
 function fakeRequest({ cookieHeader, headerToken } = {}) {
   return {
@@ -96,6 +99,86 @@ describe('verifyPlayerOwnsRow', () => {
   it('returns false when the stored hash is null or empty', () => {
     expect(verifyPlayerOwnsRow('any', null)).toBe(false);
     expect(verifyPlayerOwnsRow('any', '')).toBe(false);
+  });
+});
+
+describe('createPlayerDeviceToken', () => {
+  it('inserts a hashed token for the player', async () => {
+    const { pool, calls } = createMockPool([{ recordset: [], rowsAffected: [1] }]);
+    await createPlayerDeviceToken(pool, 42, hashPlayerToken('device-token'));
+    expect(calls[0].query).toMatch(/INSERT INTO player_device_tokens/);
+    expect(calls[0].inputs.playerId).toBe(42);
+  });
+
+  it('ignores duplicate token hash inserts', async () => {
+    const err = new Error('duplicate');
+    err.number = 2601;
+    const { pool } = createMockPool([err]);
+    await expect(createPlayerDeviceToken(pool, 42, hashPlayerToken('device-token'))).resolves.toBeUndefined();
+  });
+});
+
+describe('verifyPlayerTokenForPlayer', () => {
+  it('accepts the legacy players.owner_token hash', async () => {
+    const token = generatePlayerToken();
+    const { pool, calls } = createMockPool([]);
+    await expect(
+      verifyPlayerTokenForPlayer(pool, {
+        playerId: 42,
+        ownerTokenHash: hashPlayerToken(token),
+        presentedToken: token,
+      }),
+    ).resolves.toBe(true);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('accepts an active device token and updates last_seen_at', async () => {
+    const token = generatePlayerToken();
+    const { pool, calls } = createMockPool([
+      { recordset: [{ token_hash: hashPlayerToken(token) }] },
+      { recordset: [], rowsAffected: [1] },
+    ]);
+    await expect(
+      verifyPlayerTokenForPlayer(pool, {
+        playerId: 42,
+        ownerTokenHash: hashPlayerToken('legacy-token'),
+        presentedToken: token,
+      }),
+    ).resolves.toBe(true);
+    expect(calls[0].query).toMatch(/FROM player_device_tokens/);
+    expect(calls[1].query).toMatch(/SET last_seen_at = SYSUTCDATETIME/);
+  });
+
+  it('rejects a revoked device token because active lookup returns no rows', async () => {
+    const { pool } = createMockPool([{ recordset: [] }]);
+    await expect(
+      verifyPlayerTokenForPlayer(pool, {
+        playerId: 42,
+        ownerTokenHash: hashPlayerToken('legacy-token'),
+        presentedToken: 'revoked-token',
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('rejects missing and mismatched tokens', async () => {
+    const { pool: missingPool, calls: missingCalls } = createMockPool([]);
+    await expect(
+      verifyPlayerTokenForPlayer(missingPool, {
+        playerId: 42,
+        ownerTokenHash: hashPlayerToken('legacy-token'),
+        presentedToken: '',
+      }),
+    ).resolves.toBe(false);
+    expect(missingCalls).toHaveLength(0);
+
+    const { pool } = createMockPool([{ recordset: [{ token_hash: hashPlayerToken('other') }] }]);
+    await expect(
+      verifyPlayerTokenForPlayer(pool, {
+        playerId: 42,
+        ownerTokenHash: hashPlayerToken('legacy-token'),
+        presentedToken: 'attacker-token',
+      }),
+    ).resolves.toBe(false);
   });
 });
 

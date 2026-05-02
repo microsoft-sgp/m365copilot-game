@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const MIGRATIONS_DIR = join(import.meta.dirname, '..', '..', '..', 'database');
+const REPO_ROOT = join(import.meta.dirname, '..', '..', '..');
+const MIGRATIONS_DIR = join(REPO_ROOT, 'database');
 
 function listMigrations() {
   return readdirSync(MIGRATIONS_DIR)
@@ -50,6 +51,32 @@ describe('SQL migration files', () => {
     expect(adminUsers).toMatch(/CREATE TABLE\s+(?:dbo\.)?admin_users\b/i);
     const otps = readFileSync(join(MIGRATIONS_DIR, '003-add-admin-and-campaigns.sql'), 'utf8');
     expect(otps).toMatch(/CREATE TABLE\s+(?:dbo\.)?admin_otps\b/i);
+  });
+
+  it('player recovery migration creates device-token and recovery OTP structures', () => {
+    const sql = readFileSync(join(MIGRATIONS_DIR, '010-player-recovery.sql'), 'utf8');
+    expect(sql).toMatch(/CREATE TABLE\s+(?:dbo\.)?player_device_tokens\b/i);
+    expect(sql).toMatch(/FOREIGN KEY\s*\(player_id\)\s+REFERENCES\s+players\s*\(id\)/i);
+    expect(sql).toMatch(/IX_player_device_tokens_player_active_hash/i);
+    expect(sql).toMatch(/UX_player_device_tokens_active_token_hash/i);
+    expect(sql).toMatch(/WHERE\s+revoked_at\s+IS\s+NULL/i);
+
+    expect(sql).toMatch(/CREATE TABLE\s+(?:dbo\.)?player_recovery_otps\b/i);
+    for (const column of ['email', 'code_hash', 'expires_at', 'used', 'created_at', 'used_at']) {
+      expect(sql, `player_recovery_otps missing ${column}`).toMatch(new RegExp(`\\b${column}\\b`, 'i'));
+    }
+    expect(sql).toMatch(/IX_player_recovery_otps_email_created/i);
+    expect(sql).toMatch(/IX_player_recovery_otps_unused_lookup/i);
+    expect(sql).toMatch(/WHERE\s+used\s*=\s*0/i);
+  });
+
+  it('migration runners include the latest migration file', () => {
+    const files = listMigrations();
+    const latestMigration = files[files.length - 1];
+    for (const runner of ['scripts/init-db.mjs', 'backend/scripts/run-migrations.mjs']) {
+      const source = readFileSync(join(REPO_ROOT, runner), 'utf8');
+      expect(source, `${runner} does not run ${latestMigration}`).toContain(latestMigration);
+    }
   });
 
   it('migrations do not contain placeholder secrets', () => {

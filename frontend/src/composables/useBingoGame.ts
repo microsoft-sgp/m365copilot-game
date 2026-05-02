@@ -6,7 +6,12 @@ import { genId } from '../lib/rng.js';
 import { getPack } from '../lib/packGenerator.js';
 import type { TileTask } from '../lib/packGenerator.js';
 import { mintLineKeyword, mintWeeklyKeyword } from '../lib/keywordMinting.js';
-import { apiCreateSession, apiRecordEvent, apiUpdateSession } from '../lib/api.js';
+import {
+  apiCreateSession,
+  apiRecordEvent,
+  apiUpdateSession,
+  isPlayerRecoveryRequiredResponse,
+} from '../lib/api.js';
 import type { ApiResponse } from '../lib/api.js';
 
 type Keyword = {
@@ -42,6 +47,9 @@ type GameState = {
   keywords: Keyword[];
   challengeProfile: ChallengeProfile | null;
   boardActive: boolean;
+  recoveryRequired: boolean;
+  recoveryEmail: string;
+  recoveryMessage: string;
 };
 
 type ActiveAssignment = {
@@ -87,6 +95,7 @@ type AssignmentResult = {
   ok: boolean;
   packId?: number;
   message?: string;
+  recoveryRequired?: boolean;
 };
 
 function freshState(): GameState {
@@ -107,6 +116,9 @@ function freshState(): GameState {
     keywords: [],
     challengeProfile: null,
     boardActive: false,
+    recoveryRequired: false,
+    recoveryEmail: '',
+    recoveryMessage: '',
   };
 }
 
@@ -138,6 +150,9 @@ function persist() {
     keywords: state.keywords,
     challengeProfile: state.challengeProfile,
     boardActive: state.boardActive,
+    recoveryRequired: state.recoveryRequired,
+    recoveryEmail: state.recoveryEmail,
+    recoveryMessage: state.recoveryMessage,
   });
 }
 
@@ -183,12 +198,51 @@ export function useBingoGame() {
     state.completedPackId = assignment.completedPackId ?? null;
   }
 
+  function setRecoveryRequired(email?: string, message = 'Player recovery is required.') {
+    state.recoveryRequired = true;
+    state.recoveryEmail = (email || state.email || '').trim().toLowerCase();
+    state.recoveryMessage = message;
+    state.boardActive = false;
+  }
+
+  function clearRecoveryRequired() {
+    state.recoveryRequired = false;
+    state.recoveryEmail = '';
+    state.recoveryMessage = '';
+  }
+
+  function recoveryResult(message = 'Recover this player identity to continue.') {
+    return { ok: false, recoveryRequired: true, message };
+  }
+
+  function handleCreateSessionRecovery(res: ApiResponse<unknown>, email?: string) {
+    if (!isPlayerRecoveryRequiredResponse(res)) return false;
+    setRecoveryRequired(email, 'Recover this player identity to continue.');
+    return true;
+  }
+
+  function watchGameAuthFailure(promise: Promise<ApiResponse<unknown>>) {
+    promise
+      .then((res) => {
+        if (res.status === 401 && state.email) {
+          setRecoveryRequired(state.email, 'Recover this player identity to continue.');
+        }
+      })
+      .catch(() => {});
+  }
+
   function applyIdentity({ name, email, organization }: StartBoardArgs = {}) {
     const canonicalName = state.playerName || (name || '').trim() || 'Player';
     if (!state.playerName && canonicalName) {
       state.playerName = canonicalName;
     }
-    if (email) state.email = email;
+    if (email) {
+      const nextEmail = email.trim().toLowerCase();
+      if (state.recoveryRequired && state.recoveryEmail && state.recoveryEmail !== nextEmail) {
+        clearRecoveryRequired();
+      }
+      state.email = nextEmail;
+    }
     if (organization !== undefined) {
       state.organization = (organization || '').trim();
       if (state.organization) {
@@ -216,6 +270,9 @@ export function useBingoGame() {
 
   async function ensurePackAssignment(args: StartBoardArgs = {}): Promise<AssignmentResult> {
     const canonicalName = applyIdentity(args);
+    if (state.recoveryRequired && (!state.recoveryEmail || state.recoveryEmail === state.email)) {
+      return recoveryResult();
+    }
     const currentPackId = Number(state.assignedPackId || state.packId || 0);
     if (currentPackId > 0) return { ok: true, packId: currentPackId };
 
@@ -228,6 +285,7 @@ export function useBingoGame() {
       if (state.organization) sessionPayload.organization = state.organization;
 
       const res = (await apiCreateSession(sessionPayload)) as ApiResponse<CreateSessionPayload>;
+      if (handleCreateSessionRecovery(res, state.email)) return recoveryResult();
       if (res.ok && res.data) {
         const assignedPackId = applySessionPayload(res.data);
         if (assignedPackId > 0) return { ok: true, packId: assignedPackId };
@@ -241,6 +299,10 @@ export function useBingoGame() {
 
   async function startBoard({ name, packId, email, organization }: StartBoardArgs = {}) {
     const canonicalName = applyIdentity({ name, email, organization });
+
+    if (state.recoveryRequired && (!state.recoveryEmail || state.recoveryEmail === state.email)) {
+      return recoveryResult();
+    }
 
     let resolvedPackId = Number(packId || state.assignedPackId || state.packId || 0);
     let resolvedGameSessionId = state.gameSessionId;
@@ -267,7 +329,8 @@ export function useBingoGame() {
       saveString(STORAGE_KEYS.lastPack, String(targetPackId));
     }
 
-    if (resolvedPackId > 0) {
+    const mustVerifyBeforeLocalLaunch = Boolean(state.email);
+    if (resolvedPackId > 0 && !mustVerifyBeforeLocalLaunch) {
       initializeBoard(resolvedPackId);
     }
 
@@ -281,6 +344,7 @@ export function useBingoGame() {
       if (packId) sessionPayload.packId = Number(packId);
 
       const res = (await apiCreateSession(sessionPayload)) as ApiResponse<CreateSessionPayload>;
+      if (handleCreateSessionRecovery(res, state.email)) return recoveryResult();
       if (res.ok && res.data) {
         const assignedPackId = applySessionPayload(res.data);
         if (res.data.packId) {
@@ -316,6 +380,9 @@ export function useBingoGame() {
 
   // Returns { ok, errors, linesWon: [{ line, kw }], weeklyKw: string | null }
   function verifyTile(tileIndex: number, proof: string) {
+    if (state.recoveryRequired) {
+      return { ok: false, errors: ['Player recovery is required before continuing.'] };
+    }
     const tile = state.tiles[tileIndex];
     if (!tile) return { ok: false, errors: ['No active tile.'] };
     const errors = tile.verify(proof, state.packId, tileIndex);
@@ -325,11 +392,13 @@ export function useBingoGame() {
 
     // Fire-and-forget: record tile clear event
     if (state.gameSessionId) {
-      apiRecordEvent({
-        gameSessionId: state.gameSessionId,
-        tileIndex,
-        eventType: 'cleared',
-      }).catch(() => {});
+      watchGameAuthFailure(
+        apiRecordEvent({
+          gameSessionId: state.gameSessionId,
+          tileIndex,
+          eventType: 'cleared',
+        }),
+      );
     }
 
     const newLinesWon: Array<{ line: (typeof LINES)[number]; kw: string }> = [];
@@ -351,25 +420,29 @@ export function useBingoGame() {
 
         // Fire-and-forget: record line win event
         if (state.gameSessionId) {
-          apiRecordEvent({
-            gameSessionId: state.gameSessionId,
-            tileIndex,
-            eventType: 'line_won',
-            keyword: kw,
-            lineId: line.id,
-          }).catch(() => {});
+          watchGameAuthFailure(
+            apiRecordEvent({
+              gameSessionId: state.gameSessionId,
+              tileIndex,
+              eventType: 'line_won',
+              keyword: kw,
+              lineId: line.id,
+            }),
+          );
         }
 
         const weeklyAward = tryWeeklyClear();
         weeklyKw = weeklyAward?.keyword || weeklyKw;
         if (weeklyAward && state.gameSessionId) {
-          apiRecordEvent({
-            gameSessionId: state.gameSessionId,
-            tileIndex,
-            eventType: 'weekly_won',
-            keyword: weeklyAward.keyword,
-            lineId: `W${weeklyAward.week}`,
-          }).catch(() => {});
+          watchGameAuthFailure(
+            apiRecordEvent({
+              gameSessionId: state.gameSessionId,
+              tileIndex,
+              eventType: 'weekly_won',
+              keyword: weeklyAward.keyword,
+              lineId: `W${weeklyAward.week}`,
+            }),
+          );
         }
         newLinesWon.push({ line, kw });
       }
@@ -377,17 +450,19 @@ export function useBingoGame() {
 
     // Fire-and-forget: update session progress counts and board state
     if (state.gameSessionId) {
-      apiUpdateSession(state.gameSessionId, {
-        tilesCleared: state.cleared.filter(Boolean).length,
-        linesWon: state.wonLines.length,
-        keywordsEarned: state.keywords.length,
-        boardState: {
-          cleared: state.cleared,
-          wonLines: state.wonLines,
-          keywords: state.keywords,
-          challengeProfile: state.challengeProfile,
-        },
-      }).catch(() => {});
+      watchGameAuthFailure(
+        apiUpdateSession(state.gameSessionId, {
+          tilesCleared: state.cleared.filter(Boolean).length,
+          linesWon: state.wonLines.length,
+          keywordsEarned: state.keywords.length,
+          boardState: {
+            cleared: state.cleared,
+            wonLines: state.wonLines,
+            keywords: state.keywords,
+            challengeProfile: state.challengeProfile,
+          },
+        }),
+      );
     }
 
     // Backward compat: lineWon returns last line (or null)
@@ -451,6 +526,7 @@ export function useBingoGame() {
     if (state.packId) {
       state.tiles = getPack(state.packId);
       state.boardActive = true;
+      clearRecoveryRequired();
     }
   }
 
@@ -464,6 +540,9 @@ export function useBingoGame() {
     organization?: string;
   }) {
     state.email = email;
+    if (state.recoveryRequired && state.recoveryEmail && state.recoveryEmail !== email) {
+      clearRecoveryRequired();
+    }
     state.organization = (organization || '').trim();
     if (!state.playerName && name) {
       state.playerName = name;
@@ -491,6 +570,8 @@ export function useBingoGame() {
     resetBoard,
     verifyTile,
     hydrateFromServer,
+    setRecoveryRequired,
+    clearRecoveryRequired,
     setIdentity,
     setEmail,
     campaignId: CAMPAIGN_ID,

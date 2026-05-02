@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
-import { reactive } from 'vue';
+import { computed, reactive } from 'vue';
 import MyActivityPanel from './MyActivityPanel.vue';
 
 const fakeGameState = reactive({ keywords: [] });
@@ -11,7 +11,7 @@ const stopPolling = vi.fn();
 vi.mock('../composables/useBingoGame.js', () => ({
   useBingoGame: () => ({
     state: fakeGameState,
-    keywordCount: { value: fakeGameState.keywords.length },
+    keywordCount: computed(() => fakeGameState.keywords.length),
   }),
 }));
 
