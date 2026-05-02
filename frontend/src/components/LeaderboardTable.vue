@@ -46,7 +46,12 @@ function isPlayerOrg(org) {
             <th
               class="border-b border-themed px-3 py-2 text-left text-label-md font-semibold uppercase tracking-[0.5px] text-tertiary"
             >
-              #
+              Score
+            </th>
+            <th
+              class="border-b border-themed px-3 py-2 text-left text-label-md font-semibold uppercase tracking-[0.5px] text-tertiary"
+            >
+              Contributors
             </th>
             <th
               class="hidden border-b border-themed px-3 py-2 text-left text-label-md font-semibold uppercase tracking-[0.5px] text-tertiary sm:table-cell"
@@ -74,6 +79,9 @@ function isPlayerOrg(org) {
                 v-if="isPlayerOrg(r.org)"
                 class="ml-1 text-label-sm text-tertiary"
               >★ You</span>
+            </td>
+            <td class="border-b border-outline-variant px-3 py-2.5 text-body-md text-on-surface">
+              {{ r.score }}
             </td>
             <td class="border-b border-outline-variant px-3 py-2.5 text-body-md text-on-surface">
               {{ r.contributorCount }}

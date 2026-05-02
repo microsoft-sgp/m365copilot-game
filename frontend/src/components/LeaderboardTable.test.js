@@ -53,13 +53,33 @@ describe('LeaderboardTable', () => {
     expect(badges[2].classes()).toContain('rank-3');
   });
 
-  it('renders contributor count for each row', async () => {
+  it('renders score and contributor count for each row', async () => {
     await seedServerLeaderboard([
       { org: 'SMU', score: 7, contributors: 4, lastSubmission: 1_700_000_000_000 },
     ]);
     const w = mount(LeaderboardTable);
     await w.vm.$nextTick();
-    expect(w.text()).toContain('4');
+    const headers = w.findAll('th').map((header) => header.text());
+    expect(headers).toEqual(['Rank', 'Organization', 'Score', 'Contributors', 'Last Submission']);
+    const cells = w.findAll('tbody tr')[0].findAll('td');
+    expect(cells[2].text()).toBe('7');
+    expect(cells[3].text()).toBe('4');
+  });
+
+  it('makes score-based ranking clear when contributors differ', async () => {
+    await seedServerLeaderboard([
+      { org: 'Microsoft', score: 9, contributors: 1, lastSubmission: 1_700_000_000_000 },
+      { org: 'SIM', score: 8, contributors: 2, lastSubmission: 1_700_000_100_000 },
+    ]);
+    const w = mount(LeaderboardTable);
+    await w.vm.$nextTick();
+    const rows = w.findAll('tbody tr');
+    expect(rows[0].text()).toContain('Microsoft');
+    expect(rows[0].findAll('td')[2].text()).toBe('9');
+    expect(rows[0].findAll('td')[3].text()).toBe('1');
+    expect(rows[1].text()).toContain('SIM');
+    expect(rows[1].findAll('td')[2].text()).toBe('8');
+    expect(rows[1].findAll('td')[3].text()).toBe('2');
   });
 
   it('highlights the player org row when playerOrg prop is passed', async () => {

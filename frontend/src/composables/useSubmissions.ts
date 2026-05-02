@@ -24,7 +24,7 @@ type ServerLeaderboardRow = {
 
 type LeaderboardRow = {
   org: string;
-  count: number;
+  score: number;
   contributorCount: number;
   lastTs: string | number | null;
 };
@@ -68,7 +68,7 @@ export function useSubmissions() {
     if (serverLeaderboard.value.length > 0) {
       return serverLeaderboard.value.map((r) => ({
         org: r.org,
-        count: r.score,
+        score: r.score,
         contributorCount: r.contributors,
         lastTs: r.lastSubmission,
       }));
@@ -76,7 +76,7 @@ export function useSubmissions() {
     // Fallback: local computation from localStorage
     const orgMap: Record<
       string,
-      { org: string; count: number; contributors: Set<string>; lastTs: number }
+      { org: string; score: number; contributors: Set<string>; lastTs: number }
     > = {};
     const seen = new Set();
     submissions.value.forEach((s) => {
@@ -86,12 +86,12 @@ export function useSubmissions() {
       if (!orgMap[s.org]) {
         orgMap[s.org] = {
           org: s.org,
-          count: 0,
+          score: 0,
           contributors: new Set(),
           lastTs: 0,
         };
       }
-      orgMap[s.org].count++;
+      orgMap[s.org].score++;
       orgMap[s.org].contributors.add(s.email);
       if (s.ts > orgMap[s.org].lastTs) orgMap[s.org].lastTs = s.ts;
     });
@@ -99,12 +99,12 @@ export function useSubmissions() {
       .map(
         (r): LeaderboardRow => ({
           org: r.org,
-          count: r.count,
+          score: r.score,
           contributorCount: r.contributors.size,
           lastTs: r.lastTs,
         }),
       )
-      .sort((a, b) => b.count - a.count || (a.org > b.org ? 1 : -1));
+      .sort((a, b) => b.score - a.score || (a.org > b.org ? 1 : -1));
   });
 
   function detectOrg(email: string) {

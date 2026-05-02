@@ -209,7 +209,7 @@ describe('useSubmissions.leaderboard', () => {
     });
     const { leaderboard, refreshLeaderboard } = useSubmissions();
     await refreshLeaderboard();
-    expect(leaderboard.value).toEqual([{ org: 'SMU', count: 3, contributorCount: 2, lastTs: 't' }]);
+    expect(leaderboard.value).toEqual([{ org: 'SMU', score: 3, contributorCount: 2, lastTs: 't' }]);
   });
 
   it('computes a local leaderboard when the server is empty', async () => {
@@ -224,7 +224,7 @@ describe('useSubmissions.leaderboard', () => {
     expect(leaderboard.value).toEqual([
       {
         org: 'SMU',
-        count: 2,
+        score: 2,
         contributorCount: 2,
         lastTs: expect.any(Number),
       },
@@ -241,11 +241,11 @@ describe('useSubmissions.leaderboard', () => {
     const kw = 'CO-APR26-042-R1-ABCD1234';
     await submit({ ...goodInput, email: 'ada@smu.edu.sg', kw });
     await submit({ ...goodInput, email: 'grace@smu.edu.sg', kw });
-    expect(leaderboard.value[0].count).toBe(1);
+    expect(leaderboard.value[0].score).toBe(1);
     expect(leaderboard.value[0].contributorCount).toBe(1);
   });
 
-  it('sorts orgs by count desc then by name asc', async () => {
+  it('sorts orgs by score desc then by name asc', async () => {
     apiSubmitKeyword.mockResolvedValue({ ok: false, status: 0, data: null });
     const { submit, leaderboard } = useSubmissions();
     await submit({ org: 'NUS', name: 'N', email: 'n@nus.edu.sg', kw: 'CO-APR26-042-R1-ABCD1234' });
