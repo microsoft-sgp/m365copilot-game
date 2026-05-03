@@ -61,60 +61,98 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
 
   const pool = await getPool();
   const codeHash = hashPlayerRecoveryCode(code);
-  const consumed = await pool
-    .request()
-    .input('email', sql.NVarChar(320), email)
-    .input('codeHash', sql.NVarChar(128), codeHash).query<{ id: number }>(`
-      ;WITH candidate AS (
+  const tx = new sql.Transaction(pool);
+  let transactionActive = false;
+
+  try {
+    await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+    transactionActive = true;
+
+    const candidate = await tx
+      .request()
+      .input('email', sql.NVarChar(320), email)
+      .input('codeHash', sql.NVarChar(128), codeHash).query<{ id: number }>(`
         SELECT TOP 1 id
-        FROM player_recovery_otps WITH (UPDLOCK, READPAST)
+        FROM player_recovery_otps WITH (UPDLOCK, HOLDLOCK, READPAST)
         WHERE email = @email
           AND code_hash = @codeHash
           AND used = 0
           AND expires_at > SYSUTCDATETIME()
         ORDER BY created_at DESC
-      )
-      UPDATE player_recovery_otps
-      SET used = 1,
-          used_at = SYSUTCDATETIME()
-      OUTPUT inserted.id
-      WHERE id IN (SELECT id FROM candidate);
-    `);
+      `);
 
-  if (consumed.rowsAffected?.[0] !== 1) {
-    const failures = await cacheIncrementWithTtl(key, LOCKOUT_WINDOW_SECONDS, context);
-    logVerifyAttempt(context, 'verify_failed', email, {
-      ...(failures !== null ? { failure_count: failures } : {}),
-    });
+    const recoveryOtpId = candidate.recordset[0]?.id;
+    if (!recoveryOtpId) {
+      await tx.commit();
+      transactionActive = false;
+
+      const failures = await cacheIncrementWithTtl(key, LOCKOUT_WINDOW_SECONDS, context);
+      logVerifyAttempt(context, 'verify_failed', email, {
+        ...(failures !== null ? { failure_count: failures } : {}),
+      });
+      return {
+        status: 401,
+        jsonBody: { ok: false, message: 'Invalid or expired code' },
+      };
+    }
+
+    const playerResult = await tx
+      .request()
+      .input('email', sql.NVarChar(320), email)
+      .query<{ id: number }>('SELECT TOP 1 id FROM players WHERE email = @email;');
+    const playerId = playerResult.recordset[0]?.id;
+    if (!playerId) {
+      throw new Error('Player recovery verification failed after code match');
+    }
+
+    const token = generatePlayerToken();
+    const tokenHash = hashPlayerToken(token);
+    await createPlayerDeviceToken(tx, playerId, tokenHash);
+
+    const markUsedResult = await tx
+      .request()
+      .input('id', sql.Int, recoveryOtpId)
+      .query('UPDATE player_recovery_otps SET used = 1, used_at = SYSUTCDATETIME() WHERE id = @id AND used = 0;');
+
+    if (markUsedResult.rowsAffected?.[0] !== 1) {
+      await tx.rollback();
+      transactionActive = false;
+
+      const failures = await cacheIncrementWithTtl(key, LOCKOUT_WINDOW_SECONDS, context);
+      logVerifyAttempt(context, 'verify_failed', email, {
+        ...(failures !== null ? { failure_count: failures } : {}),
+      });
+      return {
+        status: 401,
+        jsonBody: { ok: false, message: 'Invalid or expired code' },
+      };
+    }
+
+    await tx.commit();
+    transactionActive = false;
+
+    await cacheDelete(key, context);
+    logVerifyAttempt(context, 'verify_success', email);
+
     return {
-      status: 401,
-      jsonBody: { ok: false, message: 'Invalid or expired code' },
+      cookies: [createPlayerTokenCookie(token)],
+      jsonBody: { ok: true, playerToken: token },
+    };
+  } catch (err) {
+    if (transactionActive) {
+      try {
+        await tx.rollback();
+      } catch {
+        // no-op: preserve the original verification failure response
+      }
+    }
+    context.error?.('Failed to verify player recovery code', err);
+    logVerifyAttempt(context, 'verify_failed', email, { failure_class: 'service_error' });
+    return {
+      status: 503,
+      jsonBody: { ok: false, message: 'Could not verify recovery code. Please try again.' },
     };
   }
-
-  const playerResult = await pool
-    .request()
-    .input('email', sql.NVarChar(320), email)
-    .query<{ id: number }>('SELECT TOP 1 id FROM players WHERE email = @email;');
-  const playerId = playerResult.recordset[0]?.id;
-  if (!playerId) {
-    logVerifyAttempt(context, 'verify_failed', email);
-    return {
-      status: 401,
-      jsonBody: { ok: false, message: 'Invalid or expired code' },
-    };
-  }
-
-  const token = generatePlayerToken();
-  const tokenHash = hashPlayerToken(token);
-  await createPlayerDeviceToken(pool, playerId, tokenHash);
-  await cacheDelete(key, context);
-  logVerifyAttempt(context, 'verify_success', email);
-
-  return {
-    cookies: [createPlayerTokenCookie(token)],
-    jsonBody: { ok: true, playerToken: token },
-  };
 };
 
 app.http('verifyPlayerRecovery', {

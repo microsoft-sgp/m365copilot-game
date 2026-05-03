@@ -2,6 +2,45 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockPool, fakeRequest } from '../test-helpers/mockPool.js';
 import { PLAYER_COOKIE_NAME } from '../lib/playerCookies.js';
 
+const { beginSpy, commitSpy, rollbackSpy } = vi.hoisted(() => ({
+  beginSpy: vi.fn(),
+  commitSpy: vi.fn(),
+  rollbackSpy: vi.fn(),
+}));
+
+vi.mock('mssql', async () => {
+  class Transaction {
+    constructor(pool) {
+      this.pool = pool;
+    }
+
+    async begin(level) {
+      beginSpy(level);
+    }
+
+    request() {
+      return this.pool.request();
+    }
+
+    async commit() {
+      commitSpy();
+    }
+
+    async rollback() {
+      rollbackSpy();
+    }
+  }
+
+  return {
+    default: {
+      Int: 'Int',
+      NVarChar: () => 'NVarChar',
+      ISOLATION_LEVEL: { SERIALIZABLE: 'SERIALIZABLE' },
+      Transaction,
+    },
+  };
+});
+
 vi.mock('../lib/db.js', () => ({ getPool: vi.fn() }));
 vi.mock('../lib/cache.js', () => ({
   cacheDelete: vi.fn(),
@@ -27,6 +66,9 @@ describe('verifyPlayerRecovery', () => {
     vi.mocked(cacheDelete).mockReset();
     vi.mocked(cacheGetCounter).mockReset();
     vi.mocked(cacheIncrementWithTtl).mockReset();
+    beginSpy.mockReset();
+    commitSpy.mockReset();
+    rollbackSpy.mockReset();
     vi.mocked(cacheGetCounter).mockResolvedValue(0);
     vi.mocked(cacheIncrementWithTtl).mockResolvedValue(1);
     vi.mocked(cacheDelete).mockResolvedValue(undefined);
@@ -34,8 +76,9 @@ describe('verifyPlayerRecovery', () => {
 
   it('issues a new player token and cookie for a valid code', async () => {
     const { pool, calls } = createMockPool([
-      { recordset: [{ id: 50 }], rowsAffected: [1] },
+      { recordset: [{ id: 50 }] },
       { recordset: [{ id: 11 }] },
+      { recordset: [], rowsAffected: [1] },
       { recordset: [], rowsAffected: [1] },
     ]);
     vi.mocked(getPool).mockResolvedValue(pool);
@@ -46,8 +89,12 @@ describe('verifyPlayerRecovery', () => {
     expect(res.jsonBody.playerToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(res.cookies?.[0]?.name).toBe(PLAYER_COOKIE_NAME);
     expect(res.cookies?.[0]?.value).toBe(res.jsonBody.playerToken);
-    expect(calls[0].query).toMatch(/UPDATE player_recovery_otps/);
+    expect(beginSpy).toHaveBeenCalledWith('SERIALIZABLE');
+    expect(commitSpy).toHaveBeenCalledTimes(1);
+    expect(rollbackSpy).not.toHaveBeenCalled();
+    expect(calls[0].query).toMatch(/FROM player_recovery_otps/);
     expect(calls[2].query).toMatch(/INSERT INTO player_device_tokens/);
+    expect(calls[3].query).toMatch(/UPDATE player_recovery_otps SET used = 1/);
     expect(cacheDelete).toHaveBeenCalled();
   });
 
@@ -58,13 +105,15 @@ describe('verifyPlayerRecovery', () => {
   });
 
   it('returns 401 and increments lockout counter for an invalid code', async () => {
-    const { pool } = createMockPool([{ recordset: [], rowsAffected: [0] }]);
+    const { pool } = createMockPool([{ recordset: [] }]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
     const res = await handler(request(), context());
 
     expect(res.status).toBe(401);
     expect(res.jsonBody).toEqual({ ok: false, message: 'Invalid or expired code' });
+    expect(commitSpy).toHaveBeenCalledTimes(1);
+    expect(rollbackSpy).not.toHaveBeenCalled();
     expect(cacheIncrementWithTtl).toHaveBeenCalled();
   });
 
@@ -79,11 +128,12 @@ describe('verifyPlayerRecovery', () => {
 
   it('only lets one redemption of the same code issue a token', async () => {
     const first = createMockPool([
-      { recordset: [{ id: 50 }], rowsAffected: [1] },
+      { recordset: [{ id: 50 }] },
       { recordset: [{ id: 11 }] },
       { recordset: [], rowsAffected: [1] },
+      { recordset: [], rowsAffected: [1] },
     ]);
-    const second = createMockPool([{ recordset: [], rowsAffected: [0] }]);
+    const second = createMockPool([{ recordset: [] }]);
     vi.mocked(getPool).mockResolvedValueOnce(first.pool).mockResolvedValueOnce(second.pool);
 
     const ok = await handler(request(), context());
@@ -92,5 +142,31 @@ describe('verifyPlayerRecovery', () => {
     expect(ok.jsonBody.ok).toBe(true);
     expect(rejected.status).toBe(401);
     expect(second.calls).toHaveLength(1);
+  });
+
+  it('rolls back and leaves the code unconsumed when token creation fails', async () => {
+    const { pool, calls } = createMockPool([
+      { recordset: [{ id: 50 }] },
+      { recordset: [{ id: 11 }] },
+      new Error('device token insert failed'),
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+    const ctx = context();
+
+    const res = await handler(request(), ctx);
+
+    expect(res.status).toBe(503);
+    expect(res.jsonBody).toEqual({
+      ok: false,
+      message: 'Could not verify recovery code. Please try again.',
+    });
+    expect(rollbackSpy).toHaveBeenCalledTimes(1);
+    expect(commitSpy).not.toHaveBeenCalled();
+    expect(cacheIncrementWithTtl).not.toHaveBeenCalled();
+    expect(calls.some((call) => /UPDATE player_recovery_otps SET used = 1/.test(call.query))).toBe(
+      false,
+    );
+    expect(JSON.stringify(ctx.error.mock.calls)).not.toContain('123456');
+    expect(JSON.stringify(ctx.error.mock.calls)).not.toContain('ada@example.com');
   });
 });

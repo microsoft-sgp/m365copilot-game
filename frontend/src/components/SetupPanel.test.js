@@ -289,4 +289,64 @@ describe('SetupPanel', () => {
     expect(sessionStorage.getItem('admin_authenticated')).toBeNull();
     expect(sessionStorage.getItem('admin_email')).toBeNull();
   });
+
+  it('shows invalid-or-expired copy for recovery verification 401 responses', async () => {
+    localStorage.setItem('copilot_bingo_email', 'ada@example.com');
+    const { state } = useBingoGame();
+    state.recoveryRequired = true;
+    state.recoveryEmail = 'ada@example.com';
+    apiPlayerRecoveryVerify.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      data: { ok: false, message: 'Invalid or expired code' },
+    });
+
+    const w = mount(SetupPanel);
+    await flushPromises();
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Send Code'))
+      .trigger('click');
+    await flushPromises();
+    await w.find('input[placeholder="000000"]').setValue('123456');
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Verify Code'))
+      .trigger('click');
+    await flushPromises();
+
+    expect(w.text()).toContain('Invalid or expired code');
+    expect(w.text()).not.toContain('Could not verify recovery code');
+    expect(state.recoveryRequired).toBe(true);
+  });
+
+  it('shows retry copy for recovery verification service failures', async () => {
+    localStorage.setItem('copilot_bingo_email', 'ada@example.com');
+    const { state } = useBingoGame();
+    state.recoveryRequired = true;
+    state.recoveryEmail = 'ada@example.com';
+    apiPlayerRecoveryVerify.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      data: { ok: false, message: 'Internal Server Error' },
+    });
+
+    const w = mount(SetupPanel);
+    await flushPromises();
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Send Code'))
+      .trigger('click');
+    await flushPromises();
+    await w.find('input[placeholder="000000"]').setValue('123456');
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Verify Code'))
+      .trigger('click');
+    await flushPromises();
+
+    expect(w.text()).toContain('Could not verify recovery code. Please try again.');
+    expect(w.text()).not.toContain('Invalid or expired code');
+    expect(state.recoveryRequired).toBe(true);
+  });
 });

@@ -20,6 +20,7 @@ const assigning = ref(false);
 const launching = ref(false);
 const requestingCode = ref(false);
 const verifyingCode = ref(false);
+const recoveryVerifyServiceError = 'Could not verify recovery code. Please try again.';
 
 const assignedPack = computed(
   () => state.assignedPackId || Number(loadString(STORAGE_KEYS.lastPack) || 0),
@@ -132,7 +133,14 @@ async function verifyRecoveryCode() {
   try {
     const verify = await apiPlayerRecoveryVerify(email, code);
     if (!verify.ok) {
-      error.value = verify.data?.message || 'Invalid or expired code.';
+      const message = verify.data?.message;
+      if (verify.status === 401 && message) {
+        error.value = message;
+      } else if (verify.status !== 0 && verify.status < 500 && message) {
+        error.value = message;
+      } else {
+        error.value = recoveryVerifyServiceError;
+      }
       return;
     }
 

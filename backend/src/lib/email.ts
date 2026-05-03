@@ -25,6 +25,13 @@ type EmailContent = {
 };
 
 const ADMIN_OTP_SUBJECT = 'Your Copilot Bingo verification code';
+const PLAYER_RECOVERY_SUBJECT = 'Your Copilot Bingo player recovery code';
+
+type OtpEmailCopy = {
+  subject: string;
+  codeIntro: string;
+  codeAriaLabel: string;
+};
 
 function escapeHtml(value: string): string {
   const entities: Record<string, string> = {
@@ -38,16 +45,18 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => entities[char] ?? char);
 }
 
-function renderAdminOtpEmail(code: string): EmailContent {
+function renderOtpEmail(code: string, copy: OtpEmailCopy): EmailContent {
   const safeCode = escapeHtml(code);
   const displayCode = safeCode.split('').join(' ');
+  const safeCodeIntro = escapeHtml(copy.codeIntro);
+  const safeCodeAriaLabel = escapeHtml(copy.codeAriaLabel);
 
   return {
-    subject: ADMIN_OTP_SUBJECT,
+    subject: copy.subject,
     plainText: [
       'Welcome to Copilot Bingo!',
       '',
-      `Your verification code is: ${code}`,
+      `${copy.codeIntro} ${code}`,
       '',
       'This code expires in 10 minutes.',
       '',
@@ -66,8 +75,8 @@ function renderAdminOtpEmail(code: string): EmailContent {
             <tr>
               <td style="padding:40px 44px 36px 44px;">
                 <h1 style="margin:0 0 28px 0;font-size:26px;line-height:32px;font-weight:700;color:#202124;">Welcome to Copilot Bingo!</h1>
-                <p style="margin:0 0 14px 0;font-size:18px;line-height:28px;color:#4b4f5c;">Your verification code is:</p>
-                <div style="margin:0 0 30px 0;padding:26px 16px;border-radius:8px;background:#f1f1f3;text-align:center;font-size:36px;line-height:44px;font-weight:700;letter-spacing:10px;color:#202124;" aria-label="Verification code">${displayCode}</div>
+                <p style="margin:0 0 14px 0;font-size:18px;line-height:28px;color:#4b4f5c;">${safeCodeIntro}</p>
+                <div style="margin:0 0 30px 0;padding:26px 16px;border-radius:8px;background:#f1f1f3;text-align:center;font-size:36px;line-height:44px;font-weight:700;letter-spacing:10px;color:#202124;" aria-label="${safeCodeAriaLabel}">${displayCode}</div>
                 <p style="margin:0 0 24px 0;font-size:18px;line-height:28px;color:#5f6470;">This code expires in 10 minutes.</p>
                 <p style="margin:0 0 24px 0;font-size:16px;line-height:26px;color:#6b7280;">If you did not request this code, you can safely ignore this email - no one can access your account without it.</p>
                 <div style="height:1px;background:#e5e7eb;margin:30px 0 28px 0;line-height:1px;">&nbsp;</div>
@@ -81,6 +90,22 @@ function renderAdminOtpEmail(code: string): EmailContent {
   </body>
 </html>`,
   };
+}
+
+function renderAdminOtpEmail(code: string): EmailContent {
+  return renderOtpEmail(code, {
+    subject: ADMIN_OTP_SUBJECT,
+    codeIntro: 'Your verification code is:',
+    codeAriaLabel: 'Verification code',
+  });
+}
+
+function renderPlayerRecoveryEmail(code: string): EmailContent {
+  return renderOtpEmail(code, {
+    subject: PLAYER_RECOVERY_SUBJECT,
+    codeIntro: 'Your player recovery code is:',
+    codeAriaLabel: 'Player recovery code',
+  });
 }
 
 function getErrorMessage(error: unknown): string {
@@ -263,12 +288,10 @@ export async function sendPlayerRecoveryEmail(
   let messageId: string | undefined;
   try {
     const client = new EmailClient(emailConfig.connectionString);
+    const content = renderPlayerRecoveryEmail(code);
     const poller = await client.beginSend({
       senderAddress: emailConfig.senderAddress,
-      content: {
-        subject: 'Your Copilot Bingo player recovery code',
-        plainText: `Your player recovery code is ${code}. It expires in 10 minutes.`,
-      },
+      content,
       recipients: {
         to: [{ address: email }],
       },
