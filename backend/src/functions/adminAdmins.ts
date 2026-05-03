@@ -29,7 +29,7 @@ function requireStepUp(
   };
 }
 
-async function listAdmins(request: HttpRequest, context: InvocationContext) {
+async function listAdmins(request: HttpRequest, _context: InvocationContext) {
   const auth = verifyAdmin(request);
   if (!auth.ok) return auth.response;
 
@@ -64,7 +64,7 @@ async function listAdmins(request: HttpRequest, context: InvocationContext) {
   return { jsonBody: { admins } };
 }
 
-async function addAdmin(request: HttpRequest, context: InvocationContext) {
+async function addAdmin(request: HttpRequest, _context: InvocationContext) {
   const auth = verifyAdmin(request);
   if (!auth.ok) return auth.response;
 
@@ -94,7 +94,7 @@ async function addAdmin(request: HttpRequest, context: InvocationContext) {
   return { jsonBody: { ok: true } };
 }
 
-async function removeAdmin(request: HttpRequest, context: InvocationContext) {
+async function removeAdmin(request: HttpRequest, _context: InvocationContext) {
   const auth = verifyAdmin(request);
   if (!auth.ok) return auth.response;
 

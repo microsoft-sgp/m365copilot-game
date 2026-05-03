@@ -4,7 +4,7 @@ import { getPool } from '../lib/db.js';
 import { verifyAdmin } from '../lib/adminAuth.js';
 import { getDefaultCampaignId, invalidateLeaderboardCache } from '../lib/cache.js';
 
-async function searchPlayers(request: HttpRequest, context: InvocationContext) {
+async function searchPlayers(request: HttpRequest, _context: InvocationContext) {
   const auth = verifyAdmin(request);
   if (!auth.ok) return auth.response;
 
@@ -27,7 +27,7 @@ async function searchPlayers(request: HttpRequest, context: InvocationContext) {
   return { jsonBody: { players: result.recordset } };
 }
 
-async function getPlayerDetail(request: HttpRequest, context: InvocationContext) {
+async function getPlayerDetail(request: HttpRequest, _context: InvocationContext) {
   const auth = verifyAdmin(request);
   if (!auth.ok) return auth.response;
 
@@ -67,7 +67,7 @@ async function getPlayerDetail(request: HttpRequest, context: InvocationContext)
   };
 }
 
-async function deletePlayer(request: HttpRequest, context: InvocationContext) {
+async function deletePlayer(request: HttpRequest, _context: InvocationContext) {
   const auth = verifyAdmin(request);
   if (!auth.ok) return auth.response;
 

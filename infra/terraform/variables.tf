@@ -285,6 +285,12 @@ variable "sql_database_sku_name" {
   default     = "Basic"
 }
 
+variable "sql_public_network_access_enabled" {
+  description = "Whether Azure SQL allows public network access. Keep false for shared environments; set true only for controlled bootstrap or migration access from approved client IP ranges."
+  type        = bool
+  default     = false
+}
+
 variable "sql_allowed_ip_ranges" {
   description = "Optional client IP firewall rules for running migrations from local machines. These only apply if SQL public network access is temporarily enabled."
   type = map(object({

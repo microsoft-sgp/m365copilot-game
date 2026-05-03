@@ -86,10 +86,9 @@ function defaultTraceTargets(env: RawEnv): Array<string | RegExp> {
   return [/^\/api/];
 }
 
-function replayPrivacyOptions(env: RawEnv): Pick<
-  FrontendSentryConfig,
-  'replayMaskAllText' | 'replayMaskAllInputs' | 'replayBlockAllMedia'
-> {
+function replayPrivacyOptions(
+  env: RawEnv,
+): Pick<FrontendSentryConfig, 'replayMaskAllText' | 'replayMaskAllInputs' | 'replayBlockAllMedia'> {
   const unmaskReplay = boolValue(env.VITE_SENTRY_REPLAY_UNMASK, false);
   return {
     replayMaskAllText: !unmaskReplay,
@@ -98,7 +97,9 @@ function replayPrivacyOptions(env: RawEnv): Pick<
   };
 }
 
-export function getFrontendSentryConfig(env: RawEnv = import.meta.env): FrontendSentryConfig | null {
+export function getFrontendSentryConfig(
+  env: RawEnv = import.meta.env,
+): FrontendSentryConfig | null {
   const dsn = stringValue(env.VITE_SENTRY_DSN);
   if (!dsn) return null;
 
@@ -161,7 +162,10 @@ function sanitizeEvent(event: Sentry.Event): Sentry.Event {
 function sanitizeBreadcrumb(breadcrumb: Sentry.Breadcrumb): Sentry.Breadcrumb {
   return {
     ...breadcrumb,
-    message: typeof breadcrumb.message === 'string' ? redactString(breadcrumb.message) : breadcrumb.message,
+    message:
+      typeof breadcrumb.message === 'string'
+        ? redactString(breadcrumb.message)
+        : breadcrumb.message,
     data: sanitizeForSentry(breadcrumb.data) as Record<string, unknown> | undefined,
   };
 }

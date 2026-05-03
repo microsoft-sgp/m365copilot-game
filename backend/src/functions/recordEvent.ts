@@ -10,6 +10,17 @@ import {
 } from '../lib/playerAuth.js';
 import { isDuplicateSqlKeyError, numberValue, readJsonObject, stringValue } from './http.js';
 
+function assignmentNotActiveResponse() {
+  return {
+    status: 409,
+    jsonBody: {
+      ok: false,
+      code: 'ASSIGNMENT_NOT_ACTIVE',
+      message: 'Assignment is not active.',
+    },
+  };
+}
+
 export const handler = async (request: HttpRequest, context: InvocationContext) => {
   const body = await readJsonObject(request);
   const gameSessionId = numberValue(body.gameSessionId);
@@ -37,9 +48,11 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
         p.email,
         p.org_id,
         p.owner_token,
-        o.name AS org_name
+        o.name AS org_name,
+        pa.status AS assignment_status
       FROM game_sessions gs
       JOIN players p ON p.id = gs.player_id
+      LEFT JOIN pack_assignments pa ON pa.id = gs.assignment_id
       LEFT JOIN organizations o ON o.id = p.org_id
       WHERE gs.id = @gameSessionId;
     `);
@@ -66,6 +79,10 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
         jsonBody: { ok: false, message: 'Unauthorized' },
       };
     }
+  }
+
+  if (check.recordset[0].assignment_status && check.recordset[0].assignment_status !== 'active') {
+    return assignmentNotActiveResponse();
   }
 
   await pool

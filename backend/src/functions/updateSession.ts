@@ -8,7 +8,24 @@ import {
 } from '../lib/playerAuth.js';
 import { numberValue, readJsonObject } from './http.js';
 
-export const handler = async (request: HttpRequest, context: InvocationContext) => {
+type SessionAccessRow = {
+  player_id: number;
+  owner_token: string | null;
+  assignment_status: string | null;
+};
+
+function assignmentNotActiveResponse() {
+  return {
+    status: 409,
+    jsonBody: {
+      ok: false,
+      code: 'ASSIGNMENT_NOT_ACTIVE',
+      message: 'Assignment is not active.',
+    },
+  };
+}
+
+export const handler = async (request: HttpRequest, _context: InvocationContext) => {
   const id = parseInt(request.params.id, 10);
   if (isNaN(id)) {
     return {
@@ -25,27 +42,41 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
 
   const pool = await getPool();
 
+  const access = await pool.request().input('id', sql.Int, id).query<SessionAccessRow>(`
+      SELECT TOP 1
+        p.id AS player_id,
+        p.owner_token,
+        pa.status AS assignment_status
+      FROM game_sessions gs
+      JOIN players p ON p.id = gs.player_id
+      LEFT JOIN pack_assignments pa ON pa.id = gs.assignment_id
+      WHERE gs.id = @id;
+    `);
+  const sessionAccess = access.recordset[0];
+
+  if (!sessionAccess) {
+    if (isPlayerTokenEnforcementEnabled()) {
+      return {
+        status: 401,
+        jsonBody: { ok: false, message: 'Unauthorized' },
+      };
+    }
+    return {
+      status: 404,
+      jsonBody: { ok: false, message: 'Session not found' },
+    };
+  }
+
   // When enforcement is on, the request token must hash to the owning
   // player's owner_token. We project owner_token in the same lookup so the
   // check costs no extra round-trip; the LEFT JOIN keeps the legacy null
   // case alive when the flag is off.
   if (isPlayerTokenEnforcementEnabled()) {
-    const ownership = await pool
-      .request()
-      .input('id', sql.Int, id)
-      .query<{ player_id: number; owner_token: string | null }>(`
-        SELECT TOP 1 p.id AS player_id, p.owner_token
-        FROM game_sessions gs
-        JOIN players p ON p.id = gs.player_id
-        WHERE gs.id = @id;
-      `);
-    const owner = ownership.recordset[0];
     const presentedToken = getPlayerTokenFromRequest(request);
     if (
-      !owner ||
       !(await verifyPlayerTokenForPlayer(pool, {
-        playerId: owner.player_id,
-        ownerTokenHash: owner.owner_token,
+        playerId: sessionAccess.player_id,
+        ownerTokenHash: sessionAccess.owner_token,
         presentedToken,
       }))
     ) {
@@ -54,6 +85,10 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
         jsonBody: { ok: false, message: 'Unauthorized' },
       };
     }
+  }
+
+  if (sessionAccess.assignment_status && sessionAccess.assignment_status !== 'active') {
+    return assignmentNotActiveResponse();
   }
 
   const boardStateJson = boardState ? JSON.stringify(boardState) : null;

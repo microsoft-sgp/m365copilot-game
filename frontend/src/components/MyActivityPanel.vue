@@ -34,32 +34,22 @@ watch(keywordCount, async () => {
   <div class="mx-auto max-w-[720px]">
     <div class="glass mb-5 rounded-[14px] p-[22px]">
       <div class="mb-3.5 flex items-center justify-between">
-        <h3 class="m-0 text-base font-extrabold text-primary">
-          🏆 Organization Leaderboard
-        </h3>
+        <h3 class="m-0 text-base font-extrabold text-primary">🏆 Organization Leaderboard</h3>
       </div>
       <LeaderboardTable />
     </div>
 
     <div class="glass mb-5 rounded-[14px] p-[22px]">
-      <h3 class="mb-3 text-base font-extrabold text-primary">
-        🧾 My Activity
-      </h3>
+      <h3 class="mb-3 text-base font-extrabold text-primary">🧾 My Activity</h3>
       <p class="mb-4 text-label-md text-on-surface-variant">
         Activity is read-only. Score is awarded from verified gameplay progression.
       </p>
 
-      <div
-        v-if="!sortedKeywords.length"
-        class="text-label-lg text-on-surface-variant"
-      >
+      <div v-if="!sortedKeywords.length" class="text-label-lg text-on-surface-variant">
         No activity yet. Complete a line to earn your first score event.
       </div>
 
-      <div
-        v-else
-        class="flex max-h-[340px] flex-col gap-2 overflow-y-auto"
-      >
+      <div v-else class="flex max-h-[340px] flex-col gap-2 overflow-y-auto">
         <div
           v-for="k in sortedKeywords"
           :key="`${k.code}-${k.ts}`"

@@ -114,15 +114,8 @@ function cancelStepUp() {
 <template>
   <div>
     <div class="mb-4 flex items-center justify-between">
-      <h3 class="text-base font-extrabold text-primary">
-        Admin Access
-      </h3>
-      <button
-        class="btn btn-ghost btn-sm"
-        @click="loadAdmins"
-      >
-        Refresh
-      </button>
+      <h3 class="text-base font-extrabold text-primary">Admin Access</h3>
+      <button class="btn btn-ghost btn-sm" @click="loadAdmins">Refresh</button>
     </div>
 
     <p class="mb-4 text-label-lg text-on-surface-variant">
@@ -138,33 +131,17 @@ function cancelStepUp() {
           class="field-input min-w-[240px] flex-1"
           type="email"
           placeholder="admin@example.com"
-        >
-        <button
-          class="btn btn-primary btn-sm"
-          @click="beginAdd"
-        >
-          Add Admin
-        </button>
+        />
+        <button class="btn btn-primary btn-sm" @click="beginAdd">Add Admin</button>
       </div>
     </div>
 
-    <div
-      v-if="error"
-      class="mb-3 text-label-md text-error"
-    >
+    <div v-if="error" class="mb-3 text-label-md text-error">
       {{ error }}
     </div>
-    <div
-      v-if="loading"
-      class="text-on-surface-variant"
-    >
-      Loading…
-    </div>
+    <div v-if="loading" class="text-on-surface-variant">Loading…</div>
 
-    <div
-      v-else
-      class="space-y-3"
-    >
+    <div v-else class="space-y-3">
       <div
         v-for="admin in admins"
         :key="`${admin.source}:${admin.email}`"
@@ -209,9 +186,7 @@ function cancelStepUp() {
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-5"
     >
       <div class="glass w-full max-w-[420px] rounded-[14px] p-6">
-        <h4 class="mb-2 text-base font-extrabold text-primary">
-          Re-enter OTP
-        </h4>
+        <h4 class="mb-2 text-base font-extrabold text-primary">Re-enter OTP</h4>
         <p class="mb-4 text-label-lg text-on-surface-variant">
           Enter the code sent to {{ currentAdminEmail }} before
           {{ pendingAction.type === 'add' ? 'adding' : 'disabling' }} {{ pendingAction.email }}.
@@ -223,26 +198,15 @@ function cancelStepUp() {
           maxlength="6"
           placeholder="000000"
           @keyup.enter="confirmStepUp"
-        >
-        <div
-          v-if="otpError"
-          class="mt-3 text-label-md text-error"
-        >
+        />
+        <div v-if="otpError" class="mt-3 text-label-md text-error">
           {{ otpError }}
         </div>
         <div class="mt-5 flex gap-2">
-          <button
-            class="btn btn-primary flex-1"
-            :disabled="otpLoading"
-            @click="confirmStepUp"
-          >
+          <button class="btn btn-primary flex-1" :disabled="otpLoading" @click="confirmStepUp">
             {{ otpLoading ? 'Verifying…' : 'Confirm' }}
           </button>
-          <button
-            class="btn btn-ghost flex-1"
-            :disabled="otpLoading"
-            @click="cancelStepUp"
-          >
+          <button class="btn btn-ghost flex-1" :disabled="otpLoading" @click="cancelStepUp">
             Cancel
           </button>
         </div>

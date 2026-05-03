@@ -111,7 +111,8 @@ function verify() {
 
       <pre
         class="mb-3 whitespace-pre-wrap rounded-[10px] border border-themed bg-surface-container-high p-3.5 text-label-lg leading-relaxed text-on-surface"
-      >{{ promptText }}</pre>
+        >{{ promptText }}</pre
+      >
 
       <div
         class="mb-3.5 rounded-xl border border-primary-container bg-gradient-to-br from-primary-container/20 to-primary/10 p-3.5"
@@ -127,17 +128,11 @@ function verify() {
               1
             </div>
             <div>
-              <strong>Copy the prompt above</strong> to your clipboard.<br>
-              <button
-                class="btn btn-primary btn-sm mt-1.5"
-                @click="copyPrompt"
-              >
+              <strong>Copy the prompt above</strong> to your clipboard.<br />
+              <button class="btn btn-primary btn-sm mt-1.5" @click="copyPrompt">
                 📋 Copy Prompt
               </button>
-              <span
-                v-if="copied"
-                class="ml-2 text-label-sm text-success"
-              >✓ Copied!</span>
+              <span v-if="copied" class="ml-2 text-label-sm text-success">✓ Copied!</span>
             </div>
           </div>
           <div class="flex items-start gap-2.5 text-label-lg">
@@ -147,7 +142,7 @@ function verify() {
               2
             </div>
             <div>
-              <strong>Open Copilot Chat</strong> and paste your prompt.<br>
+              <strong>Open Copilot Chat</strong> and paste your prompt.<br />
               <button
                 class="btn btn-ghost btn-sm mt-1.5"
                 style="border-color: var(--color-primary); color: var(--color-primary)"
@@ -171,28 +166,13 @@ function verify() {
           class="field-textarea"
           placeholder="Paste the full Copilot response here…"
         />
-        <button
-          class="btn btn-primary mt-2.5 w-full"
-          :disabled="verifying"
-          @click="verify"
-        >
+        <button class="btn btn-primary mt-2.5 w-full" :disabled="verifying" @click="verify">
           {{ verifying ? '⏳ Verifying…' : '✅ Verify & Claim' }}
         </button>
-        <div
-          v-if="result.kind"
-          class="verify-result"
-          :class="result.kind"
-        >
-          <template v-if="result.kind === 'ok'">
-            ✅ Verified!
-          </template>
+        <div v-if="result.kind" class="verify-result" :class="result.kind">
+          <template v-if="result.kind === 'ok'"> ✅ Verified! </template>
           <template v-else>
-            <div
-              v-for="(m, i) in result.messages"
-              :key="i"
-            >
-              ❌ {{ m }}
-            </div>
+            <div v-for="(m, i) in result.messages" :key="i">❌ {{ m }}</div>
           </template>
         </div>
       </div>

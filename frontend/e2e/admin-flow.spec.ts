@@ -63,10 +63,14 @@ test('admin returns to login when dashboard cannot confirm cookie-backed session
   await expect(page.getByText('Your admin session could not be confirmed')).toBeVisible();
   await expect(page.getByText('Admin Login')).toBeVisible();
   await expect(page.getByText('Failed to load dashboard')).toBeHidden();
-  await expect(page.evaluate(() => sessionStorage.getItem('admin_authenticated'))).resolves.toBeNull();
+  await expect(
+    page.evaluate(() => sessionStorage.getItem('admin_authenticated')),
+  ).resolves.toBeNull();
 });
 
-test('stored admin marker is cleared when protected admin data returns unauthorized', async ({ page }) => {
+test('stored admin marker is cleared when protected admin data returns unauthorized', async ({
+  page,
+}) => {
   await mockApi(page, {
     overrides: [
       async ({ method, path, route }) => {
@@ -93,6 +97,8 @@ test('stored admin marker is cleared when protected admin data returns unauthori
   await expect(page.getByText('Your admin session could not be confirmed')).toBeVisible();
   await expect(page.getByText('Admin Login')).toBeVisible();
   await expect(page.getByText('Recent Sessions')).toBeHidden();
-  await expect(page.evaluate(() => sessionStorage.getItem('admin_authenticated'))).resolves.toBeNull();
+  await expect(
+    page.evaluate(() => sessionStorage.getItem('admin_authenticated')),
+  ).resolves.toBeNull();
   await expect(page.evaluate(() => sessionStorage.getItem('admin_email'))).resolves.toBeNull();
 });

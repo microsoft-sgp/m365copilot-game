@@ -26,10 +26,7 @@ function closeWin() {
 
 <template>
   <SetupPanel v-if="!state.boardActive" />
-  <BoardPanel
-    v-else
-    @open-tile="openTile"
-  />
+  <BoardPanel v-else @open-tile="openTile" />
 
   <TileModal
     v-if="activeTileIdx !== null"
@@ -38,9 +35,5 @@ function closeWin() {
     @won="showWin"
   />
 
-  <WinModal
-    v-if="winData"
-    :data="winData"
-    @close="closeWin"
-  />
+  <WinModal v-if="winData" :data="winData" @close="closeWin" />
 </template>

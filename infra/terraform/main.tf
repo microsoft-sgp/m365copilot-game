@@ -271,7 +271,7 @@ resource "azurerm_mssql_server" "main" {
   location                      = var.sql_location
   version                       = "12.0"
   minimum_tls_version           = "1.2"
-  public_network_access_enabled = false
+  public_network_access_enabled = var.sql_public_network_access_enabled
   tags                          = local.tags
 
   azuread_administrator {
@@ -292,6 +292,8 @@ resource "azurerm_mssql_database" "app" {
 }
 
 resource "azurerm_mssql_firewall_rule" "allow_azure_services" {
+  count = var.sql_public_network_access_enabled ? 1 : 0
+
   name             = "AllowAzureServices"
   server_id        = azurerm_mssql_server.main.id
   start_ip_address = "0.0.0.0"
@@ -299,7 +301,7 @@ resource "azurerm_mssql_firewall_rule" "allow_azure_services" {
 }
 
 resource "azurerm_mssql_firewall_rule" "allowed_clients" {
-  for_each = var.sql_allowed_ip_ranges
+  for_each = var.sql_public_network_access_enabled ? var.sql_allowed_ip_ranges : {}
 
   name             = each.key
   server_id        = azurerm_mssql_server.main.id

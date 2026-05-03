@@ -100,6 +100,7 @@ async function run() {
   await runBatch('008-player-organization-attribution.sql');
   await runBatch('009-player-owner-token.sql');
   await runBatch('010-player-recovery.sql');
+  await runBatch('011-pack-assignment-abandonment.sql');
 
   await pool.close();
   console.log('Database initialization complete!');

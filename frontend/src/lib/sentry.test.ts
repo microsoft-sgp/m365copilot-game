@@ -83,7 +83,6 @@ describe('getFrontendSentryConfig', () => {
   });
 });
 
-
 describe('initFrontendSentry', () => {
   it('does not initialize Sentry when the DSN is absent', () => {
     expect(initFrontendSentry(app, { MODE: 'test' })).toBe(false);
@@ -114,7 +113,9 @@ describe('initFrontendSentry', () => {
   });
 
   it('allows replay masking to be explicitly disabled for approved diagnostics', () => {
-    expect(initFrontendSentry(app, configuredEnv({ VITE_SENTRY_REPLAY_UNMASK: 'true' }))).toBe(true);
+    expect(initFrontendSentry(app, configuredEnv({ VITE_SENTRY_REPLAY_UNMASK: 'true' }))).toBe(
+      true,
+    );
     expect(sentryMock.replayIntegration).toHaveBeenCalledWith({
       maskAllText: false,
       maskAllInputs: false,
@@ -150,8 +151,18 @@ describe('captureFrontendApiFailure', () => {
       apiBase: '/api',
       error: new Error('offline'),
     });
-    captureFrontendApiFailure({ method: 'POST', path: '/submissions', status: 409, apiBase: '/api' });
-    captureFrontendApiFailure({ method: 'GET', path: '/leaderboard', status: 503, apiBase: '/api' });
+    captureFrontendApiFailure({
+      method: 'POST',
+      path: '/submissions',
+      status: 409,
+      apiBase: '/api',
+    });
+    captureFrontendApiFailure({
+      method: 'GET',
+      path: '/leaderboard',
+      status: 503,
+      apiBase: '/api',
+    });
 
     expect(sentryMock.captureMessage).toHaveBeenCalledTimes(2);
     expect(sentryMock.captureMessage.mock.calls.map(([message]) => message)).toEqual([

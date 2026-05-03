@@ -113,13 +113,17 @@ describe('updateSession token enforcement (flag off, rollout safety)', () => {
     else process.env.ENABLE_PLAYER_TOKEN_ENFORCEMENT = prevEnforce;
   });
 
-  it('passes through without ownership lookup or token', async () => {
-    const { pool, calls } = createMockPool([{ recordset: [], rowsAffected: [1] }]);
+  it('passes through without token after the assignment status lookup', async () => {
+    const { pool, calls } = createMockPool([
+      { recordset: [{ player_id: 11, owner_token: null, assignment_status: 'active' }] },
+      { recordset: [], rowsAffected: [1] },
+    ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
     const res = await handler(fakeRequest({ params: { id: '42' }, body: {} }));
     expect(res.jsonBody).toEqual({ ok: true });
-    expect(calls).toHaveLength(1); // only the UPDATE, no ownership SELECT
-    expect(calls[0].query).toMatch(/UPDATE game_sessions/);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].query).toMatch(/LEFT JOIN pack_assignments/);
+    expect(calls[1].query).toMatch(/UPDATE game_sessions/);
   });
 });

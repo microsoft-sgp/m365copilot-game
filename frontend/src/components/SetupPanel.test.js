@@ -3,11 +3,15 @@ import { flushPromises, mount } from '@vue/test-utils';
 
 vi.mock('../lib/api.js', () => ({
   apiCreateSession: vi.fn().mockResolvedValue({ ok: false, data: null }),
+  apiRerollAssignment: vi.fn().mockResolvedValue({ ok: false, data: null }),
   apiGetPlayerState: vi.fn().mockResolvedValue({ ok: true, data: { player: null } }),
   apiPlayerRecoveryRequest: vi.fn().mockResolvedValue({ ok: true, data: { ok: true } }),
   apiPlayerRecoveryVerify: vi.fn().mockResolvedValue({ ok: true, data: { playerToken: 'token' } }),
   apiUpdateSession: vi.fn().mockResolvedValue({ ok: false, data: null }),
   apiRecordEvent: vi.fn().mockResolvedValue({ ok: false, data: null }),
+  isAssignmentNotActiveResponse: vi.fn(
+    (res) => res.status === 409 && res.data?.code === 'ASSIGNMENT_NOT_ACTIVE',
+  ),
   isPlayerRecoveryRequiredResponse: vi.fn(
     (res) => res.status === 409 && res.data?.code === 'PLAYER_RECOVERY_REQUIRED',
   ),
@@ -32,6 +36,7 @@ beforeEach(() => {
   state.playerName = '';
   state.email = '';
   state.organization = '';
+  state.assignmentId = null;
   state.assignedPackId = 0;
   state.assignmentCycle = 0;
   state.assignmentRotated = false;
@@ -64,6 +69,8 @@ describe('SetupPanel', () => {
     const w = mount(SetupPanel);
     expect(w.text()).toContain('Start Your Board');
     expect(w.text()).toContain('#042');
+    expect(w.text()).toContain('Your current pack is ready.');
+    expect(w.text()).not.toContain('locked for this challenge cycle');
     expect(w.findAll('button').some((b) => b.text().includes('Launch Board'))).toBe(true);
     expect(w.text()).not.toContain('Quick Pick');
     expect(w.find('input[type="number"]').exists()).toBe(false);
@@ -205,9 +212,17 @@ describe('SetupPanel', () => {
 
     expect(w.text()).toContain('Player Recovery');
     expect(w.text()).toContain('ada@example.com');
-    expect(w.findAll('button').find((b) => b.text().includes('Launch Board')).attributes('disabled')).toBeDefined();
+    expect(
+      w
+        .findAll('button')
+        .find((b) => b.text().includes('Launch Board'))
+        .attributes('disabled'),
+    ).toBeDefined();
 
-    await w.findAll('button').find((b) => b.text().includes('Send Code')).trigger('click');
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Send Code'))
+      .trigger('click');
     await flushPromises();
 
     expect(apiPlayerRecoveryRequest).toHaveBeenCalledWith('ada@example.com');
@@ -247,10 +262,16 @@ describe('SetupPanel', () => {
 
     const w = mount(SetupPanel);
     await flushPromises();
-    await w.findAll('button').find((b) => b.text().includes('Send Code')).trigger('click');
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Send Code'))
+      .trigger('click');
     await flushPromises();
     await w.find('input[placeholder="000000"]').setValue('123456');
-    await w.findAll('button').find((b) => b.text().includes('Verify Code')).trigger('click');
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Verify Code'))
+      .trigger('click');
     await flushPromises();
 
     expect(apiPlayerRecoveryVerify).toHaveBeenCalledWith('ada@example.com', '123456');

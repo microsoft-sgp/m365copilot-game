@@ -76,6 +76,36 @@ describe('POST /events (recordEvent)', () => {
     expect(res.jsonBody.message).toMatch(/Invalid session/);
   });
 
+  it('returns 409 and does not insert events for abandoned assignment sessions', async () => {
+    const { pool, calls } = createMockPool([
+      { recordset: [{ id: 1, assignment_status: 'abandoned' }] },
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      fakeRequest({ body: { gameSessionId: 1, tileIndex: 0, eventType: 'reveal' } }),
+    );
+
+    expect(res.status).toBe(409);
+    expect(res.jsonBody.code).toBe('ASSIGNMENT_NOT_ACTIVE');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('returns 409 and does not insert events for completed assignment sessions', async () => {
+    const { pool, calls } = createMockPool([
+      { recordset: [{ id: 1, assignment_status: 'completed' }] },
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      fakeRequest({ body: { gameSessionId: 1, tileIndex: 0, eventType: 'reveal' } }),
+    );
+
+    expect(res.status).toBe(409);
+    expect(res.jsonBody.code).toBe('ASSIGNMENT_NOT_ACTIVE');
+    expect(calls).toHaveLength(1);
+  });
+
   it('inserts event with keyword and lineId when provided', async () => {
     const { pool, calls } = createMockPool([
       { recordset: [{ id: 1 }] },

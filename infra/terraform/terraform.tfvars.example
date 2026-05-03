@@ -75,8 +75,12 @@ enable_player_token_enforcement = true
 # function_integration_subnet_address_prefixes     = ["10.60.1.0/24"]
 # private_endpoint_subnet_address_prefixes         = ["10.60.2.0/24"]
 
-# Optional: SQL public network access is disabled by the Terraform template, so
-# these firewall rules are useful only during a temporary public-access rollback.
+# Optional: SQL public network access is disabled by the Terraform template.
+# Set this to true only during a temporary public-access rollback or migration
+# window, then return it to false after access is no longer needed.
+# sql_public_network_access_enabled = true
+#
+# These firewall rules are useful only while SQL public network access is true.
 # sql_allowed_ip_ranges = {
 #   my_workstation = {
 #     start_ip_address = "203.0.113.10"

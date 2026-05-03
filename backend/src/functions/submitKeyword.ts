@@ -46,12 +46,10 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
   // player able to submit on devices that haven't called createSession yet,
   // while preventing impersonation of an established player.
   if (isPlayerTokenEnforcementEnabled()) {
-    const lookup = await pool
-      .request()
-      .input('email', sql.NVarChar(320), email)
-      .query<{ id: number; owner_token: string | null }>(
-        'SELECT TOP 1 id, owner_token FROM players WHERE email = @email;',
-      );
+    const lookup = await pool.request().input('email', sql.NVarChar(320), email).query<{
+      id: number;
+      owner_token: string | null;
+    }>('SELECT TOP 1 id, owner_token FROM players WHERE email = @email;');
     const existingPlayer = lookup.recordset[0];
     if (existingPlayer?.owner_token) {
       const presentedToken = getPlayerTokenFromRequest(request);

@@ -31,7 +31,7 @@ describe('PATCH /sessions/{id} (updateSession)', () => {
   });
 
   it('returns 404 when no row was updated', async () => {
-    const { pool } = createMockPool([{ recordset: [], rowsAffected: [0] }]);
+    const { pool } = createMockPool([{ recordset: [] }]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
     const res = await handler(fakeRequest({ params: { id: '999' }, body: { tilesCleared: 3 } }));
@@ -40,7 +40,10 @@ describe('PATCH /sessions/{id} (updateSession)', () => {
   });
 
   it('returns ok on successful update and passes all fields through', async () => {
-    const { pool, calls } = createMockPool([{ recordset: [], rowsAffected: [1] }]);
+    const { pool, calls } = createMockPool([
+      { recordset: [{ player_id: 11, owner_token: null, assignment_status: 'active' }] },
+      { recordset: [], rowsAffected: [1] },
+    ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
     const res = await handler(
@@ -50,7 +53,7 @@ describe('PATCH /sessions/{id} (updateSession)', () => {
       }),
     );
     expect(res.jsonBody).toEqual({ ok: true });
-    expect(calls[0].inputs).toEqual({
+    expect(calls[1].inputs).toEqual({
       id: 42,
       tilesCleared: 5,
       linesWon: 2,
@@ -60,16 +63,45 @@ describe('PATCH /sessions/{id} (updateSession)', () => {
   });
 
   it('coerces missing counters to 0 (not null/NaN)', async () => {
-    const { pool, calls } = createMockPool([{ recordset: [], rowsAffected: [1] }]);
+    const { pool, calls } = createMockPool([
+      { recordset: [{ player_id: 11, owner_token: null, assignment_status: null }] },
+      { recordset: [], rowsAffected: [1] },
+    ]);
     vi.mocked(getPool).mockResolvedValue(pool);
 
     await handler(fakeRequest({ params: { id: '1' }, body: {} }));
-    expect(calls[0].inputs).toEqual({
+    expect(calls[1].inputs).toEqual({
       id: 1,
       tilesCleared: 0,
       linesWon: 0,
       keywordsEarned: 0,
       boardState: null,
     });
+  });
+
+  it('returns 409 and does not update abandoned assignment sessions', async () => {
+    const { pool, calls } = createMockPool([
+      { recordset: [{ player_id: 11, owner_token: null, assignment_status: 'abandoned' }] },
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(fakeRequest({ params: { id: '42' }, body: { tilesCleared: 3 } }));
+
+    expect(res.status).toBe(409);
+    expect(res.jsonBody.code).toBe('ASSIGNMENT_NOT_ACTIVE');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('returns 409 and does not update completed assignment sessions', async () => {
+    const { pool, calls } = createMockPool([
+      { recordset: [{ player_id: 11, owner_token: null, assignment_status: 'completed' }] },
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(fakeRequest({ params: { id: '42' }, body: { tilesCleared: 3 } }));
+
+    expect(res.status).toBe(409);
+    expect(res.jsonBody.code).toBe('ASSIGNMENT_NOT_ACTIVE');
+    expect(calls).toHaveLength(1);
   });
 });

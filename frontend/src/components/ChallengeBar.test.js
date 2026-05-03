@@ -3,8 +3,15 @@ import { mount } from '@vue/test-utils';
 
 vi.mock('../lib/api.js', () => ({
   apiCreateSession: vi.fn().mockResolvedValue({ ok: false, data: null }),
+  apiRerollAssignment: vi.fn().mockResolvedValue({ ok: false, data: null }),
   apiUpdateSession: vi.fn().mockResolvedValue({ ok: false, data: null }),
   apiRecordEvent: vi.fn().mockResolvedValue({ ok: false, data: null }),
+  isAssignmentNotActiveResponse: vi.fn(
+    (res) => res.status === 409 && res.data?.code === 'ASSIGNMENT_NOT_ACTIVE',
+  ),
+  isPlayerRecoveryRequiredResponse: vi.fn(
+    (res) => res.status === 409 && res.data?.code === 'PLAYER_RECOVERY_REQUIRED',
+  ),
 }));
 
 import { useBingoGame } from '../composables/useBingoGame.js';

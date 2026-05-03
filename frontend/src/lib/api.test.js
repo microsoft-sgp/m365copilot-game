@@ -87,6 +87,25 @@ describe('public request() wrapper', () => {
     expect(JSON.parse(opts.body)).toEqual({ email: 'a+b@example.com' });
   });
 
+  it('posts assignment reroll payload to the reroll endpoint', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true, packId: 42 }));
+    await api.apiRerollAssignment({ email: 'ada@example.com', playerName: 'Ada' });
+    const [url, opts] = fetchSpy.mock.calls[0];
+    expect(url).toMatch(/player\/assignment\/reroll$/);
+    expect(opts.method).toBe('POST');
+    expect(JSON.parse(opts.body)).toEqual({ email: 'ada@example.com', playerName: 'Ada' });
+  });
+
+  it('detects assignment-not-active responses', () => {
+    expect(
+      api.isAssignmentNotActiveResponse({
+        ok: false,
+        status: 409,
+        data: { code: api.ASSIGNMENT_NOT_ACTIVE },
+      }),
+    ).toBe(true);
+  });
+
   it('apiGetCampaignConfig and apiGetOrgDomains use expected paths', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({})).mockResolvedValueOnce(jsonResponse({}));
     await api.apiGetCampaignConfig();

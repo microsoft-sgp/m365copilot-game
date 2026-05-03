@@ -25,7 +25,9 @@ function formatWeekDetail(eventKey) {
 
 export function formatAdminScoreEvent(event = {}) {
   const eventType = String(event.event_type || '').trim();
-  const eventKey = String(event.event_key || '').trim().toUpperCase();
+  const eventKey = String(event.event_key || '')
+    .trim()
+    .toUpperCase();
 
   if (!eventType) {
     return { label: 'Legacy keyword submission', detail: '' };

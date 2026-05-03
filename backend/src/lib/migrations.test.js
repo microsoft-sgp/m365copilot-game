@@ -63,11 +63,22 @@ describe('SQL migration files', () => {
 
     expect(sql).toMatch(/CREATE TABLE\s+(?:dbo\.)?player_recovery_otps\b/i);
     for (const column of ['email', 'code_hash', 'expires_at', 'used', 'created_at', 'used_at']) {
-      expect(sql, `player_recovery_otps missing ${column}`).toMatch(new RegExp(`\\b${column}\\b`, 'i'));
+      expect(sql, `player_recovery_otps missing ${column}`).toMatch(
+        new RegExp(`\\b${column}\\b`, 'i'),
+      );
     }
     expect(sql).toMatch(/IX_player_recovery_otps_email_created/i);
     expect(sql).toMatch(/IX_player_recovery_otps_unused_lookup/i);
     expect(sql).toMatch(/WHERE\s+used\s*=\s*0/i);
+  });
+
+  it('pack assignment abandonment migration extends lifecycle status without blacklist tables', () => {
+    const sql = readFileSync(join(MIGRATIONS_DIR, '011-pack-assignment-abandonment.sql'), 'utf8');
+    expect(sql).toMatch(/\babandoned_at\b/i);
+    expect(sql).toMatch(/status\s+IN\s*\([^)]*'active'[^)]*'completed'[^)]*'abandoned'[^)]*\)/i);
+    expect(sql).toMatch(/CK_pack_assignments_abandoned_at/i);
+    expect(sql).not.toMatch(/CREATE\s+TABLE\s+(?:dbo\.)?(?:player_)?pack_.*blacklist/i);
+    expect(sql).not.toMatch(/CREATE\s+TABLE\s+(?:dbo\.)?blacklist/i);
   });
 
   it('migration runners include the latest migration file', () => {

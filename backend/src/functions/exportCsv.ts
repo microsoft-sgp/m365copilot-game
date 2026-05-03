@@ -3,7 +3,7 @@ import sql from 'mssql';
 import { getPool } from '../lib/db.js';
 import { verifyAdmin } from '../lib/adminAuth.js';
 
-export const handler = async (request: HttpRequest, context: InvocationContext) => {
+export const handler = async (request: HttpRequest, _context: InvocationContext) => {
   const auth = verifyAdmin(request);
   if (!auth.ok) return auth.response;
 

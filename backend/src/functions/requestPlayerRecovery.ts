@@ -50,10 +50,10 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
   };
 
   const pool = await getPool();
-  const playerResult = await pool
-    .request()
-    .input('email', sql.NVarChar(320), email)
-    .query<{ id: number; owner_token: string | null }>(`
+  const playerResult = await pool.request().input('email', sql.NVarChar(320), email).query<{
+    id: number;
+    owner_token: string | null;
+  }>(`
       SELECT TOP 1 id, owner_token
       FROM players
       WHERE email = @email;
@@ -103,7 +103,9 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
     await pool
       .request()
       .input('id', sql.Int, otpId)
-      .query('UPDATE player_recovery_otps SET used = 1, used_at = SYSUTCDATETIME() WHERE id = @id;');
+      .query(
+        'UPDATE player_recovery_otps SET used = 1, used_at = SYSUTCDATETIME() WHERE id = @id;',
+      );
 
     logRequestAttempt(context, 'email_failed', email, {
       latency_ms: emailResult.latencyMs,

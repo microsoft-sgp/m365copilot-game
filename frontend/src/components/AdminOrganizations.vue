@@ -81,16 +81,9 @@ function startEdit(org) {
 
 <template>
   <div>
-    <h3 class="mb-4 text-base font-extrabold text-primary">
-      🏢 Organizations
-    </h3>
+    <h3 class="mb-4 text-base font-extrabold text-primary">🏢 Organizations</h3>
 
-    <div
-      v-if="loading"
-      class="text-on-surface-variant"
-    >
-      Loading…
-    </div>
+    <div v-if="loading" class="text-on-surface-variant">Loading…</div>
     <template v-else>
       <!-- Add new org -->
       <div class="mb-5 flex gap-2">
@@ -99,62 +92,32 @@ function startEdit(org) {
           class="field-input max-w-[250px]"
           placeholder="New organization name"
           @keyup.enter="createOrg"
-        >
-        <button
-          class="btn btn-primary btn-sm"
-          @click="createOrg"
-        >
-          + Add
-        </button>
+        />
+        <button class="btn btn-primary btn-sm" @click="createOrg">+ Add</button>
       </div>
-      <div
-        v-if="error"
-        class="mb-3 text-label-md text-error"
-      >
+      <div v-if="error" class="mb-3 text-label-md text-error">
         {{ error }}
       </div>
 
       <!-- Org list -->
-      <div
-        v-for="org in orgs"
-        :key="org.id"
-        class="glass mb-3 rounded-xl p-4"
-      >
+      <div v-for="org in orgs" :key="org.id" class="glass mb-3 rounded-xl p-4">
         <div class="mb-2 flex items-center justify-between">
           <template v-if="editingOrg === org.id">
             <input
               v-model="editName"
               class="field-input max-w-[200px]"
               @keyup.enter="saveEdit(org.id)"
-            >
+            />
             <div class="flex gap-1">
-              <button
-                class="btn btn-primary btn-xs"
-                @click="saveEdit(org.id)"
-              >
-                Save
-              </button>
-              <button
-                class="btn btn-ghost btn-xs"
-                @click="editingOrg = null"
-              >
-                Cancel
-              </button>
+              <button class="btn btn-primary btn-xs" @click="saveEdit(org.id)">Save</button>
+              <button class="btn btn-ghost btn-xs" @click="editingOrg = null">Cancel</button>
             </div>
           </template>
           <template v-else>
             <strong class="text-on-surface">{{ org.name }}</strong>
             <div class="flex gap-1">
-              <button
-                class="btn btn-ghost btn-xs"
-                @click="startEdit(org)"
-              >
-                Edit
-              </button>
-              <button
-                class="btn-danger btn-xs px-2 py-1 text-label-sm"
-                @click="deleteOrg(org.id)"
-              >
+              <button class="btn btn-ghost btn-xs" @click="startEdit(org)">Edit</button>
+              <button class="btn-danger btn-xs px-2 py-1 text-label-sm" @click="deleteOrg(org.id)">
                 Delete
               </button>
             </div>
@@ -163,16 +126,9 @@ function startEdit(org) {
 
         <!-- Domains -->
         <div class="ml-2 text-label-md text-on-surface-variant">
-          <div
-            v-for="d in org.domains"
-            :key="d.id"
-            class="mb-1 flex items-center gap-2"
-          >
+          <div v-for="d in org.domains" :key="d.id" class="mb-1 flex items-center gap-2">
             <code class="text-primary">{{ d.domain }}</code>
-            <button
-              class="text-error hover:underline"
-              @click="removeDomain(org.id, d.id)"
-            >
+            <button class="text-error hover:underline" @click="removeDomain(org.id, d.id)">
               ✕
             </button>
           </div>
@@ -182,13 +138,8 @@ function startEdit(org) {
               class="field-input max-w-[200px] text-label-md"
               placeholder="add domain"
               @keyup.enter="addDomain(org.id)"
-            >
-            <button
-              class="btn btn-ghost btn-xs"
-              @click="addDomain(org.id)"
-            >
-              +
-            </button>
+            />
+            <button class="btn btn-ghost btn-xs" @click="addDomain(org.id)">+</button>
           </div>
         </div>
       </div>

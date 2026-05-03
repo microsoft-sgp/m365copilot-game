@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { STORAGE_KEYS } from './data/constants.js';
-import { loadString, removeKey, saveString } from './lib/storage.js';
+import { loadJson, loadString, removeKey, saveString } from './lib/storage.js';
 import { isPublicEmailDomain } from './lib/emailDomains.js';
 import {
   apiAdminLogout,
@@ -47,6 +47,13 @@ const identityReady = computed(() => {
   return !isPublicEmailDomain(playerEmail.value) || !!playerOrganization.value;
 });
 
+function getStoredSessionId() {
+  const savedState = loadJson(STORAGE_KEYS.state, null);
+  const sessionId =
+    savedState && typeof savedState.sessionId === 'string' ? savedState.sessionId : '';
+  return sessionId || `recover-${Date.now()}`;
+}
+
 onMounted(() => {
   // Check hash-based routing for admin
   void checkRoute();
@@ -62,9 +69,8 @@ onMounted(() => {
     const email = playerEmail.value || loadString(STORAGE_KEYS.email);
     const name = playerName.value || loadString(STORAGE_KEYS.playerName);
     if (!email || !name) return false;
-    const sessionId = loadString(STORAGE_KEYS.state) || `recover-${Date.now()}`;
     const res = await apiCreateSession({
-      sessionId,
+      sessionId: getStoredSessionId(),
       playerName: name,
       email,
       organization: playerOrganization.value || loadString(STORAGE_KEYS.organization) || undefined,
@@ -202,10 +208,7 @@ function onBackToGame() {
     <template v-else>
       <!-- Email gate -->
       <template v-if="!identityReady">
-        <EmailGate
-          @continue="onEmailContinue"
-          @admin="onAdminNav"
-        />
+        <EmailGate @continue="onEmailContinue" @admin="onAdminNav" />
         <GameFooter />
       </template>
 
@@ -214,28 +217,16 @@ function onBackToGame() {
         <TopBar />
         <AppTabs v-model="activeTab" />
 
-        <section
-          v-show="activeTab === 'game'"
-          class="px-5 py-5 pb-20 sm:pb-5"
-        >
+        <section v-show="activeTab === 'game'" class="px-5 py-5 pb-20 sm:pb-5">
           <GameTab />
         </section>
-        <section
-          v-show="activeTab === 'keywords'"
-          class="px-5 py-5 pb-20 sm:pb-5"
-        >
+        <section v-show="activeTab === 'keywords'" class="px-5 py-5 pb-20 sm:pb-5">
           <KeywordsPanel />
         </section>
-        <section
-          v-show="activeTab === 'activity'"
-          class="px-5 py-5 pb-20 sm:pb-5"
-        >
+        <section v-show="activeTab === 'activity'" class="px-5 py-5 pb-20 sm:pb-5">
           <MyActivityPanel />
         </section>
-        <section
-          v-show="activeTab === 'help'"
-          class="px-5 py-5 pb-20 sm:pb-5"
-        >
+        <section v-show="activeTab === 'help'" class="px-5 py-5 pb-20 sm:pb-5">
           <HelpPanel @admin="onAdminNav" />
         </section>
         <GameFooter />

@@ -152,10 +152,9 @@ export async function verifyPlayerTokenForPlayer(
     return true;
   }
 
-  const deviceTokens = await pool
-    .request()
-    .input('playerId', sql.Int, playerId)
-    .query<{ token_hash: string }>(`
+  const deviceTokens = await pool.request().input('playerId', sql.Int, playerId).query<{
+    token_hash: string;
+  }>(`
       SELECT token_hash
       FROM player_device_tokens
       WHERE player_id = @playerId

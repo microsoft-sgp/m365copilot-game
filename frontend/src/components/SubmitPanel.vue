@@ -54,17 +54,13 @@ async function onSubmit() {
   <div class="mx-auto max-w-[680px]">
     <div class="glass mb-5 rounded-[14px] p-[22px]">
       <div class="mb-3.5 flex items-center justify-between">
-        <h3 class="m-0 text-base font-extrabold text-primary">
-          🏆 Organization Leaderboard
-        </h3>
+        <h3 class="m-0 text-base font-extrabold text-primary">🏆 Organization Leaderboard</h3>
       </div>
       <LeaderboardTable :player-org="detection.org" />
     </div>
 
     <div class="glass mb-5 rounded-[14px] p-[22px]">
-      <h3 class="mb-3.5 text-base font-extrabold text-primary">
-        📬 Submit a Keyword
-      </h3>
+      <h3 class="mb-3.5 text-base font-extrabold text-primary">📬 Submit a Keyword</h3>
 
       <div class="mb-3">
         <label class="field-label">Organization</label>
@@ -74,16 +70,11 @@ async function onSubmit() {
           type="text"
           placeholder="e.g. NUS, SMU, NTU…"
           :readonly="orgReadOnly"
-        >
+        />
       </div>
       <div class="mb-3">
         <label class="field-label">First Name</label>
-        <input
-          v-model="name"
-          class="field-input"
-          type="text"
-          placeholder="Your first name"
-        >
+        <input v-model="name" class="field-input" type="text" placeholder="Your first name" />
       </div>
       <div class="mb-3">
         <label class="field-label">Work / School Email</label>
@@ -93,11 +84,8 @@ async function onSubmit() {
           type="email"
           placeholder="you@university.edu.sg"
           @input="onEmailInput"
-        >
-        <div
-          v-if="email && detection.org"
-          class="mt-1 text-label-sm text-success"
-        >
+        />
+        <div v-if="email && detection.org" class="mt-1 text-label-sm text-success">
           ✓ Detected org: {{ detection.org }}
         </div>
         <div
@@ -114,27 +102,18 @@ async function onSubmit() {
           class="field-input font-mono text-label-lg"
           placeholder="CO-APR26-001-R1-XXXXXXXX or CO-APR26-W1-001-XXXXXXXX"
           @input="onKwInput"
-        >
+        />
         <div class="mt-1 text-label-sm leading-relaxed text-on-surface-variant">
           Line keyword:
-          <code>CO-{CampaignId}-{PackId}-{LineId}-{Token}</code><br>
+          <code>CO-{CampaignId}-{PackId}-{LineId}-{Token}</code><br />
           Weekly Clear:
-          <code>CO-{CampaignId}-W{weekNo}-{PackId}-{Token}</code><br>
+          <code>CO-{CampaignId}-W{weekNo}-{PackId}-{Token}</code><br />
           Uppercase letters, digits, hyphens only.
         </div>
       </div>
 
-      <button
-        class="btn btn-primary"
-        @click="onSubmit"
-      >
-        Submit Keyword
-      </button>
-      <div
-        v-if="result.kind"
-        class="verify-result"
-        :class="result.kind"
-      >
+      <button class="btn btn-primary" @click="onSubmit">Submit Keyword</button>
+      <div v-if="result.kind" class="verify-result" :class="result.kind">
         {{ result.message }}
       </div>
     </div>

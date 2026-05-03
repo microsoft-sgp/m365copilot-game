@@ -33,6 +33,7 @@ type AssignmentRow = {
   status: string;
   assigned_at: Date | string;
   completed_at: Date | string | null;
+  abandoned_at: Date | string | null;
 };
 
 type Assignment = {
@@ -43,6 +44,7 @@ type Assignment = {
   campaignId: string;
   assignedAt: Date | string;
   completedAt: Date | string | null;
+  abandonedAt: Date | string | null;
 };
 
 type LoggerLike = {
@@ -54,6 +56,13 @@ type ResolvePackAssignmentArgs = {
   playerId: number;
   context?: LoggerLike;
   allowRotation?: boolean;
+};
+
+type RerollPackAssignmentArgs = {
+  pool: ConnectionPool;
+  playerId: number;
+  context?: LoggerLike;
+  expectedAssignmentId?: number | null;
 };
 
 const DEFAULT_CAMPAIGN = {
@@ -100,7 +109,17 @@ function chooseRandomPack(candidates: number[]): number {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-function choosePack(totalPacks: number, activePackRows: ActivePackCountRow[] = []): number {
+function withoutAvoidedPack(candidates: number[], avoidPackId?: number | null): number[] {
+  if (!avoidPackId) return candidates;
+  const filtered = candidates.filter((packId) => packId !== avoidPackId);
+  return filtered.length > 0 ? filtered : candidates;
+}
+
+function choosePack(
+  totalPacks: number,
+  activePackRows: ActivePackCountRow[] = [],
+  avoidPackId?: number | null,
+): number {
   const max = getPackCapacity(totalPacks);
   const countsByPack = new Map<number, number>();
 
@@ -124,7 +143,7 @@ function choosePack(totalPacks: number, activePackRows: ActivePackCountRow[] = [
   }
 
   if (unusedPacks.length > 0) {
-    return chooseRandomPack(unusedPacks);
+    return chooseRandomPack(withoutAvoidedPack(unusedPacks, avoidPackId));
   }
 
   let minCount = Infinity;
@@ -139,7 +158,7 @@ function choosePack(totalPacks: number, activePackRows: ActivePackCountRow[] = [
     }
   }
 
-  return chooseRandomPack(leastUsedPacks);
+  return chooseRandomPack(withoutAvoidedPack(leastUsedPacks, avoidPackId));
 }
 
 async function getActiveAssignment(
@@ -231,7 +250,44 @@ function normalizeAssignment(row: AssignmentRow | null): Assignment | null {
     campaignId: row.campaign_id,
     assignedAt: row.assigned_at,
     completedAt: row.completed_at,
+    abandonedAt: row.abandoned_at,
   };
+}
+
+async function createActiveAssignment(
+  tx: QueryableTransaction,
+  playerId: number,
+  campaign: Campaign,
+  totalPacks: number,
+  avoidPackId?: number | null,
+): Promise<AssignmentRow> {
+  const activePackCounts = await getActivePackCounts(tx, campaign.id, totalPacks);
+  const nextPackId = choosePack(totalPacks, activePackCounts, avoidPackId);
+
+  const cycleResult = await tx
+    .request()
+    .input('playerId', sql.Int, playerId)
+    .input('campaignId', sql.NVarChar(20), campaign.id).query<{ next_cycle: number }>(`
+      SELECT ISNULL(MAX(cycle_number), 0) + 1 AS next_cycle
+      FROM pack_assignments WITH (UPDLOCK, HOLDLOCK)
+      WHERE player_id = @playerId
+        AND campaign_id = @campaignId;
+    `);
+
+  const nextCycle = cycleResult.recordset[0].next_cycle;
+
+  const insertResult = await tx
+    .request()
+    .input('playerId', sql.Int, playerId)
+    .input('campaignId', sql.NVarChar(20), campaign.id)
+    .input('packId', sql.Int, nextPackId)
+    .input('cycleNumber', sql.Int, nextCycle).query<AssignmentRow>(`
+      INSERT INTO pack_assignments (player_id, campaign_id, pack_id, cycle_number, status)
+      OUTPUT inserted.*
+      VALUES (@playerId, @campaignId, @packId, @cycleNumber, 'active');
+    `);
+
+  return insertResult.recordset[0];
 }
 
 export async function resolvePackAssignment({
@@ -291,33 +347,7 @@ export async function resolvePackAssignment({
     }
 
     if (!assignmentRow) {
-      const activePackCounts = await getActivePackCounts(tx, campaign.id, totalPacks);
-      const nextPackId = choosePack(totalPacks, activePackCounts);
-
-      const cycleResult = await tx
-        .request()
-        .input('playerId', sql.Int, playerId)
-        .input('campaignId', sql.NVarChar(20), campaign.id).query<{ next_cycle: number }>(`
-          SELECT ISNULL(MAX(cycle_number), 0) + 1 AS next_cycle
-          FROM pack_assignments WITH (UPDLOCK, HOLDLOCK)
-          WHERE player_id = @playerId
-            AND campaign_id = @campaignId;
-        `);
-
-      const nextCycle = cycleResult.recordset[0].next_cycle;
-
-      const insertResult = await tx
-        .request()
-        .input('playerId', sql.Int, playerId)
-        .input('campaignId', sql.NVarChar(20), campaign.id)
-        .input('packId', sql.Int, nextPackId)
-        .input('cycleNumber', sql.Int, nextCycle).query<AssignmentRow>(`
-          INSERT INTO pack_assignments (player_id, campaign_id, pack_id, cycle_number, status)
-          OUTPUT inserted.*
-          VALUES (@playerId, @campaignId, @packId, @cycleNumber, 'active');
-        `);
-
-      assignmentRow = insertResult.recordset[0];
+      assignmentRow = await createActiveAssignment(tx, playerId, campaign, totalPacks);
     }
 
     await tx.commit();
@@ -341,6 +371,111 @@ export async function resolvePackAssignment({
       assignment,
       rotated,
       completedPackId,
+    };
+  } catch (err) {
+    try {
+      await tx.rollback();
+    } catch {
+      // no-op
+    }
+    throw err;
+  }
+}
+
+export async function rerollPackAssignment({
+  pool,
+  playerId,
+  context,
+  expectedAssignmentId = null,
+}: RerollPackAssignmentArgs): Promise<{
+  campaign: Campaign;
+  assignment: Assignment | null;
+  abandonedAssignment: Assignment | null;
+  rerolled: boolean;
+}> {
+  const campaign = await getActiveCampaign(pool);
+  const totalPacks = getPackCapacity(campaign.totalPacks);
+
+  const tx = new sql.Transaction(pool) as QueryableTransaction;
+  await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+
+  try {
+    let activeAssignment = await getActiveAssignment(tx, playerId, campaign.id);
+    let abandonedAssignment: AssignmentRow | null = null;
+    let avoidPackId: number | null = null;
+    let rerolled = false;
+
+    if (
+      expectedAssignmentId &&
+      activeAssignment &&
+      Number(activeAssignment.id) !== Number(expectedAssignmentId)
+    ) {
+      await tx.commit();
+      return {
+        campaign,
+        assignment: normalizeAssignment(activeAssignment),
+        abandonedAssignment: null,
+        rerolled: false,
+      };
+    }
+
+    if (activeAssignment) {
+      const abandoned = await tx.request().input('assignmentId', sql.Int, activeAssignment.id)
+        .query<AssignmentRow>(`
+          UPDATE pack_assignments
+          SET status = 'abandoned',
+              abandoned_at = SYSUTCDATETIME()
+          OUTPUT inserted.*
+          WHERE id = @assignmentId
+            AND status = 'active';
+        `);
+
+      abandonedAssignment = abandoned.recordset[0] || {
+        ...activeAssignment,
+        status: 'abandoned',
+        abandoned_at: null,
+      };
+      avoidPackId = activeAssignment.pack_id;
+      activeAssignment = null;
+      rerolled = true;
+    }
+
+    await acquireCampaignAssignmentLock(tx, campaign.id);
+    activeAssignment = await getActiveAssignment(tx, playerId, campaign.id);
+
+    if (!activeAssignment) {
+      activeAssignment = await createActiveAssignment(
+        tx,
+        playerId,
+        campaign,
+        totalPacks,
+        avoidPackId,
+      );
+    }
+
+    await tx.commit();
+
+    const assignment = normalizeAssignment(activeAssignment);
+    const normalizedAbandonedAssignment = normalizeAssignment(abandonedAssignment);
+
+    if (context && typeof context.log === 'function') {
+      context.log('pack_assignment_rerolled', {
+        playerId,
+        campaignId: campaign.id,
+        previousPackId: normalizedAbandonedAssignment?.packId ?? null,
+        previousAssignmentId: normalizedAbandonedAssignment?.assignmentId ?? null,
+        packId: assignment?.packId,
+        assignmentId: assignment?.assignmentId,
+        cycleNumber: assignment?.cycleNumber,
+        rerolled,
+      });
+    }
+
+    return {
+      campaign,
+      assignment,
+      abandonedAssignment: normalizedAbandonedAssignment,
+      rerolled,
     };
   } catch (err) {
     try {

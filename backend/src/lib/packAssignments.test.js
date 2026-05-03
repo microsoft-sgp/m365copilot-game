@@ -38,7 +38,7 @@ vi.mock('mssql', async () => {
   };
 });
 
-const { resolvePackAssignment, isPackAssignmentLifecycleEnabled } =
+const { resolvePackAssignment, rerollPackAssignment, isPackAssignmentLifecycleEnabled } =
   await import('./packAssignments.js');
 
 function assignmentRow(overrides = {}) {
@@ -51,6 +51,7 @@ function assignmentRow(overrides = {}) {
     status: 'active',
     assigned_at: '2026-04-26T00:00:00Z',
     completed_at: null,
+    abandoned_at: null,
     ...overrides,
   };
 }
@@ -231,5 +232,133 @@ describe('packAssignments', () => {
 
     expect(rollbackSpy).toHaveBeenCalledTimes(1);
     expect(commitSpy).not.toHaveBeenCalled();
+  });
+
+  it('rerolls by abandoning the active assignment and creating a replacement pack', async () => {
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.5);
+    const context = { log: vi.fn() };
+
+    const { pool, calls } = createMockPool([
+      { recordset: [{ id: 'APR26', total_packs: 3, total_weeks: 7 }] },
+      { recordset: [assignmentRow({ id: 40, pack_id: 2 })] },
+      {
+        recordset: [
+          assignmentRow({
+            id: 40,
+            pack_id: 2,
+            status: 'abandoned',
+            abandoned_at: '2026-05-03T00:00:00Z',
+          }),
+        ],
+      },
+      { recordset: [{ lock_result: 0 }] },
+      { recordset: [] },
+      { recordset: [] },
+      { recordset: [{ next_cycle: 2 }] },
+      { recordset: [assignmentRow({ id: 41, pack_id: 3, cycle_number: 2 })] },
+    ]);
+
+    const result = await rerollPackAssignment({
+      pool,
+      playerId: 1,
+      expectedAssignmentId: 40,
+      context,
+    });
+
+    expect(result.rerolled).toBe(true);
+    expect(result.abandonedAssignment.status).toBe('abandoned');
+    expect(result.abandonedAssignment.packId).toBe(2);
+    expect(result.assignment.packId).toBe(3);
+    expect(result.assignment.cycleNumber).toBe(2);
+    expect(calls[2].query).toContain("status = 'abandoned'");
+    expect(calls[7].inputs.packId).toBe(3);
+    expect(context.log).toHaveBeenCalledWith(
+      'pack_assignment_rerolled',
+      expect.objectContaining({
+        playerId: 1,
+        previousPackId: 2,
+        packId: 3,
+        rerolled: true,
+      }),
+    );
+  });
+
+  it('does not permanently blacklist an abandoned pack when it is the only unused option', async () => {
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.5);
+
+    const { pool } = createMockPool([
+      { recordset: [{ id: 'APR26', total_packs: 3, total_weeks: 7 }] },
+      { recordset: [assignmentRow({ id: 50, pack_id: 2 })] },
+      {
+        recordset: [
+          assignmentRow({
+            id: 50,
+            pack_id: 2,
+            status: 'abandoned',
+            abandoned_at: '2026-05-03T00:00:00Z',
+          }),
+        ],
+      },
+      { recordset: [{ lock_result: 0 }] },
+      { recordset: [] },
+      {
+        recordset: [
+          { pack_id: 1, active_count: 1 },
+          { pack_id: 3, active_count: 1 },
+        ],
+      },
+      { recordset: [{ next_cycle: 2 }] },
+      { recordset: [assignmentRow({ id: 51, pack_id: 2, cycle_number: 2 })] },
+    ]);
+
+    const result = await rerollPackAssignment({ pool, playerId: 1, expectedAssignmentId: 50 });
+
+    expect(result.assignment.packId).toBe(2);
+    expect(result.abandonedAssignment.packId).toBe(2);
+  });
+
+  it('can reuse the same pack on reroll when the campaign has no alternative', async () => {
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.75);
+
+    const { pool } = createMockPool([
+      { recordset: [{ id: 'APR26', total_packs: 1, total_weeks: 7 }] },
+      { recordset: [assignmentRow({ id: 60, pack_id: 1 })] },
+      {
+        recordset: [
+          assignmentRow({
+            id: 60,
+            pack_id: 1,
+            status: 'abandoned',
+            abandoned_at: '2026-05-03T00:00:00Z',
+          }),
+        ],
+      },
+      { recordset: [{ lock_result: 0 }] },
+      { recordset: [] },
+      { recordset: [] },
+      { recordset: [{ next_cycle: 2 }] },
+      { recordset: [assignmentRow({ id: 61, pack_id: 1, cycle_number: 2 })] },
+    ]);
+
+    const result = await rerollPackAssignment({ pool, playerId: 1, expectedAssignmentId: 60 });
+
+    expect(result.assignment.packId).toBe(1);
+    expect(result.rerolled).toBe(true);
+  });
+
+  it('returns the current active assignment without rerolling when expected assignment is stale', async () => {
+    const { pool, calls } = createMockPool([
+      { recordset: [{ id: 'APR26', total_packs: 999, total_weeks: 7 }] },
+      { recordset: [assignmentRow({ id: 71, pack_id: 88, cycle_number: 2 })] },
+    ]);
+
+    const result = await rerollPackAssignment({ pool, playerId: 1, expectedAssignmentId: 70 });
+
+    expect(result.rerolled).toBe(false);
+    expect(result.assignment.assignmentId).toBe(71);
+    expect(result.assignment.packId).toBe(88);
+    expect(result.abandonedAssignment).toBeNull();
+    expect(calls).toHaveLength(2);
+    expect(commitSpy).toHaveBeenCalledTimes(1);
   });
 });

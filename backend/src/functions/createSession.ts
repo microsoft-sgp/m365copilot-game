@@ -28,12 +28,10 @@ async function resolvePlayerToken(
   trimmedEmail: string,
   presentedToken: string,
 ): Promise<ResolvedToken> {
-  const existing = await pool
-    .request()
-    .input('email', sql.NVarChar(320), trimmedEmail)
-    .query<{ id: number; owner_token: string | null }>(
-      'SELECT id, owner_token FROM players WHERE email = @email;',
-    );
+  const existing = await pool.request().input('email', sql.NVarChar(320), trimmedEmail).query<{
+    id: number;
+    owner_token: string | null;
+  }>('SELECT id, owner_token FROM players WHERE email = @email;');
   const row = existing.recordset[0];
 
   if (!row) {
@@ -81,9 +79,7 @@ async function resolvePlayerToken(
   const refetched = await pool
     .request()
     .input('email', sql.NVarChar(320), trimmedEmail)
-    .query<{ owner_token: string | null }>(
-      'SELECT owner_token FROM players WHERE email = @email;',
-    );
+    .query<{ owner_token: string | null }>('SELECT owner_token FROM players WHERE email = @email;');
   const winnerHash = refetched.recordset[0]?.owner_token ?? null;
   if (
     await verifyPlayerTokenForPlayer(pool, {
@@ -217,8 +213,7 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
     }
   }
 
-  const ownerTokenHashForInsert =
-    resolvedToken?.kind === 'new' ? resolvedToken.hash : null;
+  const ownerTokenHashForInsert = resolvedToken?.kind === 'new' ? resolvedToken.hash : null;
 
   const { playerId } = await upsertPlayer(pool, {
     sessionId,
@@ -230,7 +225,11 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
 
   if (resolvedToken?.kind === 'new') {
     await createPlayerDeviceToken(pool, playerId, resolvedToken.hash);
-  } else if (resolvedToken?.kind === 'reused' && resolvedToken.persistDeviceToken && resolvedToken.hash) {
+  } else if (
+    resolvedToken?.kind === 'reused' &&
+    resolvedToken.persistDeviceToken &&
+    resolvedToken.hash
+  ) {
     await createPlayerDeviceToken(pool, playerId, resolvedToken.hash);
   }
 

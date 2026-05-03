@@ -3,8 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Silence the fire-and-forget API calls so tests don't touch the real fetch.
 vi.mock('../lib/api.js', () => ({
   apiCreateSession: vi.fn().mockResolvedValue({ ok: false, data: null }),
+  apiRerollAssignment: vi.fn().mockResolvedValue({ ok: false, data: null }),
   apiUpdateSession: vi.fn().mockResolvedValue({ ok: false, data: null }),
   apiRecordEvent: vi.fn().mockResolvedValue({ ok: false, data: null }),
+  isAssignmentNotActiveResponse: vi.fn(
+    (res) => res.status === 409 && res.data?.code === 'ASSIGNMENT_NOT_ACTIVE',
+  ),
   isPlayerRecoveryRequiredResponse: vi.fn(
     (res) => res.status === 409 && res.data?.code === 'PLAYER_RECOVERY_REQUIRED',
   ),
@@ -26,7 +30,12 @@ vi.mock('../lib/packGenerator.js', () => ({
     })),
 }));
 
-import { apiCreateSession, apiRecordEvent, apiUpdateSession } from '../lib/api.js';
+import {
+  apiCreateSession,
+  apiRecordEvent,
+  apiRerollAssignment,
+  apiUpdateSession,
+} from '../lib/api.js';
 import { useBingoGame } from './useBingoGame.js';
 import { LINES } from '../data/lines.js';
 import { MS_PER_WEEK } from '../data/constants.js';
@@ -37,6 +46,7 @@ function resetState() {
   state.playerName = '';
   state.email = '';
   state.organization = '';
+  state.assignmentId = null;
   state.assignedPackId = 0;
   state.assignmentCycle = 0;
   state.assignmentRotated = false;
@@ -58,6 +68,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   apiCreateSession.mockResolvedValue({ ok: false, data: null });
+  apiRerollAssignment.mockResolvedValue({ ok: false, data: null });
   apiUpdateSession.mockResolvedValue({ ok: false, data: null });
   apiRecordEvent.mockResolvedValue({ ok: false, data: null });
   resetState();
@@ -270,6 +281,83 @@ describe('useBingoGame.resetBoard', () => {
     expect(state.boardActive).toBe(false);
     expect(state.tiles).toEqual([]);
     expect(state.cleared).toEqual([]);
+  });
+});
+
+describe('useBingoGame.rerollBoard', () => {
+  it('replaces the active board with the server-rerolled assignment', async () => {
+    apiRerollAssignment.mockResolvedValue({
+      ok: true,
+      data: {
+        gameSessionId: 222,
+        packId: 77,
+        activeAssignment: {
+          assignmentId: 22,
+          packId: 77,
+          cycleNumber: 2,
+          rerolled: true,
+          abandonedAssignment: { assignmentId: 21, packId: 42, status: 'abandoned' },
+        },
+      },
+    });
+    const { rerollBoard, startBoard, state } = useBingoGame();
+    await startBoard({ name: 'Ada', email: 'ada@example.com', packId: 42 });
+    state.gameSessionId = 111;
+    state.cleared[0] = true;
+    state.wonLines = ['R1'];
+    state.keywords = [{ code: 'OLD', packId: 42, lineId: 'R1', ts: 1 }];
+    state.challengeProfile.currentWeek = 4;
+
+    const result = await rerollBoard();
+
+    expect(result).toEqual({ ok: true, packId: 77 });
+    expect(apiRerollAssignment).toHaveBeenCalledWith({
+      sessionId: 'test-session',
+      playerName: 'Ada',
+      email: 'ada@example.com',
+      gameSessionId: 111,
+    });
+    expect(state.boardActive).toBe(true);
+    expect(state.packId).toBe(77);
+    expect(state.assignedPackId).toBe(77);
+    expect(state.assignmentId).toBe(22);
+    expect(state.gameSessionId).toBe(222);
+    expect(state.cleared).toEqual(new Array(9).fill(false));
+    expect(state.wonLines).toEqual([]);
+    expect(state.keywords).toEqual([]);
+    expect(state.challengeProfile.currentWeek).toBe(1);
+  });
+
+  it('preserves the active board when the reroll API fails', async () => {
+    apiRerollAssignment.mockResolvedValue({ ok: false, status: 500, data: { ok: false } });
+    const { rerollBoard, startBoard, state } = useBingoGame();
+    await startBoard({ name: 'Ada', email: 'ada@example.com', packId: 42 });
+    state.gameSessionId = 111;
+    state.cleared[0] = true;
+
+    const result = await rerollBoard();
+
+    expect(result.ok).toBe(false);
+    expect(state.boardActive).toBe(true);
+    expect(state.packId).toBe(42);
+    expect(state.gameSessionId).toBe(111);
+    expect(state.cleared[0]).toBe(true);
+  });
+
+  it('enters recovery state when reroll returns a recoverable conflict', async () => {
+    apiRerollAssignment.mockResolvedValue({
+      ok: false,
+      status: 409,
+      data: { ok: false, code: 'PLAYER_RECOVERY_REQUIRED', message: 'Identity in use' },
+    });
+    const { rerollBoard, startBoard, state } = useBingoGame();
+    await startBoard({ name: 'Ada', email: 'ada@example.com', packId: 42 });
+
+    const result = await rerollBoard();
+
+    expect(result.recoveryRequired).toBe(true);
+    expect(state.recoveryRequired).toBe(true);
+    expect(state.boardActive).toBe(false);
   });
 });
 

@@ -1,15 +1,17 @@
 import { reactive, computed, watch } from 'vue';
 import { CAMPAIGN_ID, MS_PER_WEEK, STORAGE_KEYS, TOTAL_WEEKS } from '../data/constants.js';
 import { LINES } from '../data/lines.js';
-import { loadJson, saveJson, saveString } from '../lib/storage.js';
+import { loadJson, loadString, saveJson, saveString } from '../lib/storage.js';
 import { genId } from '../lib/rng.js';
 import { getPack } from '../lib/packGenerator.js';
 import type { TileTask } from '../lib/packGenerator.js';
 import { mintLineKeyword, mintWeeklyKeyword } from '../lib/keywordMinting.js';
 import {
   apiCreateSession,
+  apiRerollAssignment,
   apiRecordEvent,
   apiUpdateSession,
+  isAssignmentNotActiveResponse,
   isPlayerRecoveryRequiredResponse,
 } from '../lib/api.js';
 import type { ApiResponse } from '../lib/api.js';
@@ -35,6 +37,7 @@ type GameState = {
   playerName: string;
   email: string;
   organization: string;
+  assignmentId: number | null;
   assignedPackId: number;
   assignmentCycle: number;
   assignmentRotated: boolean;
@@ -53,6 +56,7 @@ type GameState = {
 };
 
 type ActiveAssignment = {
+  assignmentId?: number;
   packId?: number;
   cycleNumber?: number;
   rotated?: boolean;
@@ -104,6 +108,7 @@ function freshState(): GameState {
     playerName: '',
     email: '',
     organization: '',
+    assignmentId: null,
     assignedPackId: 0,
     assignmentCycle: 0,
     assignmentRotated: false,
@@ -129,6 +134,7 @@ function persist() {
     sessionId: state.sessionId,
     playerName: state.playerName,
     organization: state.organization,
+    assignmentId: state.assignmentId,
     assignedPackId: state.assignedPackId,
     assignmentCycle: state.assignmentCycle,
     assignmentRotated: state.assignmentRotated,
@@ -188,6 +194,9 @@ export function useBingoGame() {
 
   function applyAssignment(assignment?: ActiveAssignment | null) {
     if (!assignment) return;
+    if (assignment.assignmentId) {
+      state.assignmentId = assignment.assignmentId;
+    }
     if (assignment.packId) {
       state.assignedPackId = assignment.packId;
     }
@@ -252,6 +261,44 @@ export function useBingoGame() {
     return canonicalName;
   }
 
+  function freshChallengeProfile(): ChallengeProfile {
+    return {
+      challengeStartAt: Date.now(),
+      currentWeek: 1,
+      weeksCompleted: 0,
+      weeklySubmissions: [],
+    };
+  }
+
+  function initializeBoard(
+    targetPackId: number,
+    canonicalName: string,
+    {
+      resetProgress = false,
+      resetChallengeProfile = false,
+    }: { resetProgress?: boolean; resetChallengeProfile?: boolean } = {},
+  ) {
+    state.packId = targetPackId;
+    state.assignedPackId = targetPackId;
+    state.tiles = getPack(targetPackId);
+    state.cleared = new Array(9).fill(false);
+    if (resetProgress) {
+      state.wonLines = [];
+      state.keywords = [];
+    } else {
+      state.wonLines = state.wonLines || [];
+      state.keywords = state.keywords || [];
+    }
+    state.boardActive = true;
+
+    if (resetChallengeProfile || !state.challengeProfile) {
+      state.challengeProfile = freshChallengeProfile();
+    }
+
+    saveString(STORAGE_KEYS.playerName, canonicalName);
+    saveString(STORAGE_KEYS.lastPack, String(targetPackId));
+  }
+
   function applySessionPayload(data?: CreateSessionPayload | null): number {
     if (!data) return 0;
     if (data.activeAssignment) {
@@ -307,31 +354,9 @@ export function useBingoGame() {
     let resolvedPackId = Number(packId || state.assignedPackId || state.packId || 0);
     let resolvedGameSessionId = state.gameSessionId;
 
-    function initializeBoard(targetPackId: number) {
-      state.packId = targetPackId;
-      state.assignedPackId = targetPackId;
-      state.tiles = getPack(targetPackId);
-      state.cleared = new Array(9).fill(false);
-      state.wonLines = state.wonLines || [];
-      state.keywords = state.keywords || [];
-      state.boardActive = true;
-
-      if (!state.challengeProfile) {
-        state.challengeProfile = {
-          challengeStartAt: Date.now(),
-          currentWeek: 1,
-          weeksCompleted: 0,
-          weeklySubmissions: [],
-        };
-      }
-
-      saveString(STORAGE_KEYS.playerName, canonicalName);
-      saveString(STORAGE_KEYS.lastPack, String(targetPackId));
-    }
-
     const mustVerifyBeforeLocalLaunch = Boolean(state.email);
     if (resolvedPackId > 0 && !mustVerifyBeforeLocalLaunch) {
-      initializeBoard(resolvedPackId);
+      initializeBoard(resolvedPackId, canonicalName);
     }
 
     try {
@@ -366,10 +391,64 @@ export function useBingoGame() {
 
     state.gameSessionId = resolvedGameSessionId ?? null;
     if (!state.boardActive || state.packId !== resolvedPackId) {
-      initializeBoard(resolvedPackId);
+      initializeBoard(resolvedPackId, canonicalName);
     }
 
     return { ok: true, packId: resolvedPackId };
+  }
+
+  async function rerollBoard(args: StartBoardArgs = {}): Promise<AssignmentResult> {
+    const identityArgs = {
+      name: args.name ?? loadString(STORAGE_KEYS.playerName) ?? undefined,
+      email: args.email ?? loadString(STORAGE_KEYS.email) ?? undefined,
+      organization: args.organization ?? loadString(STORAGE_KEYS.organization) ?? undefined,
+    };
+    const canonicalName = applyIdentity(identityArgs);
+
+    if (state.recoveryRequired && (!state.recoveryEmail || state.recoveryEmail === state.email)) {
+      return recoveryResult();
+    }
+
+    if (!state.email) {
+      return { ok: false, message: 'Email is required to assign a new pack.' };
+    }
+
+    try {
+      const payload: Record<string, unknown> = {
+        sessionId: state.sessionId,
+        playerName: canonicalName,
+        email: state.email,
+      };
+      if (state.organization) payload.organization = state.organization;
+      if (state.gameSessionId) payload.gameSessionId = state.gameSessionId;
+
+      const res = (await apiRerollAssignment(payload)) as ApiResponse<CreateSessionPayload>;
+      if (handleCreateSessionRecovery(res, state.email)) return recoveryResult();
+      if (isAssignmentNotActiveResponse(res)) {
+        return { ok: false, message: 'This board is no longer active. Refresh and try again.' };
+      }
+      if (!res.ok || !res.data) {
+        return { ok: false, message: 'Unable to assign a new pack. Please try again.' };
+      }
+
+      const assignedPackId = applySessionPayload(res.data);
+      const resolvedPackId = Number(res.data.packId || assignedPackId || 0);
+      if (resolvedPackId < 1) {
+        return { ok: false, message: 'Unable to assign a new pack. Please try again.' };
+      }
+
+      state.gameSessionId = res.data.gameSessionId ?? null;
+      state.assignmentRotated = false;
+      state.completedPackId = null;
+      initializeBoard(resolvedPackId, canonicalName, {
+        resetProgress: true,
+        resetChallengeProfile: true,
+      });
+
+      return { ok: true, packId: resolvedPackId };
+    } catch {
+      return { ok: false, message: 'Unable to assign a new pack. Please try again.' };
+    }
   }
 
   function resetBoard() {
@@ -566,6 +645,7 @@ export function useBingoGame() {
     keywordCount,
     boardProgress,
     startBoard,
+    rerollBoard,
     ensurePackAssignment,
     resetBoard,
     verifyTile,

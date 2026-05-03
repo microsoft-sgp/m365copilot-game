@@ -55,7 +55,8 @@ const stubs = {
   GameFooter: { template: '<div />' },
   AdminLogin: {
     props: ['sessionMessage'],
-    template: '<div data-test="admin-login"><p v-if="sessionMessage">{{ sessionMessage }}</p></div>',
+    template:
+      '<div data-test="admin-login"><p v-if="sessionMessage">{{ sessionMessage }}</p></div>',
   },
   AdminLayout: {
     template: '<button data-test="admin-layout" @click="$emit(\'logout\')" />',
@@ -239,6 +240,10 @@ describe('App routing', () => {
     await flushPromises();
     await wrapper.find('[data-test="email-continue"]').trigger('click');
     await flushPromises();
+    localStorage.setItem(
+      'copilot_bingo_state',
+      JSON.stringify({ sessionId: 'stored-session-123' }),
+    );
 
     const refresher = installPlayerAuthRefresher.mock.calls.find(
       ([fn]) => typeof fn === 'function',
@@ -250,7 +255,7 @@ describe('App routing', () => {
     expect(result).toBe(true);
     expect(apiCreateSession).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionId: expect.any(String),
+        sessionId: 'stored-session-123',
         playerName: 'Ada',
         email: 'ada@nus.edu.sg',
         organization: 'NUS',

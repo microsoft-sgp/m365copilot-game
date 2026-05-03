@@ -103,7 +103,10 @@ function sanitizeEvent(event: Sentry.Event): Sentry.Event {
 function sanitizeBreadcrumb(breadcrumb: Sentry.Breadcrumb): Sentry.Breadcrumb {
   return {
     ...breadcrumb,
-    message: typeof breadcrumb.message === 'string' ? redactString(breadcrumb.message) : breadcrumb.message,
+    message:
+      typeof breadcrumb.message === 'string'
+        ? redactString(breadcrumb.message)
+        : breadcrumb.message,
     data: sanitizeForSentry(breadcrumb.data) as Record<string, unknown> | undefined,
   };
 }
@@ -112,7 +115,9 @@ function getFlushTimeoutMs(): number {
   return Math.max(0, numberValue(process.env.SENTRY_FLUSH_TIMEOUT_MS, 2000));
 }
 
-function requestContext(request?: Partial<HttpRequest> | null): Record<string, unknown> | undefined {
+function requestContext(
+  request?: Partial<HttpRequest> | null,
+): Record<string, unknown> | undefined {
   if (!request) return undefined;
   return {
     method: request.method,
@@ -121,7 +126,10 @@ function requestContext(request?: Partial<HttpRequest> | null): Record<string, u
   };
 }
 
-export function initBackendSentry(runtime: BackendRuntime = 'azure-functions', env: RawEnv = process.env): boolean {
+export function initBackendSentry(
+  runtime: BackendRuntime = 'azure-functions',
+  env: RawEnv = process.env,
+): boolean {
   activeRuntime = runtime;
   const dsn = stringValue(env.SENTRY_DSN);
   configured = Boolean(dsn);
@@ -158,7 +166,10 @@ export async function flushBackendSentry(): Promise<void> {
   await Sentry.flush(getFlushTimeoutMs());
 }
 
-export async function captureBackendException(error: unknown, captureContext: CaptureContext = {}): Promise<void> {
+export async function captureBackendException(
+  error: unknown,
+  captureContext: CaptureContext = {},
+): Promise<void> {
   const runtime = captureContext.runtime || activeRuntime;
   if (!initBackendSentry(runtime)) return;
 
@@ -200,7 +211,10 @@ export function withSentry(
 }
 
 export function shouldCaptureOperationalFailure(): boolean {
-  return process.env.NODE_ENV === 'production' || boolValue(process.env.SENTRY_CAPTURE_OPERATIONAL_ERRORS);
+  return (
+    process.env.NODE_ENV === 'production' ||
+    boolValue(process.env.SENTRY_CAPTURE_OPERATIONAL_ERRORS)
+  );
 }
 
 export async function captureOperationalError(

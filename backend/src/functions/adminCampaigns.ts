@@ -54,7 +54,7 @@ function resolveOptionalBoundedField(
   return parsed;
 }
 
-async function listCampaigns(request: HttpRequest, context: InvocationContext) {
+async function listCampaigns(request: HttpRequest, _context: InvocationContext) {
   const auth = verifyAdmin(request);
   if (!auth.ok) return auth.response;
 
@@ -162,19 +162,11 @@ async function updateCampaignSettings(request: HttpRequest, context: InvocationC
 
   // Validate optional numeric inputs: present-but-invalid is 400; absent or
   // null leaves the existing column value alone via COALESCE in the SQL below.
-  const totalPacks = resolveOptionalBoundedField(
-    body.totalPacks,
-    TOTAL_PACKS_MIN,
-    TOTAL_PACKS_MAX,
-  );
+  const totalPacks = resolveOptionalBoundedField(body.totalPacks, TOTAL_PACKS_MIN, TOTAL_PACKS_MAX);
   if (totalPacks === 'out_of_range') {
     return badRequest(`totalPacks must be between ${TOTAL_PACKS_MIN} and ${TOTAL_PACKS_MAX}`);
   }
-  const totalWeeks = resolveOptionalBoundedField(
-    body.totalWeeks,
-    TOTAL_WEEKS_MIN,
-    TOTAL_WEEKS_MAX,
-  );
+  const totalWeeks = resolveOptionalBoundedField(body.totalWeeks, TOTAL_WEEKS_MIN, TOTAL_WEEKS_MAX);
   if (totalWeeks === 'out_of_range') {
     return badRequest(`totalWeeks must be between ${TOTAL_WEEKS_MIN} and ${TOTAL_WEEKS_MAX}`);
   }

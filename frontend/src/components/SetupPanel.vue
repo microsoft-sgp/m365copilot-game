@@ -40,7 +40,7 @@ const statusText = computed(() => {
     return `Great work completing Pack #${String(state.completedPackId).padStart(3, '0')}! A new pack has been assigned.`;
   }
   if (assignedPack.value) {
-    return 'Your assigned pack is locked for this challenge cycle.';
+    return 'Your current pack is ready.';
   }
   return 'Fetching your assigned pack...';
 });
@@ -171,17 +171,13 @@ function cancelRecovery() {
 
 <template>
   <div class="glass mx-auto max-w-[560px] rounded-[14px] p-6">
-    <h2 class="text-gradient mb-1 text-title-lg font-black">
-      Start Your Board
-    </h2>
+    <h2 class="text-gradient mb-1 text-title-lg font-black">Start Your Board</h2>
     <p class="mb-[18px] text-label-lg text-on-surface-variant">
-      Your pack is assigned automatically for fairness across devices.
+      Your pack is assigned automatically across devices.
     </p>
 
     <div class="mb-4 rounded-[12px] border border-outline-variant bg-surface-container p-4">
-      <div class="field-label mb-2">
-        Assigned Pack
-      </div>
+      <div class="field-label mb-2">Assigned Pack</div>
       <div class="text-title-lg font-black text-primary">
         {{ assignedPackLabel }}
       </div>
@@ -197,9 +193,7 @@ function cancelRecovery() {
       v-if="state.recoveryRequired"
       class="mb-4 rounded-[12px] border border-outline-variant bg-surface-container p-4"
     >
-      <div class="field-label mb-2">
-        Player Recovery
-      </div>
+      <div class="field-label mb-2">Player Recovery</div>
       <p class="mb-3 text-label-md text-on-surface-variant">
         {{ recoveryEmail }} needs a recovery code before this board can continue.
       </p>
@@ -219,17 +213,14 @@ function cancelRecovery() {
           Use Different Email
         </button>
       </div>
-      <div
-        v-if="codeRequested"
-        class="mt-3 flex flex-wrap gap-2.5"
-      >
+      <div v-if="codeRequested" class="mt-3 flex flex-wrap gap-2.5">
         <input
           v-model="recoveryCode"
           class="input max-w-[180px]"
           inputmode="numeric"
           autocomplete="one-time-code"
           placeholder="000000"
-        >
+        />
         <button
           class="btn btn-primary"
           :disabled="requestingCode || verifyingCode"
@@ -238,10 +229,7 @@ function cancelRecovery() {
           {{ verifyingCode ? 'Verifying...' : 'Verify Code' }}
         </button>
       </div>
-      <p
-        v-if="recoveryStatus"
-        class="mt-2 text-xs text-on-surface-variant"
-      >
+      <p v-if="recoveryStatus" class="mt-2 text-xs text-on-surface-variant">
         {{ recoveryStatus }}
       </p>
     </div>
@@ -255,10 +243,7 @@ function cancelRecovery() {
         {{ assigning ? 'Assigning...' : launching ? 'Starting...' : '🚀 Launch Board' }}
       </button>
     </div>
-    <p
-      v-if="error"
-      class="mt-2 text-xs text-error"
-    >
+    <p v-if="error" class="mt-2 text-xs text-error">
       {{ error }}
     </p>
   </div>

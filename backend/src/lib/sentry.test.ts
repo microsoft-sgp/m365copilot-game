@@ -76,7 +76,6 @@ describe('initBackendSentry', () => {
   });
 });
 
-
 describe('sanitizeForSentry', () => {
   it('redacts sensitive fields and full email addresses', () => {
     expect(

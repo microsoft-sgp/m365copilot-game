@@ -114,7 +114,9 @@ describe('createPlayerDeviceToken', () => {
     const err = new Error('duplicate');
     err.number = 2601;
     const { pool } = createMockPool([err]);
-    await expect(createPlayerDeviceToken(pool, 42, hashPlayerToken('device-token'))).resolves.toBeUndefined();
+    await expect(
+      createPlayerDeviceToken(pool, 42, hashPlayerToken('device-token')),
+    ).resolves.toBeUndefined();
   });
 });
 

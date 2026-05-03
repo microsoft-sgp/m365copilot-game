@@ -1,9 +1,6 @@
 // Lightweight Express wrapper that loads Azure Functions handlers
 // for local Docker testing. Not used in production (Azure Functions runtime).
-import {
-  captureBackendException,
-  initBackendSentry,
-} from './dist/lib/sentry.js';
+import { captureBackendException, initBackendSentry } from './dist/lib/sentry.js';
 import express from 'express';
 
 const app = express();
@@ -95,7 +92,8 @@ const { handler: getOrgDomains } = await import('./dist/functions/getOrgDomains.
 const { handler: getPlayerState } = await import('./dist/functions/getPlayerState.js');
 const { handler: requestOtp } = await import('./dist/functions/requestOtp.js');
 const { handler: verifyOtp } = await import('./dist/functions/verifyOtp.js');
-const { handler: requestPlayerRecovery } = await import('./dist/functions/requestPlayerRecovery.js');
+const { handler: requestPlayerRecovery } =
+  await import('./dist/functions/requestPlayerRecovery.js');
 const { handler: verifyPlayerRecovery } = await import('./dist/functions/verifyPlayerRecovery.js');
 const { refreshHandler, logoutHandler } = await import('./dist/functions/adminSession.js');
 const { handler: health } = await import('./dist/functions/health.js');

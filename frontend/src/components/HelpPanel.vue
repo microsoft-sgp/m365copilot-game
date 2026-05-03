@@ -43,9 +43,7 @@ const playLoopSections = [
   <div class="mx-auto max-w-[760px]">
     <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div class="max-w-[460px]">
-        <h2 class="text-gradient mb-1 text-title-lg font-black">
-          How to Play
-        </h2>
+        <h2 class="text-gradient mb-1 text-title-lg font-black">How to Play</h2>
         <p class="text-body-md leading-relaxed text-on-surface-variant">
           Complete Copilot Chat tasks on your 3×3 board, verify your answers, and earn keywords when
           you complete a Bingo line.
@@ -61,11 +59,7 @@ const playLoopSections = [
         >
           🌐 Open Copilot Chat ↗
         </a>
-        <button
-          type="button"
-          class="btn btn-ghost w-full sm:w-auto"
-          @click="emit('admin')"
-        >
+        <button type="button" class="btn btn-ghost w-full sm:w-auto" @click="emit('admin')">
           🔐 Admin Login
         </button>
       </div>
@@ -86,11 +80,7 @@ const playLoopSections = [
           </h3>
         </div>
         <ul class="space-y-1.5 text-body-md leading-relaxed text-on-surface-variant">
-          <li
-            v-for="point in section.points"
-            :key="point"
-            class="flex gap-2"
-          >
+          <li v-for="point in section.points" :key="point" class="flex gap-2">
             <span class="mt-[0.45em] h-1.5 w-1.5 shrink-0 rounded-full bg-tertiary" />
             <span>{{ point }}</span>
           </li>

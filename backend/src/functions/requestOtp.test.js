@@ -206,11 +206,7 @@ describe('POST /api/portal-api/request-otp', () => {
     beginSendMock.mockResolvedValue({
       pollUntilDone: vi.fn(async () => ({ status: 'Succeeded', id: 'op-abc' })),
     });
-    mockPool = createMockPool([
-      [],
-      [],
-      { recordset: [{ id: 21 }], rowsAffected: [1] },
-    ]);
+    mockPool = createMockPool([[], [], { recordset: [{ id: 21 }], rowsAffected: [1] }]);
     const ctx = { log: vi.fn(), error: vi.fn() };
     const req = fakeRequest({ body: { email: 'admin@test.com' } });
     const res = await handler(req, ctx);
@@ -279,11 +275,7 @@ describe('POST /api/portal-api/request-otp', () => {
     beginSendMock.mockResolvedValue({
       pollUntilDone: vi.fn(async () => ({ status: 'Succeeded', id: 'op-pii' })),
     });
-    mockPool = createMockPool([
-      [],
-      [],
-      { recordset: [{ id: 31 }], rowsAffected: [1] },
-    ]);
+    mockPool = createMockPool([[], [], { recordset: [{ id: 31 }], rowsAffected: [1] }]);
     const ctx = { log: vi.fn(), error: vi.fn() };
     const email = 'admin@test.com';
     const req = fakeRequest({ body: { email } });

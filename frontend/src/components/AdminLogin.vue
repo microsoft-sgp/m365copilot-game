@@ -58,9 +58,7 @@ async function verifyOtp() {
 <template>
   <div class="flex min-h-[60vh] items-center justify-center px-5">
     <div class="glass mx-auto w-full max-w-[420px] rounded-[14px] p-8">
-      <h2 class="text-gradient mb-2 text-title-lg font-black">
-        🔐 Admin Login
-      </h2>
+      <h2 class="text-gradient mb-2 text-title-lg font-black">🔐 Admin Login</h2>
 
       <div
         v-if="props.sessionMessage && !error && step === 'email'"
@@ -82,19 +80,12 @@ async function verifyOtp() {
             type="email"
             placeholder="admin@example.com"
             @keyup.enter="requestOtp"
-          >
+          />
         </div>
-        <div
-          v-if="error"
-          class="mb-3 text-label-md text-error"
-        >
+        <div v-if="error" class="mb-3 text-label-md text-error">
           {{ error }}
         </div>
-        <button
-          class="btn btn-primary w-full"
-          :disabled="loading"
-          @click="requestOtp"
-        >
+        <button class="btn btn-primary w-full" :disabled="loading" @click="requestOtp">
           {{ loading ? 'Sending…' : 'Send Code' }}
         </button>
       </template>
@@ -102,7 +93,8 @@ async function verifyOtp() {
       <!-- Step 2: OTP verification -->
       <template v-else>
         <p class="mb-4 text-sm text-on-surface-variant">
-          Enter the 6-digit code sent to <strong>{{ email }}</strong>.
+          Enter the 6-digit code sent to <strong>{{ email }}</strong
+          >.
         </p>
         <div class="mb-4">
           <label class="field-label">Verification Code</label>
@@ -113,19 +105,12 @@ async function verifyOtp() {
             maxlength="6"
             placeholder="000000"
             @keyup.enter="verifyOtp"
-          >
+          />
         </div>
-        <div
-          v-if="error"
-          class="mb-3 text-label-md text-error"
-        >
+        <div v-if="error" class="mb-3 text-label-md text-error">
           {{ error }}
         </div>
-        <button
-          class="btn btn-primary w-full"
-          :disabled="loading"
-          @click="verifyOtp"
-        >
+        <button class="btn btn-primary w-full" :disabled="loading" @click="verifyOtp">
           {{ loading ? 'Verifying…' : 'Verify & Login' }}
         </button>
         <button

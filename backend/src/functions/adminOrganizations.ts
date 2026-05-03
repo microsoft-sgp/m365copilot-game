@@ -5,7 +5,7 @@ import { verifyAdmin } from '../lib/adminAuth.js';
 import { invalidateLeaderboardCache, invalidateOrgDomainCache } from '../lib/cache.js';
 import { isDuplicateSqlKeyError, readJsonObject, stringValue } from './http.js';
 
-async function listOrganizations(request: HttpRequest, context: InvocationContext) {
+async function listOrganizations(request: HttpRequest, _context: InvocationContext) {
   const auth = verifyAdmin(request);
   if (!auth.ok) return auth.response;
 

@@ -5,6 +5,7 @@ import {
   onboardPlayer,
   proofForBrainstormList,
   verifyTileByTitle,
+  withConfirm,
 } from './fixtures';
 
 test('player onboarding validates required fields and public organization input', async ({
@@ -68,4 +69,27 @@ test('stale player token triggers one session refresh and retries game call', as
   expect(api.playerTokenHeaders.filter((call) => call.path === '/api/events').at(-1)?.token).toBe(
     'e2e-fixture-player-token',
   );
+});
+
+test('new board rerolls the assigned pack and clears local board progress', async ({ page }) => {
+  const api = await mockApi(page);
+
+  await onboardPlayer(page, { name: 'Ada', email: 'ada@nus.edu.sg' });
+  await launchAssignedBoard(page);
+  await verifyTileByTitle(page, 'Brainstorm List', proofForBrainstormList());
+  await expect(page.locator('.tile.cleared')).toHaveCount(1);
+
+  await withConfirm(page, true, () => page.getByRole('button', { name: /new board/i }).click());
+
+  await expect(page.getByText('Pack #002')).toBeVisible();
+  await expect(page.locator('.tile.cleared')).toHaveCount(0);
+  await expect.poll(() => api.rerollRequests.length).toBe(1);
+  expect(api.rerollRequests[0].body).toMatchObject({
+    playerName: 'Ada',
+    email: 'ada@nus.edu.sg',
+    gameSessionId: 101,
+  });
+  expect(
+    api.playerTokenHeaders.find((call) => call.path === '/api/player/assignment/reroll')?.token,
+  ).toBe('e2e-fixture-player-token');
 });

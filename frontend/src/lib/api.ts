@@ -17,6 +17,7 @@ export type ApiResponse<T = unknown> = {
 };
 
 export const PLAYER_RECOVERY_REQUIRED = 'PLAYER_RECOVERY_REQUIRED';
+export const ASSIGNMENT_NOT_ACTIVE = 'ASSIGNMENT_NOT_ACTIVE';
 
 type MaybeRecoveryResponse = {
   code?: string;
@@ -29,6 +30,11 @@ type PlayerRecoveryVerifyResponse = {
 export function isPlayerRecoveryRequiredResponse(res: ApiResponse<unknown>): boolean {
   const data = res.data as MaybeRecoveryResponse | null;
   return res.status === 409 && data?.code === PLAYER_RECOVERY_REQUIRED;
+}
+
+export function isAssignmentNotActiveResponse(res: ApiResponse<unknown>): boolean {
+  const data = res.data as MaybeRecoveryResponse | null;
+  return res.status === 409 && data?.code === ASSIGNMENT_NOT_ACTIVE;
 }
 
 // Optional consumer-supplied callback for re-bootstrapping the player session
@@ -136,6 +142,10 @@ export function apiCreateSession(payload: Record<string, unknown>) {
     }
     return res;
   });
+}
+
+export function apiRerollAssignment(payload: Record<string, unknown>) {
+  return requestGame('POST', '/player/assignment/reroll', payload);
 }
 
 export function apiPlayerRecoveryRequest(email: string) {

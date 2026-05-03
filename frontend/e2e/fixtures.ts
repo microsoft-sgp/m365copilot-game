@@ -19,6 +19,7 @@ export type MockApiState = {
   playerTokenHeaders: Array<{ method: string; path: string; token: string }>;
   playerStateRequests: CapturedApiCall[];
   createSessionRequests: CapturedApiCall[];
+  rerollRequests: CapturedApiCall[];
   adminMutations: CapturedApiCall[];
 };
 
@@ -82,6 +83,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     playerTokenHeaders: [],
     playerStateRequests: [],
     createSessionRequests: [],
+    rerollRequests: [],
     adminMutations: [],
   };
 
@@ -178,6 +180,22 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
           cycleNumber: 1,
           rotated: false,
           completedPackId: null,
+        },
+      });
+    }
+
+    if (method === 'POST' && path === '/api/player/assignment/reroll') {
+      state.rerollRequests.push(call);
+      return json(route, {
+        ok: true,
+        gameSessionId: 202,
+        packId: 2,
+        activeAssignment: {
+          assignmentId: 2020,
+          packId: 2,
+          cycleNumber: 2,
+          rerolled: true,
+          abandonedAssignment: { assignmentId: 1010, packId: 1, status: 'abandoned' },
         },
       });
     }
