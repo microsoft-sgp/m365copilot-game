@@ -218,6 +218,13 @@
     outline: 2px solid var(--color-error);
     outline-offset: 2px;
   }
+  .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.38;
+    box-shadow: none;
+    transform: none;
+    pointer-events: none;
+  }
 
   .field-input {
     width: 100%;

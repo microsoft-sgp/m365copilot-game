@@ -230,16 +230,25 @@ describe('SetupPanel', () => {
     await flushPromises();
 
     expect(w.text()).toContain('Player Recovery');
+    expect(w.text()).toContain('Recover your board');
     expect(w.text()).toContain('ada@example.com');
-    expect(
-      findButton(w, 'Launch Board').attributes('disabled'),
-    ).toBeDefined();
+    const sendCode = findButton(w, 'Send Recovery Code');
+    const differentEmail = findButton(w, 'Use Different Email');
+    const launchBoard = findButton(w, 'Launch Board');
 
-    await findButton(w, 'Send Code').trigger('click');
+    expect(sendCode.classes()).toEqual(expect.arrayContaining(['btn', 'btn-primary', 'w-full']));
+    expect(differentEmail.classes()).toEqual(expect.arrayContaining(['btn', 'btn-ghost', 'w-full']));
+    expect(launchBoard.attributes('disabled')).toBeDefined();
+
+    await sendCode.trigger('click');
     await flushPromises();
 
     expect(apiPlayerRecoveryRequest).toHaveBeenCalledWith('ada@example.com');
     expect(w.text()).toContain('Recovery code sent');
+    expect(w.text()).toContain('Enter recovery code');
+    expect(w.find('input[placeholder="000000"]').classes()).toContain('field-input');
+    expect(findButton(w, 'Verify Code').classes()).toContain('btn-primary');
+    expect(findButton(w, 'Send Again').classes()).toContain('btn-ghost');
   });
 
   it('shows delivery confirmation status while recovery request remains pending', async () => {
@@ -251,7 +260,7 @@ describe('SetupPanel', () => {
     const w = mount(SetupPanel);
     await w.vm.$nextTick();
 
-    await findButton(w, 'Send Code').trigger('click');
+    await findButton(w, 'Send Recovery Code').trigger('click');
     await w.vm.$nextTick();
 
     expect(w.text()).toContain('Sending...');
@@ -282,7 +291,7 @@ describe('SetupPanel', () => {
     const w = mount(SetupPanel);
     await w.vm.$nextTick();
 
-    await findButton(w, 'Send Code').trigger('click');
+    await findButton(w, 'Send Recovery Code').trigger('click');
     vi.advanceTimersByTime(3000);
     await w.vm.$nextTick();
     expect(w.text()).toContain('Confirming delivery...');
@@ -293,7 +302,7 @@ describe('SetupPanel', () => {
 
     expect(w.text()).toContain('mail down');
     expect(w.text()).not.toContain('Confirming delivery...');
-    expect(findButton(w, 'Send Code').attributes('disabled')).toBeUndefined();
+    expect(findButton(w, 'Send Recovery Code').attributes('disabled')).toBeUndefined();
     expect(w.find('input[placeholder="000000"]').exists()).toBe(false);
   });
 
@@ -306,7 +315,7 @@ describe('SetupPanel', () => {
     const w = mount(SetupPanel);
     await w.vm.$nextTick();
 
-    await findButton(w, 'Send Code').trigger('click');
+    await findButton(w, 'Send Recovery Code').trigger('click');
     expect(vi.getTimerCount()).toBeGreaterThan(0);
 
     w.unmount();
@@ -351,7 +360,7 @@ describe('SetupPanel', () => {
     await flushPromises();
     await w
       .findAll('button')
-      .find((b) => b.text().includes('Send Code'))
+      .find((b) => b.text().includes('Send Recovery Code'))
       .trigger('click');
     await flushPromises();
     await w.find('input[placeholder="000000"]').setValue('123456');
@@ -392,7 +401,7 @@ describe('SetupPanel', () => {
     await flushPromises();
     await w
       .findAll('button')
-      .find((b) => b.text().includes('Send Code'))
+      .find((b) => b.text().includes('Send Recovery Code'))
       .trigger('click');
     await flushPromises();
     await w.find('input[placeholder="000000"]').setValue('123456');
@@ -422,7 +431,7 @@ describe('SetupPanel', () => {
     await flushPromises();
     await w
       .findAll('button')
-      .find((b) => b.text().includes('Send Code'))
+      .find((b) => b.text().includes('Send Recovery Code'))
       .trigger('click');
     await flushPromises();
     await w.find('input[placeholder="000000"]').setValue('123456');

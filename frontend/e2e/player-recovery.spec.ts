@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { mockApi, onboardPlayer } from './fixtures';
 
+test.use({ viewport: { width: 390, height: 844 } });
+
 test('fresh browser context recovers an existing player and hydrates server board state', async ({
   page,
 }) => {
@@ -101,10 +103,19 @@ test('fresh browser context recovers an existing player and hydrates server boar
   await expect(page.getByText('Start Your Board')).toBeVisible();
 
   await expect(page.getByText('Player Recovery')).toBeVisible();
+  await expect(page.getByText('Recover your board')).toBeVisible();
   await expect(page.getByText(/ada@nus\.edu\.sg/)).toBeVisible();
+  const sendRecoveryCode = page.getByRole('button', { name: /send recovery code/i });
+  const useDifferentEmail = page.getByRole('button', { name: /use different email/i });
+  await expect(sendRecoveryCode).toHaveClass(/btn-primary/);
+  await expect(useDifferentEmail).toHaveClass(/btn-ghost/);
+  await expect(page.getByRole('button', { name: /launch board/i })).toBeDisabled();
   await expect(page.getByText('Brainstorm List')).toHaveCount(0);
 
-  await page.getByRole('button', { name: /send code/i }).click();
+  await sendRecoveryCode.click();
+  await expect(page.getByText('Enter recovery code')).toBeVisible();
+  await expect(page.getByRole('button', { name: /verify code/i })).toHaveClass(/btn-primary/);
+  await expect(page.getByRole('button', { name: /send again/i })).toHaveClass(/btn-ghost/);
   await page.getByPlaceholder('000000').fill('123456');
   await page.getByRole('button', { name: /verify code/i }).click();
 

@@ -32,7 +32,7 @@ const recoveryRequestStatusText = computed(() => {
 
 const recoveryRequestButtonText = computed(() => {
   if (requestingCode.value) return recoveryRequestStatusText.value;
-  return codeRequested.value ? 'Send Again' : 'Send Code';
+  return codeRequested.value ? 'Send Again' : 'Send Recovery Code';
 });
 
 const assignedPack = computed(
@@ -216,15 +216,20 @@ function cancelRecovery() {
 
     <div
       v-if="state.recoveryRequired"
-      class="mb-4 rounded-[12px] border border-outline-variant bg-surface-container p-4"
+      class="mb-4 rounded-[12px] border border-outline-variant bg-surface-container-high p-4"
     >
       <div class="field-label mb-2">Player Recovery</div>
-      <p class="mb-3 text-label-md text-on-surface-variant">
-        {{ recoveryEmail }} needs a recovery code before this board can continue.
+      <h3 class="text-title-md font-black text-on-surface">
+        {{ codeRequested ? 'Enter recovery code' : 'Recover your board' }}
+      </h3>
+      <p class="mt-2 text-body-md text-on-surface-variant">
+        {{ codeRequested ? 'Code sent to' : 'We will send a one-time code to' }}
+        <span class="break-all font-bold text-on-surface">{{ recoveryEmail }}</span>
       </p>
-      <div class="flex flex-wrap gap-2.5">
+
+      <div v-if="!codeRequested" class="mt-4 flex flex-col gap-2.5 sm:flex-row">
         <button
-          class="btn btn-secondary"
+          class="btn btn-primary w-full sm:w-auto"
           :disabled="requestingCode || verifyingCode"
           :aria-busy="requestingCode"
           aria-live="polite"
@@ -233,32 +238,54 @@ function cancelRecovery() {
           {{ recoveryRequestButtonText }}
         </button>
         <button
-          class="btn btn-secondary"
+          class="btn btn-ghost w-full sm:w-auto"
           :disabled="requestingCode || verifyingCode"
           @click="cancelRecovery"
         >
           Use Different Email
         </button>
       </div>
-      <div v-if="codeRequested" class="mt-3 flex flex-wrap gap-2.5">
-        <input
-          v-model="recoveryCode"
-          class="input max-w-[180px]"
-          inputmode="numeric"
-          autocomplete="one-time-code"
-          placeholder="000000"
-        />
-        <button
-          class="btn btn-primary"
-          :disabled="requestingCode || verifyingCode"
-          @click="verifyRecoveryCode"
-        >
-          {{ verifyingCode ? 'Verifying...' : 'Verify Code' }}
-        </button>
+
+      <div v-else class="mt-4 space-y-3">
+        <div class="flex flex-col gap-2.5 sm:flex-row">
+          <input
+            v-model="recoveryCode"
+            class="field-input w-full sm:max-w-[180px]"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            placeholder="000000"
+            aria-label="Recovery code"
+          />
+          <button
+            class="btn btn-primary w-full sm:w-auto"
+            :disabled="requestingCode || verifyingCode"
+            @click="verifyRecoveryCode"
+          >
+            {{ verifyingCode ? 'Verifying...' : 'Verify Code' }}
+          </button>
+        </div>
+        <div class="flex flex-col gap-2.5 sm:flex-row">
+          <button
+            class="btn btn-ghost w-full sm:w-auto"
+            :disabled="requestingCode || verifyingCode"
+            :aria-busy="requestingCode"
+            aria-live="polite"
+            @click="requestRecoveryCode"
+          >
+            {{ recoveryRequestButtonText }}
+          </button>
+          <button
+            class="btn btn-ghost w-full sm:w-auto"
+            :disabled="requestingCode || verifyingCode"
+            @click="cancelRecovery"
+          >
+            Use Different Email
+          </button>
+        </div>
       </div>
       <p
         v-if="recoveryStatus"
-        class="mt-2 text-xs text-on-surface-variant"
+        class="mt-3 text-label-md text-on-surface-variant"
         role="status"
         aria-live="polite"
       >
