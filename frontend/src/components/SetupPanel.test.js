@@ -445,4 +445,54 @@ describe('SetupPanel', () => {
     expect(w.text()).not.toContain('Invalid or expired code');
     expect(state.recoveryRequired).toBe(true);
   });
+
+  it('shows resume failure copy when recovery succeeds but the board cannot relaunch', async () => {
+    localStorage.setItem('copilot_bingo_email', 'ada@example.com');
+    localStorage.removeItem('copilot_bingo_last_pack');
+    const { state } = useBingoGame();
+    state.recoveryRequired = true;
+    state.recoveryEmail = 'ada@example.com';
+    state.assignedPackId = 0;
+    apiCreateSession.mockResolvedValue({ ok: false, status: 503, data: { ok: false } });
+
+    const w = mount(SetupPanel);
+    await flushPromises();
+    await findButton(w, 'Send Recovery Code').trigger('click');
+    await flushPromises();
+    await w.find('input[placeholder="000000"]').setValue('123456');
+    await findButton(w, 'Verify Code').trigger('click');
+    await flushPromises();
+
+    expect(apiPlayerRecoveryVerify).toHaveBeenCalledWith('ada@example.com', '123456');
+    expect(w.text()).toContain('Unable to resolve your assigned pack. Please try again.');
+    expect(state.recoveryRequired).toBe(false);
+    expect(state.boardActive).toBe(false);
+  });
+
+  it('still completes recovery when no server player state is returned after relaunch', async () => {
+    localStorage.setItem('copilot_bingo_email', 'ada@example.com');
+    const { state } = useBingoGame();
+    state.recoveryRequired = true;
+    state.recoveryEmail = 'ada@example.com';
+    state.assignedPackId = 42;
+    apiCreateSession.mockResolvedValue({
+      ok: true,
+      data: { gameSessionId: 123, packId: 42, activeAssignment: { packId: 42 } },
+    });
+    apiGetPlayerState.mockResolvedValueOnce({ ok: true, data: { player: null } });
+
+    const w = mount(SetupPanel);
+    await flushPromises();
+    await findButton(w, 'Send Recovery Code').trigger('click');
+    await flushPromises();
+    await w.find('input[placeholder="000000"]').setValue('123456');
+    await findButton(w, 'Verify Code').trigger('click');
+    await flushPromises();
+
+    expect(apiGetPlayerState).toHaveBeenCalledWith('ada@example.com');
+    expect(w.text()).not.toContain('Player Recovery');
+    expect(state.recoveryRequired).toBe(false);
+    expect(state.boardActive).toBe(true);
+    expect(state.gameSessionId).toBe(123);
+  });
 });

@@ -169,4 +169,41 @@ describe('verifyPlayerRecovery', () => {
     expect(JSON.stringify(ctx.error.mock.calls)).not.toContain('123456');
     expect(JSON.stringify(ctx.error.mock.calls)).not.toContain('ada@example.com');
   });
+
+  it('rejects a raced recovery-code redemption when the used marker no longer updates a row', async () => {
+    const { pool } = createMockPool([
+      { recordset: [{ id: 50 }] },
+      { recordset: [{ id: 11 }] },
+      { recordset: [], rowsAffected: [1] },
+      { recordset: [], rowsAffected: [0] },
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(request(), context());
+
+    expect(res.status).toBe(401);
+    expect(res.jsonBody).toEqual({ ok: false, message: 'Invalid or expired code' });
+    expect(rollbackSpy).toHaveBeenCalledTimes(1);
+    expect(commitSpy).not.toHaveBeenCalled();
+    expect(cacheIncrementWithTtl).toHaveBeenCalledOnce();
+    expect(cacheDelete).not.toHaveBeenCalled();
+  });
+
+  it('rolls back and returns a service error if the matching recovery code has no player', async () => {
+    const { pool } = createMockPool([{ recordset: [{ id: 50 }] }, { recordset: [] }]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+    const ctx = context();
+
+    const res = await handler(request(), ctx);
+
+    expect(res.status).toBe(503);
+    expect(res.jsonBody.message).toBe('Could not verify recovery code. Please try again.');
+    expect(rollbackSpy).toHaveBeenCalledTimes(1);
+    expect(commitSpy).not.toHaveBeenCalled();
+    expect(cacheIncrementWithTtl).not.toHaveBeenCalled();
+    expect(ctx.error).toHaveBeenCalledWith(
+      'Failed to verify player recovery code',
+      expect.any(Error),
+    );
+  });
 });

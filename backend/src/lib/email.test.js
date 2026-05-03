@@ -128,6 +128,41 @@ describe('sendAdminOtpEmail', () => {
     expect(emailBody).not.toMatch(/https?:\/\//i);
   });
 
+  it('reads player recovery message id from poller state when poll result has no id', async () => {
+    process.env.ACS_CONNECTION_STRING =
+      'endpoint=https://example.communication.azure.com/;accesskey=test';
+    process.env.ACS_EMAIL_SENDER = 'DoNotReply@example.com';
+    beginSendMock.mockResolvedValue({
+      pollUntilDone: vi.fn(async () => ({ status: 'Succeeded' })),
+      getOperationState: vi.fn(() => ({ result: { id: 'state-message-id' } })),
+    });
+
+    const result = await sendPlayerRecoveryEmail('player@test.com', '123456', {
+      log: vi.fn(),
+      error: vi.fn(),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.messageId).toBe('state-message-id');
+  });
+
+  it('treats pollers without pollUntilDone as sent and reads optional state message id', async () => {
+    process.env.ACS_CONNECTION_STRING =
+      'endpoint=https://example.communication.azure.com/;accesskey=test';
+    process.env.ACS_EMAIL_SENDER = 'DoNotReply@example.com';
+    beginSendMock.mockResolvedValue({
+      getOperationState: vi.fn(() => ({ result: { id: 'fire-and-forget-id' } })),
+    });
+
+    const result = await sendAdminOtpEmail('admin@test.com', '123456', {
+      log: vi.fn(),
+      error: vi.fn(),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.messageId).toBe('fire-and-forget-id');
+  });
+
   it('reports provider failure', async () => {
     process.env.ACS_CONNECTION_STRING =
       'endpoint=https://example.communication.azure.com/;accesskey=test';
@@ -180,6 +215,64 @@ describe('sendAdminOtpEmail', () => {
         flow: 'admin-otp',
         status: 'exception',
         errorName: 'TypeError',
+        recipientDomain: 'test.com',
+      }),
+    );
+  });
+
+  it('reports player recovery provider failure with operation id and without leaking the recipient', async () => {
+    process.env.ACS_CONNECTION_STRING =
+      'endpoint=https://example.communication.azure.com/;accesskey=test';
+    process.env.ACS_EMAIL_SENDER = 'DoNotReply@example.com';
+    beginSendMock.mockResolvedValue({
+      pollUntilDone: vi.fn(async () => ({ status: 'Failed' })),
+      getOperationState: vi.fn(() => ({ result: { id: 'failed-player-message' } })),
+    });
+
+    const result = await sendPlayerRecoveryEmail('player@test.com', '123456', {
+      log: vi.fn(),
+      error: vi.fn(),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe('non_succeeded');
+    expect(result.messageId).toBe('failed-player-message');
+    expect(captureOperationalErrorMock).toHaveBeenCalledWith('email_send_failure', {
+      flow: 'player-recovery',
+      status: 'non_succeeded',
+      acsStatus: 'Failed',
+      errorName: undefined,
+      latencyMs: result.latencyMs,
+      messageId: 'failed-player-message',
+      recipientDomain: 'test.com',
+    });
+    const capturedDetails = JSON.stringify(captureOperationalErrorMock.mock.calls[0]);
+    expect(capturedDetails).not.toContain('player@test.com');
+    expect(capturedDetails).not.toContain('123456');
+  });
+
+  it('reports player recovery exceptions through the recovery flow', async () => {
+    process.env.ACS_CONNECTION_STRING =
+      'endpoint=https://example.communication.azure.com/;accesskey=test';
+    process.env.ACS_EMAIL_SENDER = 'DoNotReply@example.com';
+    beginSendMock.mockRejectedValue(new RangeError('provider unavailable'));
+    const context = { log: vi.fn(), error: vi.fn() };
+
+    const result = await sendPlayerRecoveryEmail('player@test.com', '123456', context);
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe('exception');
+    expect(result.errorName).toBe('RangeError');
+    expect(context.error).toHaveBeenCalledWith(
+      'Failed to send player recovery email',
+      expect.any(RangeError),
+    );
+    expect(captureOperationalErrorMock).toHaveBeenCalledWith(
+      'email_send_failure',
+      expect.objectContaining({
+        flow: 'player-recovery',
+        status: 'exception',
+        errorName: 'RangeError',
         recipientDomain: 'test.com',
       }),
     );

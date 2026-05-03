@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createMockPool, fakeRequest } from '../test-helpers/mockPool.js';
+import { createMockPool, fakeRequest, sqlError } from '../test-helpers/mockPool.js';
 import { generatePlayerToken, hashPlayerToken } from '../lib/playerAuth.js';
 import { PLAYER_COOKIE_NAME } from '../lib/playerCookies.js';
 
@@ -106,6 +106,25 @@ describe('POST /player/assignment/reroll', () => {
     expect(getPool).not.toHaveBeenCalled();
   });
 
+  it('requires organization for public email domains before loading player state', async () => {
+    vi.mocked(resolveOrganizationForEmail).mockResolvedValueOnce({
+      orgId: null,
+      requiresOrganization: true,
+    });
+    const { pool } = createMockPool();
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      fakeRequest({ body: { email: 'alex@gmail.com', playerName: 'Alex' } }),
+      { log: vi.fn() },
+    );
+
+    expect(res.status).toBe(400);
+    expect(res.jsonBody.message).toMatch(/organization is required/i);
+    expect(pool.request).not.toHaveBeenCalled();
+    expect(rerollPackAssignment).not.toHaveBeenCalled();
+  });
+
   it('returns recovery-required when the player token does not match', async () => {
     const { pool } = createMockPool([
       { recordset: [{ id: 11, owner_token: hashPlayerToken('real-token') }] },
@@ -146,5 +165,57 @@ describe('POST /player/assignment/reroll', () => {
     expect(rerollPackAssignment).toHaveBeenCalledWith(
       expect.objectContaining({ expectedAssignmentId: null }),
     );
+  });
+
+  it('reuses the newest session when the rerolled assignment already has one', async () => {
+    const token = generatePlayerToken();
+    vi.mocked(rerollPackAssignment).mockResolvedValue({
+      campaign: { id: 'APR26', totalPacks: 999, totalWeeks: 7 },
+      assignment: assignment({ assignmentId: 777, packId: 88 }),
+      abandonedAssignment: null,
+      rerolled: false,
+    });
+    const { pool, calls } = createMockPool([
+      { recordset: [{ id: 11, owner_token: hashPlayerToken(token) }] },
+      { recordset: [{ id: 909 }] },
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      tokenedRequest({ email: 'ada@example.com', playerName: 'Ada' }, token),
+      { log: vi.fn() },
+    );
+
+    expect(res.jsonBody).toMatchObject({ ok: true, gameSessionId: 909, packId: 88 });
+    expect(calls).toHaveLength(2);
+    expect(calls[1].query).toMatch(/FROM game_sessions/);
+    expect(calls.some((call) => /INSERT INTO game_sessions/.test(call.query || ''))).toBe(false);
+  });
+
+  it('handles a duplicate session insert race by reading the session created by the winner', async () => {
+    const token = generatePlayerToken();
+    vi.mocked(rerollPackAssignment).mockResolvedValue({
+      campaign: { id: 'APR26', totalPacks: 999, totalWeeks: 7 },
+      assignment: assignment({ assignmentId: 778, packId: 89 }),
+      abandonedAssignment: null,
+      rerolled: false,
+    });
+    const { pool, calls } = createMockPool([
+      { recordset: [{ id: 11, owner_token: hashPlayerToken(token) }] },
+      { recordset: [] },
+      sqlError(2627),
+      { recordset: [{ id: 910 }] },
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      tokenedRequest({ email: 'ada@example.com', playerName: 'Ada' }, token),
+      { log: vi.fn() },
+    );
+
+    expect(res.jsonBody).toMatchObject({ ok: true, gameSessionId: 910, packId: 89 });
+    expect(calls[2].query).toMatch(/INSERT INTO game_sessions/);
+    expect(calls[3].query).toMatch(/FROM game_sessions/);
+    expect(calls[3].inputs).toMatchObject({ assignmentId: 778 });
   });
 });

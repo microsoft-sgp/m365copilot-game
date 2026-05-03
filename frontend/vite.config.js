@@ -57,7 +57,7 @@ export default defineConfig({
     setupFiles: ['./test/setup.js'],
     coverage: {
       provider: 'v8',
-      reporter: ['text-summary', 'text', 'html'],
+      reporter: ['text-summary', 'text', 'html', 'json-summary', 'lcov'],
       include: ['src/**/*.{js,ts,vue}'],
       exclude: ['src/main.{js,ts}', 'src/styles/**', '**/*.test.{js,ts}'],
       // Floors enforced when running `npm run test:coverage`.
