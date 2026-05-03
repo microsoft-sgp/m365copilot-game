@@ -44,7 +44,9 @@ flowchart LR
   api --> redis[(Azure Managed Redis\ncache-aside API responses)]
    api --> acs[Azure Communication Services Email\nadmin OTP delivery]
    api --> kv[Key Vault\nadmin key, JWT secret, ACS connection string]
-   api --> appi[Application Insights\ntelemetry]
+  frontend --> sentry[Sentry\napplication errors, traces, logs, metrics, replay]
+  api --> sentry
+  api --> appi[Application Insights\nAzure platform and runtime diagnostics]
 ```
 
 | Layer               | Responsibility                                                                                                                                                                       |
@@ -55,6 +57,8 @@ flowchart LR
 | Azure Managed Redis | Optional cache-aside layer for active campaign config, organization domains, and leaderboard responses.                                                                              |
 | ACS Email           | Production delivery for admin OTP login and sensitive admin-management step-up verification.                                                                                         |
 | Key Vault           | Holds generated app secrets referenced by Function App settings.                                                                                                                     |
+| Sentry              | Primary application observability for frontend and backend errors, logs, metrics, traces, session replay, releases, and source maps.                                                  |
+| Application Insights | Azure Functions/App Service platform and runtime diagnostics for host behavior, invocation telemetry, and Azure Portal troubleshooting.                                               |
 | Terraform           | Provisions Azure infrastructure in Korea Central for regional resources; Azure Communication Services is the only global control-plane exception.                                    |
 
 ## App flow
@@ -285,6 +289,8 @@ Deployers are responsible for the privacy, consent, retention, access control, a
 - Function App, browser, database, and deployment logs that may contain operational identifiers
 
 Protect exported CSV files, logs, Terraform state, local settings, app settings, and deployment credentials according to your organization's data-handling policies. Do not commit production secrets or attendee data to the repository.
+
+Sentry Session Replay is masked by default. An operator can build an explicitly unmasked diagnostic frontend with `VITE_SENTRY_REPLAY_UNMASK=true`; use that only after reviewing privacy, consent, retention, and Sentry access controls because visible text, input values, and media can be recorded.
 
 ## Specs & change history
 

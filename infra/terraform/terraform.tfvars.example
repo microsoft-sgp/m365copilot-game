@@ -19,6 +19,18 @@ admin_emails = [
 #   "https://bingo.example.com",
 # ]
 
+# Sentry application observability. Use one Sentry project for frontend and
+# backend application errors, logs, metrics, replay, traces, releases, and
+# source maps. Keep SENTRY_AUTH_TOKEN/source-map upload credentials outside
+# Terraform state and source control.
+# sentry_dsn         = "https://examplePublicKey@o0.ingest.sentry.io/0"
+# sentry_environment = "dev"
+# sentry_release     = "m365copilot-game@<git-sha>"
+# sentry_traces_sample_rate           = 0.1
+# sentry_enable_logs                  = true
+# sentry_capture_operational_errors   = true
+# sentry_flush_timeout_ms             = 2000
+
 # Cookie/session defaults. Production cookies are emitted as Secure and
 # SameSite=None so the frontend App Service can call the Function App with
 # credentials.

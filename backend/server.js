@@ -1,8 +1,13 @@
 // Lightweight Express wrapper that loads Azure Functions handlers
 // for local Docker testing. Not used in production (Azure Functions runtime).
+import {
+  captureBackendException,
+  initBackendSentry,
+} from './dist/lib/sentry.js';
 import express from 'express';
 
 const app = express();
+initBackendSentry('local-express');
 app.use(express.json());
 
 // CORS for frontend
@@ -15,7 +20,10 @@ app.use((req, res, next) => {
   const allowedOrigin = allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
   res.header('Access-Control-Allow-Origin', allowedOrigin);
   res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Key, X-Player-Token');
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Admin-Key, X-Player-Token, sentry-trace, baggage',
+  );
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
@@ -24,11 +32,14 @@ app.use((req, res, next) => {
 // Adapter: convert Express req/res to Azure Functions request/response shapes
 function adapt(handlerModule) {
   return async (req, res) => {
+    let fakeRequest;
     try {
       const mod = typeof handlerModule === 'function' ? { handler: handlerModule } : handlerModule;
       const handler = mod.handler || mod.default;
 
-      const fakeRequest = {
+      fakeRequest = {
+        method: req.method,
+        url: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
         json: async () => req.body,
         params: req.params,
         query: { get: (k) => req.query[k] || null },
@@ -59,8 +70,14 @@ function adapt(handlerModule) {
         res.status(result.status || 200).json(result.jsonBody);
       }
     } catch (err) {
+      await captureBackendException(err, {
+        runtime: 'local-express',
+        functionName: `${req.method} ${req.path}`,
+        request: fakeRequest,
+      });
       console.error('Handler error:', err);
-      res.status(500).json({ ok: false, message: err.message });
+      const message = err instanceof Error ? err.message : 'Internal server error';
+      res.status(500).json({ ok: false, message });
     }
   };
 }

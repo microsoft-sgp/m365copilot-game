@@ -61,6 +61,7 @@ locals {
     ["https://${azurerm_linux_web_app.frontend.default_hostname}"],
     var.allowed_origins,
   ))
+  sentry_environment = var.sentry_environment != "" ? var.sentry_environment : var.environment
 
   app_settings = {
     AzureWebJobsFeatureFlags = "EnableWorkerIndexing"
@@ -94,6 +95,13 @@ locals {
     LEADERBOARD_SOURCE                = var.leaderboard_source
     ENABLE_PACK_ASSIGNMENT_LIFECYCLE  = tostring(var.enable_pack_assignment_lifecycle)
     ENABLE_PLAYER_TOKEN_ENFORCEMENT   = tostring(var.enable_player_token_enforcement)
+    SENTRY_DSN                        = var.sentry_dsn
+    SENTRY_ENVIRONMENT                = local.sentry_environment
+    SENTRY_RELEASE                    = var.sentry_release
+    SENTRY_TRACES_SAMPLE_RATE         = tostring(var.sentry_traces_sample_rate)
+    SENTRY_ENABLE_LOGS                = tostring(var.sentry_enable_logs)
+    SENTRY_CAPTURE_OPERATIONAL_ERRORS = tostring(var.sentry_capture_operational_errors)
+    SENTRY_FLUSH_TIMEOUT_MS           = tostring(var.sentry_flush_timeout_ms)
   }
 }
 

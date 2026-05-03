@@ -6,9 +6,14 @@ const { beginSendMock, EmailClientMock } = vi.hoisted(() => ({
     return { beginSend: beginSendMock };
   }),
 }));
+const captureOperationalErrorMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@azure/communication-email', () => ({
   EmailClient: EmailClientMock,
+}));
+
+vi.mock('./sentry.js', () => ({
+  captureOperationalError: captureOperationalErrorMock,
 }));
 
 const { sendAdminOtpEmail, sendPlayerRecoveryEmail } = await import('./email.js');
@@ -28,6 +33,7 @@ describe('sendAdminOtpEmail', () => {
     delete process.env.ACS_SENDER_ADDRESS;
     beginSendMock.mockReset();
     EmailClientMock.mockClear();
+    captureOperationalErrorMock.mockClear();
   });
 
   afterEach(() => {
@@ -63,15 +69,15 @@ describe('sendAdminOtpEmail', () => {
     expect(EmailClientMock).toHaveBeenCalledWith(process.env.ACS_CONNECTION_STRING);
     expect(sentMessage.senderAddress).toBe('DoNotReply@example.com');
     expect(sentMessage.recipients.to[0].address).toBe('admin@test.com');
-    expect(sentMessage.content.subject).toBe('Your Capy verification code');
-    expect(sentMessage.content.plainText).toContain('Welcome to Capy');
+    expect(sentMessage.content.subject).toBe('Your Copilot Bingo verification code');
+    expect(sentMessage.content.plainText).toContain('Welcome to Copilot Bingo!');
     expect(sentMessage.content.plainText).toContain('Your verification code is: 123456');
     expect(sentMessage.content.plainText).toContain('This code expires in 10 minutes.');
-    expect(sentMessage.content.html).toContain('Welcome to Capy');
+    expect(sentMessage.content.html).toContain('Welcome to Copilot Bingo!');
     expect(sentMessage.content.html).toContain('Your verification code is:');
     expect(sentMessage.content.html).toContain('1 2 3 4 5 6');
     expect(sentMessage.content.html).toContain('This code expires in 10 minutes.');
-    expect(sentMessage.content.html).toContain('The Capy Team');
+    expect(sentMessage.content.html).toContain('DEVGRU Team');
     const emailBody = `${sentMessage.content.plainText}\n${sentMessage.content.html}`;
     expect(emailBody).not.toContain('endpoint=https://example.communication.azure.com/');
     expect(emailBody).not.toContain('accesskey=test');
@@ -123,6 +129,19 @@ describe('sendAdminOtpEmail', () => {
     expect(result.status).toBe('non_succeeded');
     expect(result.acsStatus).toBe('Failed');
     expect(typeof result.latencyMs).toBe('number');
+    expect(captureOperationalErrorMock).toHaveBeenCalledWith('email_send_failure', {
+      flow: 'admin-otp',
+      status: 'non_succeeded',
+      acsStatus: 'Failed',
+      errorName: undefined,
+      latencyMs: result.latencyMs,
+      messageId: undefined,
+      recipientDomain: 'test.com',
+    });
+    const capturedDetails = JSON.stringify(captureOperationalErrorMock.mock.calls[0]);
+    expect(capturedDetails).not.toContain('123456');
+    expect(capturedDetails).not.toContain('admin@test.com');
+    expect(capturedDetails).not.toContain('accesskey=test');
   });
 
   it('reports thrown exception with status and latency', async () => {
@@ -140,6 +159,15 @@ describe('sendAdminOtpEmail', () => {
     expect(result.status).toBe('exception');
     expect(result.errorName).toBe('TypeError');
     expect(typeof result.latencyMs).toBe('number');
+    expect(captureOperationalErrorMock).toHaveBeenCalledWith(
+      'email_send_failure',
+      expect.objectContaining({
+        flow: 'admin-otp',
+        status: 'exception',
+        errorName: 'TypeError',
+        recipientDomain: 'test.com',
+      }),
+    );
   });
 
   it('reports not_configured in production with latencyMs 0', async () => {
@@ -153,6 +181,14 @@ describe('sendAdminOtpEmail', () => {
     expect(result.status).toBe('not_configured');
     expect(result.error).toBe('ACS Email is not configured');
     expect(result.latencyMs).toBe(0);
+    expect(captureOperationalErrorMock).toHaveBeenCalledWith(
+      'email_send_failure',
+      expect.objectContaining({
+        flow: 'admin-otp',
+        status: 'not_configured',
+        recipientDomain: 'test.com',
+      }),
+    );
   });
 
   it('reports not_configured without constructing ACS client when connection string is unresolved', async () => {
@@ -172,6 +208,10 @@ describe('sendAdminOtpEmail', () => {
     expect(beginSendMock).not.toHaveBeenCalled();
     expect(context.log).not.toHaveBeenCalled();
     expect(context.error).not.toHaveBeenCalled();
+    expect(captureOperationalErrorMock).toHaveBeenCalledWith(
+      'email_send_failure',
+      expect.objectContaining({ status: 'not_configured', recipientDomain: 'test.com' }),
+    );
   });
 
   it('reports not_configured without constructing ACS client when sender is unresolved', async () => {
@@ -191,6 +231,14 @@ describe('sendAdminOtpEmail', () => {
     expect(result.latencyMs).toBe(0);
     expect(EmailClientMock).not.toHaveBeenCalled();
     expect(beginSendMock).not.toHaveBeenCalled();
+    expect(captureOperationalErrorMock).toHaveBeenCalledWith(
+      'email_send_failure',
+      expect.objectContaining({
+        flow: 'player-recovery',
+        status: 'not_configured',
+        recipientDomain: 'test.com',
+      }),
+    );
   });
 
   it('allows local development without ACS configuration', async () => {
@@ -202,5 +250,6 @@ describe('sendAdminOtpEmail', () => {
     expect(result.skipped).toBe(true);
     expect(typeof result.latencyMs).toBe('number');
     expect(context.log).toHaveBeenCalled();
+    expect(captureOperationalErrorMock).not.toHaveBeenCalled();
   });
 });

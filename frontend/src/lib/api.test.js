@@ -29,11 +29,13 @@ beforeEach(() => {
   fetchSpy = vi.fn();
   globalThis.fetch = fetchSpy;
   sessionStorage.clear();
+  api.installAdminSessionInvalidHandler(null);
 });
 
 afterEach(() => {
   delete globalThis.fetch;
   sessionStorage.clear();
+  api.installAdminSessionInvalidHandler(null);
 });
 
 describe('public request() wrapper', () => {
@@ -115,6 +117,19 @@ describe('admin request() wrapper', () => {
     fetchSpy.mockRejectedValueOnce(new Error('offline'));
     const res = await api.apiAdminGetAdmins();
     expect(res).toEqual({ ok: false, status: 0, data: null });
+  });
+
+  it('notifies the installed admin session invalid handler on admin 401 responses', async () => {
+    const onInvalid = vi.fn();
+    api.installAdminSessionInvalidHandler(onInvalid);
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, message: 'Unauthorized' }, { ok: false, status: 401 }),
+    );
+
+    const res = await api.apiAdminGetDashboard();
+
+    expect(res.status).toBe(401);
+    expect(onInvalid).toHaveBeenCalledTimes(1);
   });
 
   it('encodes admin email in remove path', async () => {

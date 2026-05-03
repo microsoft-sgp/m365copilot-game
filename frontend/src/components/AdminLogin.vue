@@ -1,8 +1,13 @@
 <script setup>
 import { ref } from 'vue';
 import { apiAdminRequestOtp, apiAdminVerifyOtp } from '../lib/api.js';
+import { setAdminSessionHint } from '../lib/adminSession.js';
 
 const emit = defineEmits(['authenticated', 'back']);
+
+const props = defineProps({
+  sessionMessage: { type: String, default: '' },
+});
 
 const email = ref('');
 const code = ref('');
@@ -42,8 +47,7 @@ async function verifyOtp() {
 
   if (res.ok) {
     const adminEmail = email.value.trim().toLowerCase();
-    sessionStorage.setItem('admin_authenticated', 'true');
-    sessionStorage.setItem('admin_email', adminEmail);
+    setAdminSessionHint(adminEmail);
     emit('authenticated', adminEmail);
   } else {
     error.value = res.data?.message || 'Invalid code.';
@@ -57,6 +61,13 @@ async function verifyOtp() {
       <h2 class="text-gradient mb-2 text-title-lg font-black">
         🔐 Admin Login
       </h2>
+
+      <div
+        v-if="props.sessionMessage && !error && step === 'email'"
+        class="mb-3 text-label-md text-error"
+      >
+        {{ props.sessionMessage }}
+      </div>
 
       <!-- Step 1: Email -->
       <template v-if="step === 'email'">

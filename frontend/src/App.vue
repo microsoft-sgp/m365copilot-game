@@ -8,9 +8,16 @@ import {
   apiAdminRefresh,
   apiCreateSession,
   apiGetPlayerState,
+  installAdminSessionInvalidHandler,
   installPlayerAuthRefresher,
   isPlayerRecoveryRequiredResponse,
 } from './lib/api.js';
+import {
+  ADMIN_SESSION_CONFIRMATION_MESSAGE,
+  clearAdminSessionHint,
+  hasAdminSessionHint,
+  setAdminSessionHint,
+} from './lib/adminSession.js';
 import { clearPlayerToken } from './lib/playerToken.js';
 import { useBingoGame } from './composables/useBingoGame.js';
 import TopBar from './components/TopBar.vue';
@@ -34,6 +41,7 @@ const playerEmail = ref(loadString(STORAGE_KEYS.email));
 const playerName = ref(loadString(STORAGE_KEYS.playerName));
 const playerOrganization = ref(loadString(STORAGE_KEYS.organization));
 const view = ref('game'); // 'game' | 'admin-login' | 'admin'
+const adminSessionMessage = ref('');
 const identityReady = computed(() => {
   if (!playerEmail.value || !playerName.value) return false;
   return !isPublicEmailDomain(playerEmail.value) || !!playerOrganization.value;
@@ -42,7 +50,9 @@ const identityReady = computed(() => {
 onMounted(() => {
   // Check hash-based routing for admin
   void checkRoute();
-  window.addEventListener('hashchange', () => void checkRoute());
+  window.addEventListener('hashchange', routeHandler);
+
+  installAdminSessionInvalidHandler(onAdminSessionInvalid);
 
   // Wire the api layer's 401-recovery hook so any game endpoint that returns
   // 401 (stale token, admin reset, etc.) silently re-bootstraps the player
@@ -73,7 +83,13 @@ onMounted(() => {
 
 onUnmounted(() => {
   installPlayerAuthRefresher(null);
+  installAdminSessionInvalidHandler(null);
+  window.removeEventListener('hashchange', routeHandler);
 });
+
+function routeHandler() {
+  void checkRoute();
+}
 
 async function syncPlayerState(email) {
   try {
@@ -91,16 +107,18 @@ async function checkRoute() {
   if (hash.startsWith('#/admin/login')) {
     view.value = 'admin-login';
   } else if (hash.startsWith('#/admin')) {
-    if (sessionStorage.getItem('admin_authenticated') === 'true') {
+    if (hasAdminSessionHint()) {
       view.value = 'admin';
       return;
     }
 
     const refresh = await apiAdminRefresh();
     if (refresh.ok) {
-      sessionStorage.setItem('admin_authenticated', 'true');
+      setAdminSessionHint();
+      adminSessionMessage.value = '';
       view.value = 'admin';
     } else {
+      clearAdminSessionHint();
       view.value = 'admin-login';
     }
   } else {
@@ -125,21 +143,31 @@ async function onEmailContinue(identity) {
 }
 
 function onAdminNav() {
+  adminSessionMessage.value = '';
   window.location.hash = '#/admin/login';
   view.value = 'admin-login';
 }
 
 function onAdminLoggedIn(email) {
-  sessionStorage.setItem('admin_authenticated', 'true');
-  if (email) sessionStorage.setItem('admin_email', email);
+  setAdminSessionHint(email);
+  adminSessionMessage.value = '';
   window.location.hash = '#/admin';
   view.value = 'admin';
 }
 
+function onAdminSessionInvalid() {
+  clearAdminSessionHint();
+  adminSessionMessage.value = ADMIN_SESSION_CONFIRMATION_MESSAGE;
+  if (window.location.hash !== '#/admin/login') {
+    window.location.hash = '#/admin/login';
+  }
+  view.value = 'admin-login';
+}
+
 async function onAdminLogout() {
   await apiAdminLogout();
-  sessionStorage.removeItem('admin_authenticated');
-  sessionStorage.removeItem('admin_email');
+  clearAdminSessionHint();
+  adminSessionMessage.value = '';
   // Admin and player tokens are independent, but clearing the player token on
   // admin logout is a safe default for shared devices: it forces the next
   // game-API call to re-bootstrap a session with whatever identity the next
@@ -150,6 +178,7 @@ async function onAdminLogout() {
 }
 
 function onBackToGame() {
+  adminSessionMessage.value = '';
   window.location.hash = '';
   view.value = 'game';
 }
@@ -160,6 +189,7 @@ function onBackToGame() {
     <!-- Admin views -->
     <template v-if="view === 'admin-login'">
       <AdminLogin
+        :session-message="adminSessionMessage"
         @authenticated="onAdminLoggedIn"
         @back="onBackToGame"
       />

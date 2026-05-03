@@ -6,14 +6,16 @@ schema: spec-driven
 # Example:
 
 context: |
-  Backend:    Azure Functions v4 (TypeScript, Node.js runtime)
-  Frontend:   Vue 3 with Tailwind CSS
-  Database:   Azure SQL Database
-  Cache:      Redis (Azure Managed Redis in production, access key auth)
-  Auth:       JWT (access + refresh tokens, httpOnly cookies)
-  API:        RESTful, JSON responses
-  Testing:    Vitest for unit tests, Playwright for e2e
-  Style:      ESLint with Prettier, strict TypeScript
+  Backend:              Azure Functions v4 (TypeScript, Node.js runtime)
+  Frontend:             Vue 3 with Tailwind CSS (TypeScript, Vite)
+  Database:             Azure SQL Database
+  Cache:                Redis (Azure Managed Redis in production, access key auth)
+  Auth:                 JWT (access + refresh tokens, httpOnly cookies)
+  API:                  RESTful, JSON responses
+  Observability:        Sentry is the primary application observability layer for frontend/backend errors, logs, application metrics, traces, session replay, releases, and source maps using one Sentry project with service/runtime/environment/release tags.
+  Azure Monitoring:     Application Insights remains the Azure Functions/App Service platform and runtime diagnostics layer for host diagnostics, invocation telemetry, platform health, and Azure Portal troubleshooting.
+  Testing:              Vitest for unit tests, Playwright for e2e
+  Style:                ESLint with Prettier, strict TypeScript
 
 rules:
   proposal:

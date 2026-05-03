@@ -8,7 +8,7 @@ Defines the admin portal frontend views including dashboard, player management, 
 
 ### Requirement: Admin dashboard view
 
-The system SHALL provide an authenticated admin dashboard view displaying campaign statistics, recent sessions, and recent submissions.
+The system SHALL provide an authenticated admin dashboard view displaying campaign statistics, recent sessions, and recent submissions, and SHALL distinguish unauthorized admin-session responses from dashboard data-load failures.
 
 #### Scenario: Admin views dashboard statistics
 
@@ -27,6 +27,12 @@ The system SHALL provide an authenticated admin dashboard view displaying campai
 - **GIVEN** the dashboard has loaded
 - **WHEN** the submissions section renders
 - **THEN** the system MUST display a table of recent submissions showing player name, email, organization, keyword, and submission timestamp
+
+#### Scenario: Dashboard detects missing admin session cookie
+
+- **GIVEN** the admin has reached the dashboard after OTP verification or route restoration
+- **WHEN** `GET /api/portal-api/dashboard` returns HTTP 401
+- **THEN** the system MUST clear the frontend admin-authenticated marker, MUST NOT display the generic "Failed to load dashboard" message, and MUST display a message that the admin session could not be confirmed and the admin must sign in again
 
 ### Requirement: CSV export from admin portal
 
@@ -116,7 +122,7 @@ The system SHALL provide server-side data clearing operations in the admin porta
 
 ### Requirement: Admin portal layout and navigation
 
-The system SHALL provide a consistent admin layout with sidebar navigation and header showing the authenticated admin email and logout button.
+The system SHALL provide a consistent admin layout with sidebar navigation and header showing the authenticated admin email and logout button, and SHALL NOT treat browser-side session storage as sufficient proof of a valid admin session.
 
 #### Scenario: Admin portal navigation
 
@@ -127,8 +133,14 @@ The system SHALL provide a consistent admin layout with sidebar navigation and h
 #### Scenario: Admin portal accessible via hash route
 
 - **GIVEN** a user navigates to `#/admin` in the URL
-- **WHEN** no valid JWT exists in sessionStorage
+- **WHEN** no valid admin session can be confirmed through the stored marker or refresh flow
 - **THEN** the system MUST redirect to the admin login view
+
+#### Scenario: Stored admin marker is invalidated by unauthorized admin API response
+
+- **GIVEN** `sessionStorage.admin_authenticated` is `true` but the browser has no valid admin session cookie
+- **WHEN** the first authenticated admin API call returns HTTP 401
+- **THEN** the system MUST remove `sessionStorage.admin_authenticated` and `sessionStorage.admin_email`, MUST leave the authenticated admin portal state, and MUST require the admin to sign in again before rendering protected admin data
 
 ### Requirement: Admin management portal view
 

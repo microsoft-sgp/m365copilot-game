@@ -8,6 +8,7 @@ vi.mock('./lib/api.js', () => ({
   apiCreateSession: vi
     .fn()
     .mockResolvedValue({ ok: true, status: 200, data: { ok: true, gameSessionId: 1 } }),
+  installAdminSessionInvalidHandler: vi.fn(),
   installPlayerAuthRefresher: vi.fn(),
   isPlayerRecoveryRequiredResponse: vi.fn(
     (res) => res.status === 409 && res.data?.code === 'PLAYER_RECOVERY_REQUIRED',
@@ -52,7 +53,10 @@ const stubs = {
   },
   ToastMessage: { template: '<div />' },
   GameFooter: { template: '<div />' },
-  AdminLogin: { template: '<div data-test="admin-login" />' },
+  AdminLogin: {
+    props: ['sessionMessage'],
+    template: '<div data-test="admin-login"><p v-if="sessionMessage">{{ sessionMessage }}</p></div>',
+  },
   AdminLayout: {
     template: '<button data-test="admin-layout" @click="$emit(\'logout\')" />',
     emits: ['logout'],
@@ -64,6 +68,7 @@ import {
   apiAdminRefresh,
   apiCreateSession,
   apiGetPlayerState,
+  installAdminSessionInvalidHandler,
   installPlayerAuthRefresher,
 } from './lib/api.js';
 import { clearPlayerToken } from './lib/playerToken.js';
@@ -169,6 +174,26 @@ describe('App routing', () => {
     const wrapper = mount(App, { global: { stubs } });
     await flushPromises();
     expect(wrapper.find('[data-test="admin-layout"]').exists()).toBe(true);
+  });
+
+  it('clears stale admin hints and returns to login when admin API rejects the session', async () => {
+    sessionStorage.setItem('admin_authenticated', 'true');
+    sessionStorage.setItem('admin_email', 'admin@test.com');
+    window.location.hash = '#/admin';
+    const wrapper = mount(App, { global: { stubs } });
+    await flushPromises();
+
+    const invalidHandler = installAdminSessionInvalidHandler.mock.calls.find(
+      ([fn]) => typeof fn === 'function',
+    )[0];
+    invalidHandler();
+    await flushPromises();
+
+    expect(sessionStorage.getItem('admin_authenticated')).toBeNull();
+    expect(sessionStorage.getItem('admin_email')).toBeNull();
+    expect(window.location.hash).toBe('#/admin/login');
+    expect(wrapper.find('[data-test="admin-login"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Your admin session could not be confirmed');
   });
 
   it('routes to admin layout when cookie refresh succeeds', async () => {

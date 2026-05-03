@@ -34,3 +34,65 @@ test('admin can log in with OTP, load dashboard with credentials, log out, and b
   await expect(page.getByText('Admin Portal')).toBeHidden();
   await expect.poll(() => api.refreshRequests).toBeGreaterThan(0);
 });
+
+test('admin returns to login when dashboard cannot confirm cookie-backed session after OTP', async ({
+  page,
+}) => {
+  await mockApi(page, {
+    overrides: [
+      async ({ method, path, route }) => {
+        if (method === 'GET' && path === '/api/portal-api/dashboard') {
+          await route.fulfill({
+            status: 401,
+            contentType: 'application/json',
+            body: JSON.stringify({ ok: false, message: 'Unauthorized' }),
+          });
+          return true;
+        }
+        return false;
+      },
+    ],
+  });
+
+  await page.goto('/#/admin/login');
+  await page.getByPlaceholder('admin@example.com').fill('admin@test.com');
+  await page.getByRole('button', { name: /send code/i }).click();
+  await page.getByPlaceholder('000000').fill('123456');
+  await page.getByRole('button', { name: /verify & login/i }).click();
+
+  await expect(page.getByText('Your admin session could not be confirmed')).toBeVisible();
+  await expect(page.getByText('Admin Login')).toBeVisible();
+  await expect(page.getByText('Failed to load dashboard')).toBeHidden();
+  await expect(page.evaluate(() => sessionStorage.getItem('admin_authenticated'))).resolves.toBeNull();
+});
+
+test('stored admin marker is cleared when protected admin data returns unauthorized', async ({ page }) => {
+  await mockApi(page, {
+    overrides: [
+      async ({ method, path, route }) => {
+        if (method === 'GET' && path === '/api/portal-api/dashboard') {
+          await route.fulfill({
+            status: 401,
+            contentType: 'application/json',
+            body: JSON.stringify({ ok: false, message: 'Unauthorized' }),
+          });
+          return true;
+        }
+        return false;
+      },
+    ],
+  });
+
+  await page.goto('/');
+  await page.evaluate(() => {
+    sessionStorage.setItem('admin_authenticated', 'true');
+    sessionStorage.setItem('admin_email', 'admin@test.com');
+  });
+  await page.goto('/#/admin');
+
+  await expect(page.getByText('Your admin session could not be confirmed')).toBeVisible();
+  await expect(page.getByText('Admin Login')).toBeVisible();
+  await expect(page.getByText('Recent Sessions')).toBeHidden();
+  await expect(page.evaluate(() => sessionStorage.getItem('admin_authenticated'))).resolves.toBeNull();
+  await expect(page.evaluate(() => sessionStorage.getItem('admin_email'))).resolves.toBeNull();
+});

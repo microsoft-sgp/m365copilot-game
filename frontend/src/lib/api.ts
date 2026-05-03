@@ -1,10 +1,13 @@
 import { clearPlayerToken, getPlayerToken, setPlayerToken } from './playerToken.js';
+import { captureFrontendApiFailure } from './sentry.js';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 const ADMIN_API = '/portal-api';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 type RequestBody = Record<string, unknown> | unknown[] | string | number | boolean | null;
+
+type AdminSessionInvalidHandler = () => void;
 
 export type ApiResponse<T = unknown> = {
   ok: boolean;
@@ -35,9 +38,18 @@ export function isPlayerRecoveryRequiredResponse(res: ApiResponse<unknown>): boo
 type PlayerAuthRefresher = () => Promise<boolean>;
 let authRefresher: PlayerAuthRefresher | null = null;
 let refreshInFlight: Promise<boolean> | null = null;
+let adminSessionInvalidHandler: AdminSessionInvalidHandler | null = null;
 
 export function installPlayerAuthRefresher(fn: PlayerAuthRefresher | null): void {
   authRefresher = fn;
+}
+
+export function installAdminSessionInvalidHandler(fn: AdminSessionInvalidHandler | null): void {
+  adminSessionInvalidHandler = fn;
+}
+
+function notifyAdminSessionInvalid(): void {
+  if (adminSessionInvalidHandler) adminSessionInvalidHandler();
 }
 
 async function refreshPlayerToken(): Promise<boolean> {
@@ -85,8 +97,12 @@ async function request<T = unknown>(
 
     const res = await fetch(`${API_BASE}${path}`, opts);
     const data = (await res.json()) as T;
+    if (res.status >= 500) {
+      captureFrontendApiFailure({ method, path, status: res.status, apiBase: API_BASE });
+    }
     return { ok: res.ok, status: res.status, data };
-  } catch {
+  } catch (error) {
+    captureFrontendApiFailure({ method, path, status: 0, apiBase: API_BASE, error });
     return { ok: false, status: 0, data: null };
   }
 }
@@ -186,13 +202,24 @@ function adminRequest<T = unknown>(
   return fetch(`${API_BASE}${path}`, opts)
     .then(async (res) => {
       const contentType = res.headers.get('content-type') || '';
+      let response: ApiResponse<T>;
       if (contentType.includes('text/csv')) {
-        return { ok: res.ok, status: res.status, data: null, blob: await res.blob() };
+        response = { ok: res.ok, status: res.status, data: null, blob: await res.blob() };
+      } else {
+        const data = (await res.json()) as T;
+        response = { ok: res.ok, status: res.status, data };
       }
-      const data = (await res.json()) as T;
-      return { ok: res.ok, status: res.status, data };
+
+      if (response.status === 401) notifyAdminSessionInvalid();
+      if (response.status >= 500) {
+        captureFrontendApiFailure({ method, path, status: response.status, apiBase: API_BASE });
+      }
+      return response;
     })
-    .catch(() => ({ ok: false, status: 0, data: null }));
+    .catch((error) => {
+      captureFrontendApiFailure({ method, path, status: 0, apiBase: API_BASE, error });
+      return { ok: false, status: 0, data: null };
+    });
 }
 
 export function apiAdminRequestOtp(email: string) {

@@ -23,6 +23,13 @@ function findButton(wrapper, label) {
 }
 
 describe('AdminLogin email step', () => {
+  it('shows a session confirmation message from the app shell', () => {
+    const wrapper = mount(AdminLogin, {
+      props: { sessionMessage: 'Your admin session could not be confirmed. Please sign in again.' },
+    });
+    expect(wrapper.text()).toContain('Your admin session could not be confirmed');
+  });
+
   it('rejects empty/invalid email without calling the API', async () => {
     const wrapper = mount(AdminLogin);
     await findButton(wrapper, 'Send Code').trigger('click');

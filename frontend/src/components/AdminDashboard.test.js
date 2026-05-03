@@ -156,4 +156,16 @@ describe('AdminDashboard', () => {
     await flushPromises();
     expect(wrapper.text()).toContain('Failed to load dashboard');
   });
+
+  it('shows the session confirmation message instead of generic failure on 401', async () => {
+    api.apiAdminGetDashboard.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      data: { ok: false, message: 'Unauthorized' },
+    });
+    const wrapper = mount(AdminDashboard);
+    await flushPromises();
+    expect(wrapper.text()).toContain('Your admin session could not be confirmed');
+    expect(wrapper.text()).not.toContain('Failed to load dashboard');
+  });
 });

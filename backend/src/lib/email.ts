@@ -1,4 +1,5 @@
 import { EmailClient } from '@azure/communication-email';
+import { captureOperationalError } from './sentry.js';
 
 type LoggerLike = {
   log?: (message: string, details?: Record<string, unknown>) => void;
@@ -23,7 +24,7 @@ type EmailContent = {
   html: string;
 };
 
-const ADMIN_OTP_SUBJECT = 'Your Capy verification code';
+const ADMIN_OTP_SUBJECT = 'Your Copilot Bingo verification code';
 
 function escapeHtml(value: string): string {
   const entities: Record<string, string> = {
@@ -44,7 +45,7 @@ function renderAdminOtpEmail(code: string): EmailContent {
   return {
     subject: ADMIN_OTP_SUBJECT,
     plainText: [
-      'Welcome to Capy',
+      'Welcome to Copilot Bingo!',
       '',
       `Your verification code is: ${code}`,
       '',
@@ -53,7 +54,7 @@ function renderAdminOtpEmail(code: string): EmailContent {
       'If you did not request this code, you can safely ignore this email - no one can access your account without it.',
       '',
       'Thanks,',
-      'The Capy Team',
+      'DEVGRU Team',
     ].join('\n'),
     html: `<!doctype html>
 <html lang="en">
@@ -64,13 +65,13 @@ function renderAdminOtpEmail(code: string): EmailContent {
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;max-width:560px;background:#ffffff;border:1px solid #dde1e6;border-radius:8px;">
             <tr>
               <td style="padding:40px 44px 36px 44px;">
-                <h1 style="margin:0 0 28px 0;font-size:26px;line-height:32px;font-weight:700;color:#202124;">Welcome to Capy</h1>
+                <h1 style="margin:0 0 28px 0;font-size:26px;line-height:32px;font-weight:700;color:#202124;">Welcome to Copilot Bingo!</h1>
                 <p style="margin:0 0 14px 0;font-size:18px;line-height:28px;color:#4b4f5c;">Your verification code is:</p>
                 <div style="margin:0 0 30px 0;padding:26px 16px;border-radius:8px;background:#f1f1f3;text-align:center;font-size:36px;line-height:44px;font-weight:700;letter-spacing:10px;color:#202124;" aria-label="Verification code">${displayCode}</div>
                 <p style="margin:0 0 24px 0;font-size:18px;line-height:28px;color:#5f6470;">This code expires in 10 minutes.</p>
                 <p style="margin:0 0 24px 0;font-size:16px;line-height:26px;color:#6b7280;">If you did not request this code, you can safely ignore this email - no one can access your account without it.</p>
                 <div style="height:1px;background:#e5e7eb;margin:30px 0 28px 0;line-height:1px;">&nbsp;</div>
-                <p style="margin:0;font-size:16px;line-height:26px;color:#9ca3af;">Thanks,<br>The Capy Team</p>
+                <p style="margin:0;font-size:16px;line-height:26px;color:#9ca3af;">Thanks,<br>DEVGRU Team</p>
               </td>
             </tr>
           </table>
@@ -107,6 +108,28 @@ function notConfiguredResult(): EmailSendResult {
     status: 'not_configured',
     latencyMs: 0,
   };
+}
+
+function recipientDomain(email: string): string | undefined {
+  const parts = email.split('@');
+  return parts.length === 2 ? parts[1].toLowerCase() : undefined;
+}
+
+async function captureEmailFailure(
+  flow: 'admin-otp' | 'player-recovery',
+  email: string,
+  result: EmailSendResult,
+): Promise<void> {
+  if (result.ok) return;
+  await captureOperationalError('email_send_failure', {
+    flow,
+    status: result.status,
+    acsStatus: result.acsStatus,
+    errorName: result.errorName,
+    latencyMs: result.latencyMs,
+    messageId: result.messageId,
+    recipientDomain: recipientDomain(email),
+  });
 }
 
 type EmailConfigResult =
@@ -168,7 +191,9 @@ export async function sendAdminOtpEmail(
       context.log?.(`[DEV] Admin OTP for ${email}: ${code}`);
       return { ok: true, skipped: true, latencyMs: Date.now() - start };
     }
-    return notConfiguredResult();
+    const result = notConfiguredResult();
+    await captureEmailFailure('admin-otp', email, result);
+    return result;
   }
 
   let messageId: string | undefined;
@@ -184,17 +209,19 @@ export async function sendAdminOtpEmail(
     });
 
     if (typeof poller.pollUntilDone === 'function') {
-      const result = await poller.pollUntilDone();
-      messageId = readMessageId(poller, result);
-      if (result?.status && result.status !== 'Succeeded') {
-        return {
+      const pollResult = await poller.pollUntilDone();
+      messageId = readMessageId(poller, pollResult);
+      if (pollResult?.status && pollResult.status !== 'Succeeded') {
+        const result: EmailSendResult = {
           ok: false,
-          error: `ACS Email send ended with status ${result.status}`,
+          error: `ACS Email send ended with status ${pollResult.status}`,
           status: 'non_succeeded',
-          acsStatus: result.status,
+          acsStatus: pollResult.status,
           messageId,
           latencyMs: Date.now() - start,
         };
+        await captureEmailFailure('admin-otp', email, result);
+        return result;
       }
     } else {
       messageId = readMessageId(poller, undefined);
@@ -203,7 +230,7 @@ export async function sendAdminOtpEmail(
     return { ok: true, messageId, latencyMs: Date.now() - start };
   } catch (err) {
     context.error?.('Failed to send admin OTP email', err);
-    return {
+    const result: EmailSendResult = {
       ok: false,
       error: getErrorMessage(err),
       status: 'exception',
@@ -211,6 +238,8 @@ export async function sendAdminOtpEmail(
       messageId,
       latencyMs: Date.now() - start,
     };
+    await captureEmailFailure('admin-otp', email, result);
+    return result;
   }
 }
 
@@ -226,7 +255,9 @@ export async function sendPlayerRecoveryEmail(
     if (emailConfig.reason === 'missing' && process.env.NODE_ENV !== 'production') {
       return { ok: true, skipped: true, latencyMs: Date.now() - start };
     }
-    return notConfiguredResult();
+    const result = notConfiguredResult();
+    await captureEmailFailure('player-recovery', email, result);
+    return result;
   }
 
   let messageId: string | undefined;
@@ -244,17 +275,19 @@ export async function sendPlayerRecoveryEmail(
     });
 
     if (typeof poller.pollUntilDone === 'function') {
-      const result = await poller.pollUntilDone();
-      messageId = readMessageId(poller, result);
-      if (result?.status && result.status !== 'Succeeded') {
-        return {
+      const pollResult = await poller.pollUntilDone();
+      messageId = readMessageId(poller, pollResult);
+      if (pollResult?.status && pollResult.status !== 'Succeeded') {
+        const result: EmailSendResult = {
           ok: false,
-          error: `ACS Email send ended with status ${result.status}`,
+          error: `ACS Email send ended with status ${pollResult.status}`,
           status: 'non_succeeded',
-          acsStatus: result.status,
+          acsStatus: pollResult.status,
           messageId,
           latencyMs: Date.now() - start,
         };
+        await captureEmailFailure('player-recovery', email, result);
+        return result;
       }
     } else {
       messageId = readMessageId(poller, undefined);
@@ -263,7 +296,7 @@ export async function sendPlayerRecoveryEmail(
     return { ok: true, messageId, latencyMs: Date.now() - start };
   } catch (err) {
     context.error?.('Failed to send player recovery email', err);
-    return {
+    const result: EmailSendResult = {
       ok: false,
       error: getErrorMessage(err),
       status: 'exception',
@@ -271,5 +304,7 @@ export async function sendPlayerRecoveryEmail(
       messageId,
       latencyMs: Date.now() - start,
     };
+    await captureEmailFailure('player-recovery', email, result);
+    return result;
   }
 }

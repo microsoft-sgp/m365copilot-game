@@ -66,6 +66,78 @@ Terraform includes the generated frontend App Service hostname in the Function A
 
 The default Azure Managed Redis SKU is `Balanced_B0` for dev/test cost control. Use `redis_sku_name` to choose a larger Balanced, ComputeOptimized, or FlashOptimized SKU for production throughput and resilience requirements. The default database uses encrypted client traffic, `NoCluster` for compatibility with the app's single-endpoint Redis client, and `AllKeysLRU` eviction for cache-aside entries.
 
+## Sentry and Application Insights
+
+Sentry is the primary application observability workspace for frontend and backend errors, handled operational failures, logs, metrics, traces, session replay, releases, and source maps. Application Insights remains enabled for Azure Functions and App Service platform/runtime diagnostics such as host behavior, invocation telemetry, platform health, and Azure Portal troubleshooting. Do not remove Application Insights when enabling Sentry.
+
+Use one Sentry project for both runtimes and distinguish events with tags: `service=frontend|backend`, `runtime=browser|azure-functions|local-express`, `environment`, and `release`. Use a shared git-SHA release value such as:
+
+```bash
+export SENTRY_RELEASE="m365copilot-game@$(git rev-parse --short HEAD)"
+```
+
+Backend runtime settings are Terraform variables and become Function App settings. Set them in `terraform.tfvars` or pass them as `-var` values:
+
+```hcl
+sentry_dsn                      = "https://examplePublicKey@o0.ingest.sentry.io/0"
+sentry_environment              = "dev"
+sentry_release                  = "m365copilot-game@<git-sha>"
+sentry_traces_sample_rate       = 0.1
+sentry_enable_logs              = true
+sentry_capture_operational_errors = true
+sentry_flush_timeout_ms         = 2000
+```
+
+Frontend settings are Vite build-time environment variables. They are baked into the generated static assets, so rebuild and redeploy the frontend when these values change:
+
+```bash
+VITE_API_BASE=$(terraform -chdir=../infra/terraform output -raw api_base_url) \
+VITE_SENTRY_DSN="https://examplePublicKey@o0.ingest.sentry.io/0" \
+VITE_SENTRY_ENVIRONMENT="dev" \
+VITE_SENTRY_RELEASE="$SENTRY_RELEASE" \
+VITE_SENTRY_TRACES_SAMPLE_RATE="0.1" \
+VITE_SENTRY_REPLAY_SESSION_SAMPLE_RATE="0.01" \
+VITE_SENTRY_REPLAY_ERROR_SAMPLE_RATE="1.0" \
+VITE_SENTRY_REPLAY_UNMASK="false" \
+VITE_SENTRY_ENABLE_LOGS="true" \
+npm run build
+```
+
+Session replay is masked by default. Set `VITE_SENTRY_REPLAY_UNMASK="true"` only for an approved diagnostic build where the deployer has reviewed privacy, consent, retention, and Sentry access controls; that setting records visible text, input values, and media in replay payloads.
+
+The frontend CSP already permits HTTPS `connect-src`, which allows Sentry ingest, replay, and trace traffic. The local Express adapter allows `sentry-trace` and `baggage` CORS request headers for trace propagation. For Azure, keep the Function App CORS allowed origins aligned with the deployed frontend origin; the app sends trace propagation headers only to configured API targets.
+
+Source-map upload credentials must stay outside Terraform state and source control. Use short-lived CI/CD secrets or local shell environment variables for `SENTRY_AUTH_TOKEN`. The frontend Vite Sentry plugin uploads source maps only when `SENTRY_AUTH_TOKEN` and a release are present:
+
+```bash
+cd frontend
+SENTRY_AUTH_TOKEN="<token>" \
+SENTRY_ORG="voyager163" \
+SENTRY_PROJECT="javascript-vue" \
+VITE_SENTRY_RELEASE="$SENTRY_RELEASE" \
+npm run build
+```
+
+The backend TypeScript compiler emits source maps. Build and upload them against the same release:
+
+```bash
+cd backend
+npm run build
+SENTRY_AUTH_TOKEN="<token>" \
+SENTRY_ORG="voyager163" \
+SENTRY_PROJECT="javascript-vue" \
+SENTRY_RELEASE="$SENTRY_RELEASE" \
+npm run sentry:sourcemaps
+```
+
+If you use Sentry's source-map wizard, run it locally and review every generated change before committing:
+
+```bash
+npx @sentry/wizard@latest -i sourcemaps --saas --org voyager163 --project javascript-vue
+```
+
+Rollback is configuration-only. Empty or remove `sentry_dsn`/`SENTRY_DSN` to disable backend capture, omit `VITE_SENTRY_DSN` and rebuild to disable frontend capture, set trace and replay sample rates to `0`, set log/metric toggles to `false` where applicable, and remove `SENTRY_AUTH_TOKEN` from the build environment to stop source-map uploads. Leave Application Insights in place for Azure diagnostics.
+
 ## Provision
 
 ```bash

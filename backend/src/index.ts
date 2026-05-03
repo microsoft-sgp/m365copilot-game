@@ -1,3 +1,4 @@
+import './lib/sentryAzureFunctions.js';
 import './functions/adminAdmins.js';
 import './functions/adminCampaigns.js';
 import './functions/adminDashboard.js';

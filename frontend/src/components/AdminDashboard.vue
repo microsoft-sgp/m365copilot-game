@@ -1,10 +1,12 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { apiAdminGetDashboard, apiAdminExportCsv } from '../lib/api.js';
+import { ADMIN_SESSION_CONFIRMATION_MESSAGE } from '../lib/adminSession.js';
 import { formatAdminScoreEvent } from '../lib/adminScoreEventDisplay.js';
 
 const loading = ref(true);
 const dashboard = ref(null);
+const unauthorized = ref(false);
 const SESSION_TASK_TOTAL = 9;
 const SESSION_AWARD_TOTAL = 8;
 
@@ -12,6 +14,8 @@ onMounted(async () => {
   const res = await apiAdminGetDashboard();
   if (res.ok && res.data) {
     dashboard.value = res.data;
+  } else if (res.status === 401) {
+    unauthorized.value = true;
   }
   loading.value = false;
 });
@@ -253,6 +257,12 @@ function sessionProgressWidth(value, total) {
         </div>
       </div>
     </template>
+    <div
+      v-else-if="unauthorized"
+      class="text-error"
+    >
+      {{ ADMIN_SESSION_CONFIRMATION_MESSAGE }}
+    </div>
     <div
       v-else
       class="text-error"

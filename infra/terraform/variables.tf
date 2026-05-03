@@ -121,6 +121,68 @@ variable "allowed_origins" {
   default     = []
 }
 
+variable "sentry_dsn" {
+  description = "Sentry DSN for backend application observability. Leave empty to disable Sentry capture. Do not put SENTRY_AUTH_TOKEN or source-map upload credentials in Terraform variables."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.sentry_dsn == "" || can(regex("^https://", var.sentry_dsn))
+    error_message = "sentry_dsn must be empty or an https:// Sentry DSN."
+  }
+}
+
+variable "sentry_environment" {
+  description = "Optional Sentry environment name. Defaults to the Terraform environment value when empty."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.sentry_environment == "" || can(regex("^[A-Za-z0-9_.-]{1,64}$", var.sentry_environment))
+    error_message = "sentry_environment must be empty or a Sentry-compatible environment name without spaces or slashes."
+  }
+}
+
+variable "sentry_release" {
+  description = "Sentry release identifier shared by frontend and backend, preferably m365copilot-game@<git-sha>. Leave empty for deployments that do not publish release metadata."
+  type        = string
+  default     = ""
+}
+
+variable "sentry_traces_sample_rate" {
+  description = "Backend Sentry trace sample rate from 0.0 to 1.0."
+  type        = number
+  default     = 0.1
+
+  validation {
+    condition     = var.sentry_traces_sample_rate >= 0 && var.sentry_traces_sample_rate <= 1
+    error_message = "sentry_traces_sample_rate must be between 0 and 1."
+  }
+}
+
+variable "sentry_enable_logs" {
+  description = "Enable Sentry log capture for backend application logs when Sentry is configured."
+  type        = bool
+  default     = true
+}
+
+variable "sentry_capture_operational_errors" {
+  description = "Capture handled operational failures such as ACS Email provider failures in Sentry when Sentry is configured."
+  type        = bool
+  default     = true
+}
+
+variable "sentry_flush_timeout_ms" {
+  description = "Maximum milliseconds to wait for backend Sentry events to flush during Azure Functions error paths."
+  type        = number
+  default     = 2000
+
+  validation {
+    condition     = var.sentry_flush_timeout_ms >= 0 && var.sentry_flush_timeout_ms <= 10000
+    error_message = "sentry_flush_timeout_ms must be between 0 and 10000."
+  }
+}
+
 variable "admin_access_ttl_seconds" {
   description = "Lifetime for short-lived admin access cookies."
   type        = number
