@@ -23,6 +23,31 @@ type CaptureApiFailureOptions = {
   status: number;
   apiBase: string;
   error?: unknown;
+  workflowCode?: string;
+};
+
+type FrontendLogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+
+type FrontendApiStatusClass = 'network' | '4xx' | '5xx';
+
+type FrontendApiResponseClass = 'network_failure' | 'client_response' | 'server_failure';
+
+export type FrontendApiOutcome = {
+  method: string;
+  endpointPath: string;
+  status: number;
+  statusClass: FrontendApiStatusClass;
+  responseClass: FrontendApiResponseClass;
+  apiHost: string;
+  workflowCode?: string;
+  errorName?: string;
+  shouldCaptureIssue: boolean;
+  shouldLog: boolean;
+  shouldMetric: boolean;
+  issueTitle: string;
+  fingerprintKind: string;
+  attributes: Record<string, unknown>;
+  metricTags: Record<string, string>;
 };
 
 type MetricCountApi = {
@@ -31,13 +56,17 @@ type MetricCountApi = {
 
 const APP_NAME = 'm365copilot-game';
 const FILTERED = '[Filtered]';
+const UNKNOWN = 'unknown';
+const API_CLIENT_RESPONSE_METRIC = 'api.client_response';
 const MAX_SANITIZE_DEPTH = 4;
 const SENSITIVE_KEY_PATTERN =
-  /authorization|cookie|token|jwt|secret|password|connection|string|otp|code|admin[-_]?key|player[-_]?token|email|name/i;
+  /authorization|cookie|set[-_]?cookie|headers?|token|jwt|secret|password|connection|string|otp|^code$|code[-_]?hash|verification[-_]?code|recovery[-_]?code|request[-_]?body|response[-_]?body|admin[-_]?key|player[-_]?token|email|name/i;
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const SAFE_TELEMETRY_KEYS = new Set(['status_code', 'workflow_code', 'error_name']);
 
 let initialized = false;
 let configured = false;
+let activeConfig: Pick<FrontendSentryConfig, 'environment' | 'release'> | null = null;
 
 function stringValue(value: string | boolean | undefined): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -130,7 +159,7 @@ export function sanitizeForSentry(value: unknown, depth = 0): unknown {
 
   const sanitized: Record<string, unknown> = {};
   Object.entries(value as Record<string, unknown>).forEach(([key, entryValue]) => {
-    sanitized[key] = SENSITIVE_KEY_PATTERN.test(key)
+    sanitized[key] = !SAFE_TELEMETRY_KEYS.has(key.toLowerCase()) && SENSITIVE_KEY_PATTERN.test(key)
       ? FILTERED
       : sanitizeForSentry(entryValue, depth + 1);
   });
@@ -170,10 +199,123 @@ function sanitizeBreadcrumb(breadcrumb: Sentry.Breadcrumb): Sentry.Breadcrumb {
   };
 }
 
+function sanitizeLog<T extends { attributes?: unknown; message?: unknown }>(log: T): T {
+  return {
+    ...log,
+    message: typeof log.message === 'string' ? redactString(log.message) : log.message,
+    attributes: sanitizeForSentry(log.attributes),
+  };
+}
+
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeEndpointSegment(segment: string): string {
+  const decoded = safeDecode(segment);
+  if (!decoded) return '';
+  if (/^\d+$/.test(decoded)) return ':id';
+  if (decoded.includes('@') || /%40/i.test(segment)) return ':email';
+  if (/^[0-9a-f]{16,}$/i.test(decoded) || /^[A-Za-z0-9_-]{24,}$/.test(decoded)) return ':value';
+  return redactString(decoded);
+}
+
+export function normalizeFrontendEndpointPath(path: string): string {
+  const pathOnly = path.split('?')[0] || '/';
+  let pathname = pathOnly;
+  if (pathOnly.startsWith('http://') || pathOnly.startsWith('https://')) {
+    try {
+      pathname = new URL(pathOnly).pathname || '/';
+    } catch {
+      pathname = pathOnly;
+    }
+  }
+
+  const normalized = pathname
+    .split('/')
+    .map(normalizeEndpointSegment)
+    .join('/');
+  return normalized.startsWith('/') ? normalized || '/' : `/${normalized}`;
+}
+
+function apiHost(apiBase: string): string {
+  if (apiBase.startsWith('http://') || apiBase.startsWith('https://')) {
+    try {
+      return new URL(apiBase).host || UNKNOWN;
+    } catch {
+      return UNKNOWN;
+    }
+  }
+  if (typeof window !== 'undefined' && window.location?.host) return window.location.host;
+  return 'same-origin';
+}
+
+function workflowCode(value: unknown): string | undefined {
+  const sanitized = sanitizeForSentry(value);
+  if (typeof sanitized !== 'string' || !sanitized) return undefined;
+  return /^[A-Z0-9_-]{2,64}$/.test(sanitized) ? sanitized : undefined;
+}
+
+function baseTelemetryAttributes(): Record<string, unknown> {
+  return {
+    service: 'frontend',
+    runtime: 'browser',
+    environment: activeConfig?.environment || UNKNOWN,
+    release: activeConfig?.release || UNKNOWN,
+  };
+}
+
+function metricTags(tags: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(tags).map(([key, value]) => {
+      const sanitized = sanitizeForSentry(value);
+      if (sanitized === null || sanitized === undefined || sanitized === '') return [key, UNKNOWN];
+      if (typeof sanitized === 'string' || typeof sanitized === 'number' || typeof sanitized === 'boolean') {
+        return [key, String(sanitized)];
+      }
+      return [key, FILTERED];
+    }),
+  );
+}
+
+function normalizeLogLevel(level: Sentry.SeverityLevel | FrontendLogLevel): FrontendLogLevel {
+  if (level === 'warning') return 'warn';
+  if (level === 'log') return 'info';
+  if (['trace', 'debug', 'info', 'warn', 'error', 'fatal'].includes(level)) {
+    return level as FrontendLogLevel;
+  }
+  return 'info';
+}
+
+function emitSentryLog(
+  message: string,
+  level: FrontendLogLevel,
+  attributes: Record<string, unknown>,
+): void {
+  type LogMethod = (message: string, attributes?: Record<string, unknown>) => void;
+  const logger = Sentry.logger as unknown as Record<FrontendLogLevel, LogMethod>;
+  logger[level]?.(message, attributes);
+}
+
+function incrementFrontendMetric(
+  name: string,
+  value = 1,
+  tags: Record<string, unknown> = {},
+): void {
+  if (!isFrontendSentryEnabled()) return;
+  const sentryWithMetrics = Sentry as typeof Sentry & { metrics?: MetricCountApi };
+  sentryWithMetrics.metrics?.count(name, value, { tags: metricTags(tags) });
+}
+
 export function initFrontendSentry(app: App, env: RawEnv = import.meta.env): boolean {
   const config = getFrontendSentryConfig(env);
   configured = Boolean(config);
   if (!config || initialized) return configured;
+  activeConfig = { environment: config.environment, release: config.release };
 
   const options = {
     app,
@@ -194,6 +336,7 @@ export function initFrontendSentry(app: App, env: RawEnv = import.meta.env): boo
     replaysSessionSampleRate: config.replaySessionSampleRate,
     replaysOnErrorSampleRate: config.replayErrorSampleRate,
     beforeSend: sanitizeEvent,
+    beforeSendLog: sanitizeLog,
     beforeBreadcrumb: sanitizeBreadcrumb,
     initialScope: {
       tags: {
@@ -201,7 +344,10 @@ export function initFrontendSentry(app: App, env: RawEnv = import.meta.env): boo
         runtime: 'browser',
       },
     },
-  } as Parameters<typeof Sentry.init>[0] & { enableLogs?: boolean };
+  } as Parameters<typeof Sentry.init>[0] & {
+    enableLogs?: boolean;
+    beforeSendLog?: (log: { attributes?: unknown; message?: unknown }) => unknown;
+  };
 
   Sentry.init(options);
   initialized = true;
@@ -212,66 +358,124 @@ export function isFrontendSentryEnabled(): boolean {
   return initialized && configured;
 }
 
-export function captureFrontendApiFailure(options: CaptureApiFailureOptions): void {
-  if (!isFrontendSentryEnabled()) return;
+export function classifyFrontendApiOutcome(
+  options: CaptureApiFailureOptions,
+): FrontendApiOutcome | null {
   const isNetworkFailure = options.status === 0;
   const isClientFailure = options.status >= 400 && options.status < 500;
   const isServerFailure = options.status >= 500 && options.status < 600;
-  if (!isNetworkFailure && !isClientFailure && !isServerFailure) return;
+  if (!isNetworkFailure && !isClientFailure && !isServerFailure) return null;
 
-  const endpointPath = options.path.split('?')[0] || '/';
-  const failureClass = isNetworkFailure ? 'network' : isClientFailure ? '4xx' : '5xx';
-  const fingerprintKind = isNetworkFailure
-    ? 'frontend-network-failure'
+  const endpointPath = normalizeFrontendEndpointPath(options.path);
+  const statusClass: FrontendApiStatusClass = isNetworkFailure
+    ? 'network'
     : isClientFailure
-      ? 'frontend-client-failure'
-      : 'frontend-server-failure';
-  const title = isNetworkFailure
-    ? 'Frontend API network failure'
+      ? '4xx'
+      : '5xx';
+  const responseClass: FrontendApiResponseClass = isNetworkFailure
+    ? 'network_failure'
     : isClientFailure
-      ? 'Frontend API client failure'
-      : 'Frontend API server failure';
+      ? 'client_response'
+      : 'server_failure';
+  const safeWorkflowCode = workflowCode(options.workflowCode);
+  const attributes = sanitizeForSentry({
+    ...baseTelemetryAttributes(),
+    http_method: options.method,
+    endpoint_path: endpointPath,
+    api_host: apiHost(options.apiBase),
+    status_code: options.status,
+    status_class: statusClass,
+    response_class: responseClass,
+    ...(safeWorkflowCode ? { workflow_code: safeWorkflowCode } : {}),
+    online: typeof navigator === 'undefined' ? undefined : navigator.onLine,
+    error_name: options.error instanceof Error ? options.error.name : undefined,
+  }) as Record<string, unknown>;
+
+  return {
+    method: options.method,
+    endpointPath,
+    status: options.status,
+    statusClass,
+    responseClass,
+    apiHost: apiHost(options.apiBase),
+    workflowCode: safeWorkflowCode,
+    errorName: options.error instanceof Error ? options.error.name : undefined,
+    shouldCaptureIssue: isNetworkFailure || isServerFailure,
+    shouldLog: isClientFailure,
+    shouldMetric: isClientFailure,
+    issueTitle: isNetworkFailure ? 'Frontend API network failure' : 'Frontend API server failure',
+    fingerprintKind: isNetworkFailure ? 'frontend-network-failure' : 'frontend-server-failure',
+    attributes,
+    metricTags: metricTags(attributes),
+  };
+}
+
+export function captureFrontendApiFailure(options: CaptureApiFailureOptions): void {
+  if (!isFrontendSentryEnabled()) return;
+  const outcome = classifyFrontendApiOutcome(options);
+  if (!outcome) return;
+
+  if (outcome.shouldLog) {
+    captureFrontendLog('Frontend API client response', 'info', outcome.attributes);
+    if (outcome.shouldMetric) {
+      incrementFrontendMetric(API_CLIENT_RESPONSE_METRIC, 1, outcome.metricTags);
+    }
+    return;
+  }
+
   Sentry.withScope((scope) => {
     scope.setLevel('error');
     scope.setTags({
       service: 'frontend',
       runtime: 'browser',
-      api_status: String(options.status),
-      api_status_class: failureClass,
-      api_method: options.method,
+      api_status: String(outcome.status),
+      api_status_class: outcome.statusClass,
+      api_method: outcome.method,
+      response_class: outcome.responseClass,
     });
-    scope.setFingerprint([fingerprintKind, options.method, endpointPath, String(options.status)]);
+    scope.setFingerprint([
+      outcome.fingerprintKind,
+      outcome.method,
+      outcome.endpointPath,
+      String(outcome.status),
+    ]);
     scope.setContext('api', {
-      method: options.method,
-      path: endpointPath,
-      status: options.status,
-      statusClass: failureClass,
-      apiBase: options.apiBase,
-      online: typeof navigator === 'undefined' ? undefined : navigator.onLine,
-      errorName: options.error instanceof Error ? options.error.name : undefined,
+      method: outcome.method,
+      path: outcome.endpointPath,
+      status: outcome.status,
+      statusClass: outcome.statusClass,
+      responseClass: outcome.responseClass,
+      apiHost: outcome.apiHost,
+      online: outcome.attributes.online,
+      errorName: outcome.errorName,
     });
-    Sentry.captureMessage(title);
+    Sentry.captureMessage(outcome.issueTitle);
   });
 }
 
 export function captureFrontendLog(
   message: string,
-  level: Sentry.SeverityLevel = 'info',
+  level: Sentry.SeverityLevel | FrontendLogLevel = 'info',
   extra: Record<string, unknown> = {},
 ): void {
   if (!isFrontendSentryEnabled()) return;
-  Sentry.captureMessage(message, {
-    level,
-    tags: { service: 'frontend', runtime: 'browser' },
-    extra: sanitizeForSentry(extra) as Record<string, unknown>,
-  });
+  const normalizedLevel = normalizeLogLevel(level);
+  emitSentryLog(
+    redactString(message),
+    normalizedLevel,
+    sanitizeForSentry({
+      ...baseTelemetryAttributes(),
+      severity: normalizedLevel,
+      ...extra,
+    }) as Record<string, unknown>,
+  );
 }
 
 export function runFrontendSentrySmokeCheck(): void {
   if (!isFrontendSentryEnabled()) return;
   const sentryWithMetrics = Sentry as typeof Sentry & { metrics?: MetricCountApi };
   sentryWithMetrics.metrics?.count('test_counter', 1, {
-    tags: { service: 'frontend', runtime: 'browser' },
+    tags: metricTags(baseTelemetryAttributes()),
   });
   const smokeTarget = globalThis as unknown as { myUndefinedFunction?: () => void };
   (smokeTarget.myUndefinedFunction as () => void)();
@@ -280,4 +484,5 @@ export function runFrontendSentrySmokeCheck(): void {
 export function resetFrontendSentryForTests(): void {
   initialized = false;
   configured = false;
+  activeConfig = null;
 }

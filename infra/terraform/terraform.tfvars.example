@@ -30,6 +30,7 @@ admin_emails = [
 # sentry_enable_logs                  = true
 # sentry_capture_operational_errors   = true
 # sentry_flush_timeout_ms             = 2000
+# sentry_smoke_check                  = false
 
 # Cookie/session defaults. Production cookies are emitted as Secure and
 # SameSite=None so the frontend App Service can call the Function App with

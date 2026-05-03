@@ -8,6 +8,7 @@ import {
   normalizePlayerEmail,
   playerEmailHash,
 } from '../lib/playerAuth.js';
+import { logBackendEvent } from '../lib/sentry.js';
 import { readJsonObject, stringValue } from './http.js';
 
 const REQUEST_COOLDOWN_MS = 60_000;
@@ -26,8 +27,7 @@ function logRequestAttempt(
   email: string,
   details: Record<string, unknown> = {},
 ): void {
-  if (typeof context.log !== 'function') return;
-  context.log('player_recovery_request', {
+  logBackendEvent(context, 'player_recovery_request', 'info', {
     outcome,
     email_hash: playerEmailHash(email),
     ...details,

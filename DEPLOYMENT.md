@@ -468,6 +468,8 @@ npm run build
 
 > **Sentry rollback:** To disable Sentry without code changes, empty or remove the backend `sentry_dsn` Terraform value, apply Terraform so `SENTRY_DSN` is empty, then rebuild the frontend without `VITE_SENTRY_DSN` and redeploy the static assets. Application Insights remains available for Azure platform/runtime diagnostics.
 
+> **Sentry source maps:** Use the same `SENTRY_RELEASE` for frontend and backend builds, upload frontend Vite source maps and backend TypeScript source maps with `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` kept in local or CI secrets, and never commit those upload credentials. The full repeatable procedure is in [infra/terraform/README.md](infra/terraform/README.md#sentry-and-application-insights).
+
 ### 8c. Confirm the SPA fallback config
 
 The repository includes `frontend/public/staticwebapp.config.json` so that page refreshes don't return 404. Vite copies everything in `public/` into `dist/` on every build. The file should contain:
@@ -551,6 +553,12 @@ Open your Static Web App URL in a browser and check:
 | 10  | Admin access management    | In **Admin Access**, confirm bootstrap admins are read-only and adding/disabling a portal-managed admin requires re-entering an OTP           |
 
 After OTP login, browser DevTools should show `admin_access` and `admin_refresh` cookies set by the Function App as `HttpOnly`, `Secure`, and `SameSite=None`. JWT token strings should not appear in `sessionStorage` or `localStorage`.
+
+### Sentry observability verification
+
+Use Sentry as the primary application observability workspace and keep Application Insights for Azure platform/runtime diagnostics. Sentry Issues are reserved for browser network failures, `5xx` responses, unexpected exceptions, local adapter failures, and selected operational failures such as ACS Email. Expected workflow `4xx` responses are Sentry Logs plus `api.client_response` metrics by default, so ordinary validation, auth, conflict, not-found, and rate-limit traffic should not create incidents.
+
+For a controlled non-production smoke test, follow the runbook in [infra/terraform/README.md](infra/terraform/README.md#controlled-sentry-smoke-verification). Record the shared release, environment, frontend Issue, backend Issue, structured Logs, `test_counter`, `api.client_response`, trace, replay masking state, frontend and backend source-map-resolved stack frames, and confirmation that the smoke hooks were disabled again.
 
 ### Admin access runbook
 
@@ -691,6 +699,8 @@ jobs:
    ```
 
 3. **`SENTRY_DSN`**: Add the same Sentry project DSN used by the backend Terraform `sentry_dsn` variable. The frontend build reads this as `VITE_SENTRY_DSN`, so changing it requires a new frontend build and deploy.
+
+4. **`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`**: Add these only as protected CI secrets when uploading source maps. Do not store source-map upload tokens in Terraform variables, Terraform state, repository files, or public deployment logs.
 
 Protect GitHub Actions secrets, deployment tokens, publish profiles, Terraform state, generated plans, and CSV exports according to your organization's security and data-handling policies.
 

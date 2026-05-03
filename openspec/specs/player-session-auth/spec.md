@@ -128,13 +128,19 @@ The system SHALL send player recovery codes through Azure Communication Services
 
 ### Requirement: Player recovery verification issues device token
 
-The system SHALL verify a valid player recovery code atomically and issue a new player token bound to the existing player as an active device token.
+The system SHALL verify a valid player recovery code using Azure SQL-compatible transaction semantics and issue a new player token bound to the existing player as an active device token.
 
 #### Scenario: Valid recovery code creates device token
 
 - **GIVEN** a non-expired, unused recovery code exists for the supplied player email
 - **WHEN** `POST /api/player/recovery/verify` is called with the matching code
 - **THEN** the system MUST atomically commit both marking the recovery code as used and persisting only the SHA-256 hash of a new opaque player token as an active device-token record for the player, MUST set the `player_token` cookie, and MUST return the raw `playerToken` in the response body
+
+#### Scenario: Verification locking is accepted by Azure SQL
+
+- **GIVEN** a non-expired, unused recovery code exists for the supplied player email in Azure SQL
+- **WHEN** `POST /api/player/recovery/verify` looks up and locks the matching recovery-code row
+- **THEN** the database operation MUST use transaction isolation and lock hints that Azure SQL accepts, MUST NOT fail with SQL lock-hint compatibility errors, and MUST continue the normal valid-code redemption path
 
 #### Scenario: Invalid recovery code is rejected
 

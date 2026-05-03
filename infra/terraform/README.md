@@ -76,6 +76,8 @@ Use one Sentry project for both runtimes and distinguish events with tags: `serv
 export SENTRY_RELEASE="m365copilot-game@$(git rev-parse --short HEAD)"
 ```
 
+Sentry Issues mean something is broken. Browser network failures with `status: 0`, frontend/backend `5xx` responses, unexpected handler exceptions, local Express adapter exceptions, and ACS Email operational failures are captured as Issues. Expected workflow `4xx` responses such as validation errors, unauthenticated/admin-denied requests, conflicts, not-found lookups, and rate limits are emitted as structured Sentry Logs plus `api.client_response` metrics by default. Use those logs and metrics for volume, routing, and workflow analysis instead of treating ordinary `4xx` traffic as incidents.
+
 Backend runtime settings are Terraform variables and become Function App settings. Set them in `terraform.tfvars` or pass them as `-var` values:
 
 ```hcl
@@ -86,6 +88,7 @@ sentry_traces_sample_rate       = 0.1
 sentry_enable_logs              = true
 sentry_capture_operational_errors = true
 sentry_flush_timeout_ms         = 2000
+sentry_smoke_check              = false
 ```
 
 Frontend settings are Vite build-time environment variables. They are baked into the generated static assets, so rebuild and redeploy the frontend when these values change:
@@ -100,6 +103,7 @@ VITE_SENTRY_REPLAY_SESSION_SAMPLE_RATE="0.01" \
 VITE_SENTRY_REPLAY_ERROR_SAMPLE_RATE="1.0" \
 VITE_SENTRY_REPLAY_UNMASK="false" \
 VITE_SENTRY_ENABLE_LOGS="true" \
+VITE_SENTRY_SMOKE_CHECK="false" \
 npm run build
 ```
 
@@ -134,6 +138,50 @@ If you use Sentry's source-map wizard, run it locally and review every generated
 
 ```bash
 npx @sentry/wizard@latest -i sourcemaps --saas --org voyager163 --project javascript-vue
+```
+
+### Controlled Sentry smoke verification
+
+Run this only in an approved non-production environment. Keep `SENTRY_AUTH_TOKEN`, Sentry org/project values, deployment tokens, Function keys, and source-map upload credentials outside Terraform state and source control.
+
+1. Build and upload source maps for one shared release using the frontend and backend commands above.
+2. Temporarily enable the backend smoke route by applying `sentry_smoke_check=true` in a non-production Terraform plan, then deploy the backend package for that release.
+3. Build and deploy the frontend with `VITE_SENTRY_SMOKE_CHECK="true"` for the same release. Leave `VITE_SENTRY_REPLAY_UNMASK="false"` unless the diagnostic build has a separate privacy approval.
+4. Open the deployed frontend, use browser DevTools, and run `window.__m365copilotSentrySmokeCheck()`. It emits `test_counter` and then throws a controlled frontend error.
+5. Invoke the backend function-key route and expect an HTTP `500` response because the handler throws after emitting a backend log and metric:
+
+```bash
+FUNCTION_APP_NAME=$(terraform -chdir=infra/terraform output -raw function_app_name)
+RESOURCE_GROUP_NAME=$(terraform -chdir=infra/terraform output -raw resource_group_name)
+FUNCTION_APP_URL=$(terraform -chdir=infra/terraform output -raw function_app_url)
+SMOKE_KEY=$(az functionapp function keys list \
+	--resource-group "$RESOURCE_GROUP_NAME" \
+	--name "$FUNCTION_APP_NAME" \
+	--function-name sentrySmoke \
+	--query 'default' -o tsv)
+
+curl -i -X POST "$FUNCTION_APP_URL/api/ops/sentry-smoke?code=$SMOKE_KEY"
+```
+
+6. Exercise one expected workflow `4xx` path, such as a validation error or denied admin request, and confirm it appears as a Sentry Log plus `api.client_response` metric instead of a new Issue.
+7. In Sentry, record evidence for the release: frontend controlled Issue, backend controlled Issue, structured frontend/backend Logs, `test_counter`, `api.client_response`, a trace containing browser-to-API metadata when sampling permits, replay state with masking enabled, and source-map-resolved stack frames for both runtimes.
+8. Immediately disable the smoke paths by reverting `sentry_smoke_check=false` and rebuilding/redeploying the frontend with `VITE_SENTRY_SMOKE_CHECK="false"`.
+
+Evidence template:
+
+```text
+Release:
+Environment:
+Frontend controlled Issue:
+Backend controlled Issue:
+Structured Logs verified:
+Metrics verified: test_counter, api.client_response
+Trace verified:
+Replay state and masking verified:
+Frontend source-map stack verified:
+Backend source-map stack verified:
+Application Insights still available for platform diagnostics:
+Smoke paths disabled again:
 ```
 
 Rollback is configuration-only. Empty or remove `sentry_dsn`/`SENTRY_DSN` to disable backend capture, omit `VITE_SENTRY_DSN` and rebuild to disable frontend capture, set trace and replay sample rates to `0`, set log/metric toggles to `false` where applicable, and remove `SENTRY_AUTH_TOKEN` from the build environment to stop source-map uploads. Leave Application Insights in place for Azure diagnostics.

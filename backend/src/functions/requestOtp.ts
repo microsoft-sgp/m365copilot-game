@@ -4,6 +4,7 @@ import sql from 'mssql';
 import { getPool } from '../lib/db.js';
 import { hashOtp, getEffectiveAdminEmails, normalizeEmail } from '../lib/adminAuth.js';
 import { sendAdminOtpEmail } from '../lib/email.js';
+import { logBackendEvent } from '../lib/sentry.js';
 import { readJsonObject, stringValue } from './http.js';
 
 type SendAttemptOutcome =
@@ -36,8 +37,7 @@ function emailHash(normalizedEmail: string): string {
 // request body has not yet been validated at that point; every other branch
 // MUST include `email_hash`.
 function logSendAttempt(context: InvocationContext, details: SendAttemptDetails): void {
-  if (typeof context.log !== 'function') return;
-  context.log('admin_otp_send_attempt', details);
+  logBackendEvent(context, 'admin_otp_send_attempt', 'info', details);
 }
 
 export const handler = async (request: HttpRequest, context: InvocationContext) => {

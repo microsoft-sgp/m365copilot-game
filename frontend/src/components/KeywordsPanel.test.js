@@ -14,12 +14,17 @@ vi.mock('../lib/api.js', () => ({
   ),
 }));
 
+const captureFrontendLog = vi.hoisted(() => vi.fn());
+
+vi.mock('../lib/sentry.js', () => ({ captureFrontendLog }));
+
 import { useBingoGame } from '../composables/useBingoGame.js';
 import KeywordsPanel from './KeywordsPanel.vue';
 
 beforeEach(() => {
   const { state } = useBingoGame();
   state.keywords = [];
+  captureFrontendLog.mockClear();
 });
 
 describe('KeywordsPanel', () => {
@@ -55,5 +60,27 @@ describe('KeywordsPanel', () => {
     await w.vm.$nextTick();
     await w.find('.btn-ghost').trigger('click');
     expect(writeText).toHaveBeenCalledWith('CO-APR26-001-R1-AAAA1111');
+  });
+
+  it('logs clipboard copy failures without exposing the keyword', async () => {
+    const { state } = useBingoGame();
+    state.keywords = [
+      { code: 'CO-APR26-001-R1-AAAA1111', packId: 1, lineId: 'R1', ts: Date.now() },
+    ];
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    Object.assign(navigator, { clipboard: { writeText } });
+    const w = mount(KeywordsPanel);
+    await w.vm.$nextTick();
+    await w.find('.btn-ghost').trigger('click');
+    await Promise.resolve();
+
+    expect(captureFrontendLog).toHaveBeenCalledWith(
+      'keyword_clipboard_copy_failed',
+      'warn',
+      expect.objectContaining({ component: 'KeywordsPanel', action: 'copy_keyword' }),
+    );
+    expect(JSON.stringify(captureFrontendLog.mock.calls[0])).not.toContain(
+      'CO-APR26-001-R1-AAAA1111',
+    );
   });
 });

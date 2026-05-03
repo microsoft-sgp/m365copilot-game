@@ -16,6 +16,7 @@ import './functions/recordEvent.js';
 import './functions/requestOtp.js';
 import './functions/requestPlayerRecovery.js';
 import './functions/rerollAssignment.js';
+import './functions/sentrySmoke.js';
 import './functions/submitKeyword.js';
 import './functions/updateSession.js';
 import './functions/verifyOtp.js';

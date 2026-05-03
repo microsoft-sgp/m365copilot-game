@@ -3,6 +3,10 @@ import { mount } from '@vue/test-utils';
 import WinModal from './WinModal.vue';
 import { useToast } from '../composables/useToast.js';
 
+const captureFrontendLog = vi.hoisted(() => vi.fn());
+
+vi.mock('../lib/sentry.js', () => ({ captureFrontendLog }));
+
 const data = {
   line: { id: 'R1', label: 'Row 1', cells: [0, 1, 2] },
   kw: 'CO-APR26-001-R1-ABCD1234',
@@ -11,6 +15,7 @@ const data = {
 describe('WinModal', () => {
   beforeEach(() => {
     useToast().hide();
+    captureFrontendLog.mockClear();
   });
   afterEach(() => vi.clearAllMocks());
 
@@ -42,6 +47,22 @@ describe('WinModal', () => {
     expect(writeText).toHaveBeenCalledWith(data.kw);
     expect(useToast().toast.visible).toBe(true);
     expect(useToast().toast.sub).toBe(data.kw);
+  });
+
+  it('logs clipboard copy failures without exposing the keyword', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    Object.assign(navigator, { clipboard: { writeText } });
+    const w = mount(WinModal, { props: { data } });
+    const copyBtn = w.findAll('button').find((b) => b.text().includes('Copy Keyword'));
+    await copyBtn.trigger('click');
+    await Promise.resolve();
+
+    expect(captureFrontendLog).toHaveBeenCalledWith(
+      'win_keyword_clipboard_copy_failed',
+      'warn',
+      expect.objectContaining({ component: 'WinModal', action: 'copy_keyword' }),
+    );
+    expect(JSON.stringify(captureFrontendLog.mock.calls[0])).not.toContain(data.kw);
   });
 
   it('renders 40 confetti pieces', () => {

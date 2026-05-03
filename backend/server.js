@@ -4,6 +4,7 @@ import {
   captureBackendException,
   captureBackendHttpResponse,
   initBackendSentry,
+  logBackendEvent,
 } from './dist/lib/sentry.js';
 import express from 'express';
 
@@ -47,7 +48,7 @@ function adapt(handlerModule) {
         headers: { get: (k) => req.headers[k.toLowerCase()] || null },
       };
 
-      const result = await handler(fakeRequest, { log: console.log });
+      const result = await handler(fakeRequest, { log: console.log, error: console.error });
       await captureBackendHttpResponse(result, {
         runtime: 'local-express',
         functionName: `${req.method} ${req.path}`,
@@ -81,7 +82,13 @@ function adapt(handlerModule) {
         functionName: `${req.method} ${req.path}`,
         request: fakeRequest,
       });
-      console.error('Handler error:', err);
+      logBackendEvent(
+        { error: console.error },
+        'Handler error:',
+        'error',
+        { runtime: 'local-express', method: req.method, path: req.path },
+        err,
+      );
       const message = err instanceof Error ? err.message : 'Internal server error';
       res.status(500).json({ ok: false, message });
     }
@@ -104,6 +111,7 @@ const { handler: verifyOtp } = await import('./dist/functions/verifyOtp.js');
 const { handler: requestPlayerRecovery } =
   await import('./dist/functions/requestPlayerRecovery.js');
 const { handler: verifyPlayerRecovery } = await import('./dist/functions/verifyPlayerRecovery.js');
+const { handler: sentrySmoke } = await import('./dist/functions/sentrySmoke.js');
 const { refreshHandler, logoutHandler } = await import('./dist/functions/adminSession.js');
 const { handler: health } = await import('./dist/functions/health.js');
 
@@ -126,6 +134,7 @@ app.get('/api/organizations/domains', adapt({ handler: getOrgDomains }));
 app.post('/api/player/state', adapt({ handler: getPlayerState }));
 app.post('/api/player/recovery/request', adapt({ handler: requestPlayerRecovery }));
 app.post('/api/player/recovery/verify', adapt({ handler: verifyPlayerRecovery }));
+app.post('/api/ops/sentry-smoke', adapt({ handler: sentrySmoke }));
 
 // Admin auth
 app.post('/api/portal-api/request-otp', adapt({ handler: requestOtp }));

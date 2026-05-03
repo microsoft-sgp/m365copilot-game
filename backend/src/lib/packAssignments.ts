@@ -1,5 +1,6 @@
 import sql from 'mssql';
 import type { ConnectionPool, Transaction } from 'mssql';
+import { logBackendEvent } from './sentry.js';
 
 type QueryResult<T> = {
   recordset: T[];
@@ -354,17 +355,15 @@ export async function resolvePackAssignment({
 
     const assignment = normalizeAssignment(assignmentRow);
 
-    if (context && typeof context.log === 'function') {
-      context.log('pack_assignment_resolved', {
-        playerId,
-        campaignId: campaign.id,
-        packId: assignment?.packId,
-        assignmentId: assignment?.assignmentId,
-        cycleNumber: assignment?.cycleNumber,
-        rotated,
-        completedPackId,
-      });
-    }
+    logBackendEvent(context, 'pack_assignment_resolved', 'info', {
+      playerId,
+      campaignId: campaign.id,
+      packId: assignment?.packId,
+      assignmentId: assignment?.assignmentId,
+      cycleNumber: assignment?.cycleNumber,
+      rotated,
+      completedPackId,
+    });
 
     return {
       campaign,
@@ -458,18 +457,16 @@ export async function rerollPackAssignment({
     const assignment = normalizeAssignment(activeAssignment);
     const normalizedAbandonedAssignment = normalizeAssignment(abandonedAssignment);
 
-    if (context && typeof context.log === 'function') {
-      context.log('pack_assignment_rerolled', {
-        playerId,
-        campaignId: campaign.id,
-        previousPackId: normalizedAbandonedAssignment?.packId ?? null,
-        previousAssignmentId: normalizedAbandonedAssignment?.assignmentId ?? null,
-        packId: assignment?.packId,
-        assignmentId: assignment?.assignmentId,
-        cycleNumber: assignment?.cycleNumber,
-        rerolled,
-      });
-    }
+    logBackendEvent(context, 'pack_assignment_rerolled', 'info', {
+      playerId,
+      campaignId: campaign.id,
+      previousPackId: normalizedAbandonedAssignment?.packId ?? null,
+      previousAssignmentId: normalizedAbandonedAssignment?.assignmentId ?? null,
+      packId: assignment?.packId,
+      assignmentId: assignment?.assignmentId,
+      cycleNumber: assignment?.cycleNumber,
+      rerolled,
+    });
 
     return {
       campaign,

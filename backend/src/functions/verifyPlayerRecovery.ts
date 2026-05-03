@@ -11,6 +11,7 @@ import {
   playerEmailHash,
 } from '../lib/playerAuth.js';
 import { createPlayerTokenCookie } from '../lib/playerCookies.js';
+import { logBackendEvent } from '../lib/sentry.js';
 import { readJsonObject, stringValue } from './http.js';
 
 const MAX_VERIFY_FAILURES = 5;
@@ -26,8 +27,7 @@ function logVerifyAttempt(
   email: string,
   details: Record<string, unknown> = {},
 ): void {
-  if (typeof context.log !== 'function') return;
-  context.log('player_recovery_verify', {
+  logBackendEvent(context, 'player_recovery_verify', outcome === 'verify_success' ? 'info' : 'warn', {
     outcome,
     email_hash: playerEmailHash(email),
     ...details,
@@ -73,7 +73,7 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
       .input('email', sql.NVarChar(320), email)
       .input('codeHash', sql.NVarChar(128), codeHash).query<{ id: number }>(`
         SELECT TOP 1 id
-        FROM player_recovery_otps WITH (UPDLOCK, HOLDLOCK, READPAST)
+        FROM player_recovery_otps WITH (UPDLOCK, HOLDLOCK)
         WHERE email = @email
           AND code_hash = @codeHash
           AND used = 0
@@ -146,7 +146,18 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
         // no-op: preserve the original verification failure response
       }
     }
-    context.error?.('Failed to verify player recovery code', err);
+    logBackendEvent(
+      context,
+      'Failed to verify player recovery code',
+      'error',
+      {
+        flow: 'player_recovery_verify',
+        failure_class: 'service_error',
+        email_hash: playerEmailHash(email),
+        error_name: err instanceof Error ? err.name : undefined,
+      },
+      err,
+    );
     logVerifyAttempt(context, 'verify_failed', email, { failure_class: 'service_error' });
     return {
       status: 503,

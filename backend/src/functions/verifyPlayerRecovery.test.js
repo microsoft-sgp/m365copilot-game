@@ -93,6 +93,8 @@ describe('verifyPlayerRecovery', () => {
     expect(commitSpy).toHaveBeenCalledTimes(1);
     expect(rollbackSpy).not.toHaveBeenCalled();
     expect(calls[0].query).toMatch(/FROM player_recovery_otps/);
+    expect(calls[0].query).toMatch(/WITH \(UPDLOCK, HOLDLOCK\)/);
+    expect(calls[0].query).not.toMatch(/READPAST/);
     expect(calls[2].query).toMatch(/INSERT INTO player_device_tokens/);
     expect(calls[3].query).toMatch(/UPDATE player_recovery_otps SET used = 1/);
     expect(cacheDelete).toHaveBeenCalled();

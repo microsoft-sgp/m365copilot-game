@@ -7,6 +7,15 @@ const { beginSendMock, EmailClientMock } = vi.hoisted(() => ({
   }),
 }));
 const captureOperationalErrorMock = vi.hoisted(() => vi.fn());
+const logBackendEventMock = vi.hoisted(() =>
+  vi.fn((context, event, level = 'info', details = {}, platformError) => {
+    if ((level === 'error' || level === 'fatal') && typeof context?.error === 'function') {
+      context.error(event, platformError ?? details);
+      return;
+    }
+    if (typeof context?.log === 'function') context.log(event, details);
+  }),
+);
 
 vi.mock('@azure/communication-email', () => ({
   EmailClient: EmailClientMock,
@@ -14,6 +23,7 @@ vi.mock('@azure/communication-email', () => ({
 
 vi.mock('./sentry.js', () => ({
   captureOperationalError: captureOperationalErrorMock,
+  logBackendEvent: logBackendEventMock,
 }));
 
 const { sendAdminOtpEmail, sendPlayerRecoveryEmail } = await import('./email.js');
@@ -34,6 +44,7 @@ describe('sendAdminOtpEmail', () => {
     beginSendMock.mockReset();
     EmailClientMock.mockClear();
     captureOperationalErrorMock.mockClear();
+    logBackendEventMock.mockClear();
   });
 
   afterEach(() => {
@@ -209,6 +220,13 @@ describe('sendAdminOtpEmail', () => {
     expect(result.status).toBe('exception');
     expect(result.errorName).toBe('TypeError');
     expect(typeof result.latencyMs).toBe('number');
+    expect(logBackendEventMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      'Failed to send admin OTP email',
+      'error',
+      expect.objectContaining({ flow: 'admin-otp', errorName: 'TypeError' }),
+      expect.any(TypeError),
+    );
     expect(captureOperationalErrorMock).toHaveBeenCalledWith(
       'email_send_failure',
       expect.objectContaining({
@@ -265,6 +283,13 @@ describe('sendAdminOtpEmail', () => {
     expect(result.errorName).toBe('RangeError');
     expect(context.error).toHaveBeenCalledWith(
       'Failed to send player recovery email',
+      expect.any(RangeError),
+    );
+    expect(logBackendEventMock).toHaveBeenCalledWith(
+      context,
+      'Failed to send player recovery email',
+      'error',
+      expect.objectContaining({ flow: 'player-recovery', errorName: 'RangeError' }),
       expect.any(RangeError),
     );
     expect(captureOperationalErrorMock).toHaveBeenCalledWith(
@@ -358,6 +383,13 @@ describe('sendAdminOtpEmail', () => {
     expect(result.skipped).toBe(true);
     expect(typeof result.latencyMs).toBe('number');
     expect(context.log).toHaveBeenCalled();
+    expect(logBackendEventMock).toHaveBeenCalledWith(
+      context,
+      'admin_otp_email_dev_skipped',
+      'info',
+      expect.objectContaining({ flow: 'admin-otp', recipientDomain: 'test.com' }),
+    );
+    expect(JSON.stringify(logBackendEventMock.mock.calls)).not.toContain('123456');
     expect(captureOperationalErrorMock).not.toHaveBeenCalled();
   });
 });

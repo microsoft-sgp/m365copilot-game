@@ -1,5 +1,5 @@
 import { EmailClient } from '@azure/communication-email';
-import { captureOperationalError } from './sentry.js';
+import { captureOperationalError, logBackendEvent } from './sentry.js';
 
 type LoggerLike = {
   log?: (message: string, details?: Record<string, unknown>) => void;
@@ -214,6 +214,11 @@ export async function sendAdminOtpEmail(
   if (!emailConfig.ok) {
     if (emailConfig.reason === 'missing' && process.env.NODE_ENV !== 'production') {
       context.log?.(`[DEV] Admin OTP for ${email}: ${code}`);
+      logBackendEvent(context, 'admin_otp_email_dev_skipped', 'info', {
+        flow: 'admin-otp',
+        recipientDomain: recipientDomain(email),
+        latencyMs: Date.now() - start,
+      });
       return { ok: true, skipped: true, latencyMs: Date.now() - start };
     }
     const result = notConfiguredResult();
@@ -254,7 +259,13 @@ export async function sendAdminOtpEmail(
 
     return { ok: true, messageId, latencyMs: Date.now() - start };
   } catch (err) {
-    context.error?.('Failed to send admin OTP email', err);
+    logBackendEvent(
+      context,
+      'Failed to send admin OTP email',
+      'error',
+      { flow: 'admin-otp', errorName: getErrorName(err) },
+      err,
+    );
     const result: EmailSendResult = {
       ok: false,
       error: getErrorMessage(err),
@@ -278,6 +289,11 @@ export async function sendPlayerRecoveryEmail(
 
   if (!emailConfig.ok) {
     if (emailConfig.reason === 'missing' && process.env.NODE_ENV !== 'production') {
+      logBackendEvent(context, 'player_recovery_email_dev_skipped', 'info', {
+        flow: 'player-recovery',
+        recipientDomain: recipientDomain(email),
+        latencyMs: Date.now() - start,
+      });
       return { ok: true, skipped: true, latencyMs: Date.now() - start };
     }
     const result = notConfiguredResult();
@@ -318,7 +334,13 @@ export async function sendPlayerRecoveryEmail(
 
     return { ok: true, messageId, latencyMs: Date.now() - start };
   } catch (err) {
-    context.error?.('Failed to send player recovery email', err);
+    logBackendEvent(
+      context,
+      'Failed to send player recovery email',
+      'error',
+      { flow: 'player-recovery', errorName: getErrorName(err) },
+      err,
+    );
     const result: EmailSendResult = {
       ok: false,
       error: getErrorMessage(err),

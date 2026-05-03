@@ -14,6 +14,7 @@ import {
   isAssignmentNotActiveResponse,
   isPlayerRecoveryRequiredResponse,
 } from '../lib/api.js';
+import { captureFrontendLog } from '../lib/sentry.js';
 import type { ApiResponse } from '../lib/api.js';
 
 type Keyword = {
@@ -237,7 +238,12 @@ export function useBingoGame() {
           setRecoveryRequired(state.email, 'Recover this player identity to continue.');
         }
       })
-      .catch(() => {});
+      .catch((error) => {
+        captureFrontendLog('game_auth_watcher_failed', 'warn', {
+          source: 'watchGameAuthFailure',
+          error_name: error instanceof Error ? error.name : undefined,
+        });
+      });
   }
 
   function applyIdentity({ name, email, organization }: StartBoardArgs = {}) {

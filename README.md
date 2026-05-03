@@ -61,6 +61,8 @@ flowchart LR
 | Application Insights | Azure Functions/App Service platform and runtime diagnostics for host behavior, invocation telemetry, and Azure Portal troubleshooting.                                               |
 | Terraform           | Provisions Azure infrastructure in Korea Central for regional resources; Azure Communication Services is the only global control-plane exception.                                    |
 
+Sentry Issues are reserved for breakage: browser network failures, backend/frontend `5xx` responses, unexpected exceptions, local adapter errors, and selected operational failures such as ACS Email. Expected workflow `4xx` responses are structured Sentry Logs plus `api.client_response` metrics by default so normal validation, auth, conflict, not-found, and rate-limit traffic stays visible without becoming incidents. Application Insights remains the Azure platform/runtime diagnostics layer.
+
 ## App flow
 
 ```mermaid

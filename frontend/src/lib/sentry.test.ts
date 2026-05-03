@@ -5,6 +5,14 @@ const sentryMock = vi.hoisted(() => {
   const init = vi.fn();
   const replayIntegration = vi.fn((options) => ({ name: 'Replay', options }));
   const captureMessage = vi.fn();
+  const logger = {
+    trace: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+  };
   const scope = {
     setLevel: vi.fn(),
     setTags: vi.fn(),
@@ -13,15 +21,18 @@ const sentryMock = vi.hoisted(() => {
   };
   const withScope = vi.fn((callback) => callback(scope));
   const metrics = { count: vi.fn() };
-  return { init, replayIntegration, captureMessage, withScope, metrics, scope };
+  return { init, replayIntegration, captureMessage, logger, withScope, metrics, scope };
 });
 
 vi.mock('@sentry/vue', () => sentryMock);
 
 const {
   captureFrontendApiFailure,
+  captureFrontendLog,
+  classifyFrontendApiOutcome,
   getFrontendSentryConfig,
   initFrontendSentry,
+  normalizeFrontendEndpointPath,
   resetFrontendSentryForTests,
   runFrontendSentrySmokeCheck,
   sanitizeForSentry,
@@ -49,6 +60,7 @@ beforeEach(() => {
   sentryMock.init.mockClear();
   sentryMock.replayIntegration.mockClear();
   sentryMock.captureMessage.mockClear();
+  Object.values(sentryMock.logger).forEach((mock) => mock.mockClear());
   sentryMock.withScope.mockClear();
   sentryMock.metrics.count.mockClear();
   Object.values(sentryMock.scope).forEach((mock) => mock.mockClear());
@@ -131,17 +143,87 @@ describe('sanitizeForSentry', () => {
         email: 'ada@example.com',
         headers: { Authorization: 'Bearer secret', ok: 'support@example.com' },
         nested: { playerToken: 'token', count: 3 },
+        status_code: 409,
+        workflow_code: 'PLAYER_RECOVERY_REQUIRED',
+        error_name: 'TypeError',
+        code: '123456',
       }),
     ).toEqual({
       email: '[Filtered]',
-      headers: { Authorization: '[Filtered]', ok: '[Filtered]' },
+      headers: '[Filtered]',
       nested: { playerToken: '[Filtered]', count: 3 },
+      status_code: 409,
+      workflow_code: 'PLAYER_RECOVERY_REQUIRED',
+      error_name: 'TypeError',
+      code: '[Filtered]',
     });
   });
 });
 
+  describe('normalizeFrontendEndpointPath', () => {
+    it('removes query strings and replaces high-cardinality segments', () => {
+      expect(normalizeFrontendEndpointPath('/portal-api/admins/ada%40example.com?confirm=1')).toBe(
+        '/portal-api/admins/:email',
+      );
+      expect(normalizeFrontendEndpointPath('/sessions/12345?email=ada@example.com')).toBe(
+        '/sessions/:id',
+      );
+    });
+  });
+
 describe('captureFrontendApiFailure', () => {
-  it('captures network failures plus 4xx and 5xx API responses', () => {
+    it('classifies network failures, ordinary 4xx responses, and 5xx responses', () => {
+      expect(
+        classifyFrontendApiOutcome({
+          method: 'POST',
+          path: '/submissions?campaign=APR26',
+          status: 0,
+          apiBase: '/api',
+          error: new Error('offline'),
+        }),
+      ).toMatchObject({
+        statusClass: 'network',
+        responseClass: 'network_failure',
+        shouldCaptureIssue: true,
+        shouldLog: false,
+        shouldMetric: false,
+        endpointPath: '/submissions',
+      });
+
+      expect(
+        classifyFrontendApiOutcome({
+          method: 'POST',
+          path: '/submissions',
+          status: 409,
+          apiBase: '/api',
+          workflowCode: 'PLAYER_RECOVERY_REQUIRED',
+        }),
+      ).toMatchObject({
+        statusClass: '4xx',
+        responseClass: 'client_response',
+        shouldCaptureIssue: false,
+        shouldLog: true,
+        shouldMetric: true,
+        workflowCode: 'PLAYER_RECOVERY_REQUIRED',
+      });
+
+      expect(
+        classifyFrontendApiOutcome({
+          method: 'GET',
+          path: '/leaderboard',
+          status: 503,
+          apiBase: '/api',
+        }),
+      ).toMatchObject({
+        statusClass: '5xx',
+        responseClass: 'server_failure',
+        shouldCaptureIssue: true,
+        shouldLog: false,
+        shouldMetric: false,
+      });
+    });
+
+    it('captures network and 5xx failures as Issues while logging ordinary 4xx responses', () => {
     initFrontendSentry(app, configuredEnv());
 
     captureFrontendApiFailure({
@@ -156,6 +238,7 @@ describe('captureFrontendApiFailure', () => {
       path: '/submissions',
       status: 409,
       apiBase: '/api',
+      workflowCode: 'PLAYER_RECOVERY_REQUIRED',
     });
     captureFrontendApiFailure({
       method: 'GET',
@@ -164,10 +247,9 @@ describe('captureFrontendApiFailure', () => {
       apiBase: '/api',
     });
 
-    expect(sentryMock.captureMessage).toHaveBeenCalledTimes(3);
+    expect(sentryMock.captureMessage).toHaveBeenCalledTimes(2);
     expect(sentryMock.captureMessage.mock.calls.map(([message]) => message)).toEqual([
       'Frontend API network failure',
-      'Frontend API client failure',
       'Frontend API server failure',
     ]);
     expect(sentryMock.scope.setFingerprint).toHaveBeenCalledWith([
@@ -177,26 +259,69 @@ describe('captureFrontendApiFailure', () => {
       '0',
     ]);
     expect(sentryMock.scope.setFingerprint).toHaveBeenCalledWith([
-      'frontend-client-failure',
-      'POST',
-      '/submissions',
-      '409',
-    ]);
-    expect(sentryMock.scope.setFingerprint).toHaveBeenCalledWith([
       'frontend-server-failure',
       'GET',
       '/leaderboard',
       '503',
     ]);
     expect(sentryMock.scope.setTags).toHaveBeenCalledWith(
-      expect.objectContaining({ api_status: '409', api_status_class: '4xx' }),
+      expect.objectContaining({
+        api_status: '503',
+        api_status_class: '5xx',
+        response_class: 'server_failure',
+      }),
     );
-    expect(sentryMock.scope.setTags).toHaveBeenCalledWith(
-      expect.objectContaining({ api_status: '503', api_status_class: '5xx' }),
+    expect(sentryMock.logger.info).toHaveBeenCalledWith(
+      'Frontend API client response',
+      expect.objectContaining({
+        service: 'frontend',
+        runtime: 'browser',
+        environment: 'staging',
+        release: 'm365copilot-game@abc123',
+        status_code: 409,
+        status_class: '4xx',
+        response_class: 'client_response',
+        workflow_code: 'PLAYER_RECOVERY_REQUIRED',
+      }),
     );
-    expect(sentryMock.scope.setContext).toHaveBeenCalledWith(
-      'api',
-      expect.objectContaining({ path: '/submissions', status: 409, statusClass: '4xx' }),
+    expect(sentryMock.metrics.count).toHaveBeenCalledWith(
+      'api.client_response',
+      1,
+      expect.objectContaining({
+        tags: expect.objectContaining({
+          service: 'frontend',
+          runtime: 'browser',
+          status_code: '409',
+          status_class: '4xx',
+          response_class: 'client_response',
+          workflow_code: 'PLAYER_RECOVERY_REQUIRED',
+        }),
+      }),
+    );
+  });
+});
+
+describe('captureFrontendLog', () => {
+  it('emits real Sentry Logs with sanitized attributes', () => {
+    initFrontendSentry(app, configuredEnv());
+
+    captureFrontendLog('clipboard failed for ada@example.com', 'warn', {
+      email: 'ada@example.com',
+      status_code: 409,
+      workflow_code: 'ASSIGNMENT_NOT_ACTIVE',
+    });
+
+    expect(sentryMock.captureMessage).not.toHaveBeenCalled();
+    expect(sentryMock.logger.warn).toHaveBeenCalledWith(
+      'clipboard failed for [Filtered]',
+      expect.objectContaining({
+        service: 'frontend',
+        runtime: 'browser',
+        severity: 'warn',
+        email: '[Filtered]',
+        status_code: 409,
+        workflow_code: 'ASSIGNMENT_NOT_ACTIVE',
+      }),
     );
   });
 });
@@ -206,7 +331,12 @@ describe('runFrontendSentrySmokeCheck', () => {
     initFrontendSentry(app, configuredEnv());
     expect(() => runFrontendSentrySmokeCheck()).toThrow(TypeError);
     expect(sentryMock.metrics.count).toHaveBeenCalledWith('test_counter', 1, {
-      tags: { service: 'frontend', runtime: 'browser' },
+      tags: {
+        service: 'frontend',
+        runtime: 'browser',
+        environment: 'staging',
+        release: 'm365copilot-game@abc123',
+      },
     });
   });
 });

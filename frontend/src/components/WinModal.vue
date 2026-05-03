@@ -1,5 +1,6 @@
 <script setup>
 import { useToast } from '../composables/useToast.js';
+import { captureFrontendLog } from '../lib/sentry.js';
 
 const props = defineProps({
   data: {
@@ -19,7 +20,13 @@ const confetti = Array.from({ length: 40 }, (_, i) => ({
 }));
 
 function copyKw() {
-  navigator.clipboard.writeText(props.data.kw).catch(() => {});
+  navigator.clipboard.writeText(props.data.kw).catch((error) => {
+    captureFrontendLog('win_keyword_clipboard_copy_failed', 'warn', {
+      component: 'WinModal',
+      action: 'copy_keyword',
+      error_name: error instanceof Error ? error.name : undefined,
+    });
+  });
   showToast({ icon: '📋', title: 'Copied!', sub: props.data.kw });
 }
 </script>

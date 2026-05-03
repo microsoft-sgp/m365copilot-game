@@ -1,7 +1,9 @@
 import { createClient, type RedisClientType } from 'redis';
+import { logBackendEvent } from './sentry.js';
 
 type LoggerLike = {
   log?: (message: string, details?: Record<string, unknown>) => void;
+  error?: (...args: unknown[]) => void;
 };
 
 type RedisConfig = {
@@ -22,9 +24,7 @@ function logCacheEvent(
   event: string,
   details: Record<string, unknown> = {},
 ): void {
-  if (context && typeof context.log === 'function') {
-    context.log(event, details);
-  }
+  logBackendEvent(context, event, 'warn', details);
 }
 
 function getRedisConfig(): RedisConfig | null {

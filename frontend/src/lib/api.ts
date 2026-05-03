@@ -27,6 +27,11 @@ type PlayerRecoveryVerifyResponse = {
   playerToken?: string;
 };
 
+function workflowCodeFromData(data: unknown): string | undefined {
+  const code = (data as MaybeRecoveryResponse | null)?.code;
+  return typeof code === 'string' ? code : undefined;
+}
+
 export function isPlayerRecoveryRequiredResponse(res: ApiResponse<unknown>): boolean {
   const data = res.data as MaybeRecoveryResponse | null;
   return res.status === 409 && data?.code === PLAYER_RECOVERY_REQUIRED;
@@ -104,7 +109,13 @@ async function request<T = unknown>(
     const res = await fetch(`${API_BASE}${path}`, opts);
     const data = (await res.json()) as T;
     if (res.status >= 400 && res.status < 600) {
-      captureFrontendApiFailure({ method, path, status: res.status, apiBase: API_BASE });
+      captureFrontendApiFailure({
+        method,
+        path,
+        status: res.status,
+        apiBase: API_BASE,
+        workflowCode: workflowCodeFromData(data),
+      });
     }
     return { ok: res.ok, status: res.status, data };
   } catch (error) {
@@ -222,7 +233,13 @@ function adminRequest<T = unknown>(
 
       if (response.status === 401) notifyAdminSessionInvalid();
       if (response.status >= 400 && response.status < 600) {
-        captureFrontendApiFailure({ method, path, status: response.status, apiBase: API_BASE });
+        captureFrontendApiFailure({
+          method,
+          path,
+          status: response.status,
+          apiBase: API_BASE,
+          workflowCode: workflowCodeFromData(response.data),
+        });
       }
       return response;
     })

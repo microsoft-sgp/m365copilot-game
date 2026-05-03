@@ -1,5 +1,6 @@
 <script setup>
 import { useBingoGame } from '../composables/useBingoGame.js';
+import { captureFrontendLog } from '../lib/sentry.js';
 const { state } = useBingoGame();
 
 function pad(n) {
@@ -9,7 +10,13 @@ function fmt(ts) {
   return new Date(ts).toLocaleString();
 }
 function copy(code) {
-  navigator.clipboard.writeText(code).catch(() => {});
+  navigator.clipboard.writeText(code).catch((error) => {
+    captureFrontendLog('keyword_clipboard_copy_failed', 'warn', {
+      component: 'KeywordsPanel',
+      action: 'copy_keyword',
+      error_name: error instanceof Error ? error.name : undefined,
+    });
+  });
 }
 </script>
 

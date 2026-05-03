@@ -102,6 +102,7 @@ locals {
     SENTRY_ENABLE_LOGS                = tostring(var.sentry_enable_logs)
     SENTRY_CAPTURE_OPERATIONAL_ERRORS = tostring(var.sentry_capture_operational_errors)
     SENTRY_FLUSH_TIMEOUT_MS           = tostring(var.sentry_flush_timeout_ms)
+    SENTRY_SMOKE_CHECK                = tostring(var.sentry_smoke_check)
   }
 }
 

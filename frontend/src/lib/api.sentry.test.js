@@ -50,7 +50,12 @@ describe('Sentry API failure classification', () => {
     fetchSpy
       .mockResolvedValueOnce(jsonResponse({ ok: false }, { ok: false, status: 503 }))
       .mockResolvedValueOnce(jsonResponse({ ok: false }, { ok: false, status: 400 }))
-      .mockResolvedValueOnce(jsonResponse({ ok: false }, { ok: false, status: 409 }));
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { ok: false, code: api.PLAYER_RECOVERY_REQUIRED },
+          { ok: false, status: 409 },
+        ),
+      );
 
     await api.apiGetHealth();
     await api.apiGetCampaignConfig();
@@ -74,6 +79,7 @@ describe('Sentry API failure classification', () => {
       path: '/submissions',
       status: 409,
       apiBase: '/api',
+      workflowCode: api.PLAYER_RECOVERY_REQUIRED,
     });
   });
 

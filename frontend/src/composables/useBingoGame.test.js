@@ -14,6 +14,10 @@ vi.mock('../lib/api.js', () => ({
   ),
 }));
 
+const captureFrontendLog = vi.hoisted(() => vi.fn());
+
+vi.mock('../lib/sentry.js', () => ({ captureFrontendLog }));
+
 // Swap the pack generator for a predictable 9-tile fixture whose verify
 // function accepts any proof containing "PASS". This isolates the game-state
 // logic (line detection, keyword minting, persistence) from the rule engine,
@@ -71,6 +75,7 @@ beforeEach(() => {
   apiRerollAssignment.mockResolvedValue({ ok: false, data: null });
   apiUpdateSession.mockResolvedValue({ ok: false, data: null });
   apiRecordEvent.mockResolvedValue({ ok: false, data: null });
+  captureFrontendLog.mockClear();
   resetState();
 });
 
@@ -472,6 +477,24 @@ describe('useBingoGame.verifyTile', () => {
 
     expect(state.recoveryRequired).toBe(true);
     expect(state.boardActive).toBe(false);
+  });
+
+  it('logs rejected game auth watcher promises without throwing', async () => {
+    const error = new Error('offline');
+    apiRecordEvent.mockRejectedValueOnce(error);
+    const { startBoard, verifyTile, state } = useBingoGame();
+    await startBoard({ name: 'Ada', email: 'ada@example.com', packId: 1 });
+    state.gameSessionId = 42;
+
+    verifyTile(0, 'PASS please');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(captureFrontendLog).toHaveBeenCalledWith(
+      'game_auth_watcher_failed',
+      'warn',
+      expect.objectContaining({ source: 'watchGameAuthFailure', error_name: 'Error' }),
+    );
   });
 
   it('advances currentWeek after a weekly mint when elapsed time permits', () => {

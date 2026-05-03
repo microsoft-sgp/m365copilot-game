@@ -183,6 +183,12 @@ variable "sentry_flush_timeout_ms" {
   }
 }
 
+variable "sentry_smoke_check" {
+  description = "Temporarily enables the function-key protected backend Sentry smoke route for non-production verification. Keep false outside approved smoke windows."
+  type        = bool
+  default     = false
+}
+
 variable "admin_access_ttl_seconds" {
   description = "Lifetime for short-lived admin access cookies."
   type        = number

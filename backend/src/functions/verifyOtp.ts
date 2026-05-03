@@ -17,6 +17,7 @@ import {
   getAdminStepUpTtlSeconds,
 } from '../lib/adminCookies.js';
 import { cacheDelete, cacheGetCounter, cacheIncrementWithTtl } from '../lib/cache.js';
+import { logBackendEvent } from '../lib/sentry.js';
 import { readJsonObject, stringValue } from './http.js';
 
 // Brute-force lockout window. Five failed verify attempts within ten minutes
@@ -50,8 +51,7 @@ function logVerifyFailure(
   email: string,
   failureCount: number | null,
 ): void {
-  if (typeof context.log !== 'function') return;
-  context.log('admin_otp_verify_failure', {
+  logBackendEvent(context, 'admin_otp_verify_failure', 'warn', {
     outcome,
     email_hash: emailHash(email),
     ...(failureCount !== null ? { failure_count: failureCount } : {}),
