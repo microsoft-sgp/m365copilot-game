@@ -455,10 +455,18 @@ Point the frontend at your Function App URL:
 ```bash
 cd frontend
 npm ci
-VITE_API_BASE=https://func-bingo-api.azurewebsites.net/api npm run build
+export SENTRY_DSN="<same value as the backend sentry_dsn Terraform variable>"
+export SENTRY_RELEASE="m365copilot-game@$(git rev-parse --short HEAD)"
+VITE_API_BASE=https://func-bingo-api.azurewebsites.net/api \
+VITE_SENTRY_DSN="$SENTRY_DSN" \
+VITE_SENTRY_ENVIRONMENT="dev" \
+VITE_SENTRY_RELEASE="$SENTRY_RELEASE" \
+npm run build
 ```
 
 > **Important:** Replace `func-bingo-api` with your actual Function App name from Step 7a.
+
+> **Sentry rollback:** To disable Sentry without code changes, empty or remove the backend `sentry_dsn` Terraform value, apply Terraform so `SENTRY_DSN` is empty, then rebuild the frontend without `VITE_SENTRY_DSN` and redeploy the static assets. Application Insights remains available for Azure platform/runtime diagnostics.
 
 ### 8c. Confirm the SPA fallback config
 
@@ -623,6 +631,7 @@ env:
   SWA_NAME: swa-bingo
   RESOURCE_GROUP: rg-bingo
   NODE_VERSION: '20'
+  SENTRY_RELEASE: m365copilot-game@${{ github.sha }}
 
 jobs:
   deploy-backend:
@@ -658,6 +667,9 @@ jobs:
         working-directory: frontend
         env:
           VITE_API_BASE: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/api
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          VITE_SENTRY_ENVIRONMENT: production
+          VITE_SENTRY_RELEASE: ${{ env.SENTRY_RELEASE }}
       - uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
@@ -677,6 +689,8 @@ jobs:
      --resource-group rg-bingo \
      --query 'properties.apiKey' -o tsv
    ```
+
+3. **`SENTRY_DSN`**: Add the same Sentry project DSN used by the backend Terraform `sentry_dsn` variable. The frontend build reads this as `VITE_SENTRY_DSN`, so changing it requires a new frontend build and deploy.
 
 Protect GitHub Actions secrets, deployment tokens, publish profiles, Terraform state, generated plans, and CSV exports according to your organization's security and data-handling policies.
 

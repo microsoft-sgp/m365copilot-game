@@ -198,7 +198,13 @@ The frontend is hosted on a Linux App Service running Node 24 with `pm2 serve` f
 ```bash
 cd frontend
 npm ci
-VITE_API_BASE=$(terraform -chdir=../infra/terraform output -raw api_base_url) npm run build
+export SENTRY_DSN="<same value as infra/terraform/terraform.tfvars sentry_dsn>"
+export SENTRY_RELEASE="m365copilot-game@$(git rev-parse --short HEAD)"
+VITE_API_BASE=$(terraform -chdir=../infra/terraform output -raw api_base_url) \
+VITE_SENTRY_DSN="$SENTRY_DSN" \
+VITE_SENTRY_ENVIRONMENT="dev" \
+VITE_SENTRY_RELEASE="$SENTRY_RELEASE" \
+npm run build
 
 FRONTEND_APP_NAME=$(terraform -chdir=../infra/terraform output -raw frontend_web_app_name)
 RESOURCE_GROUP_NAME=$(terraform -chdir=../infra/terraform output -raw resource_group_name)

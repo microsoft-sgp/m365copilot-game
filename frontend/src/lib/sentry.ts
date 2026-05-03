@@ -215,28 +215,37 @@ export function isFrontendSentryEnabled(): boolean {
 export function captureFrontendApiFailure(options: CaptureApiFailureOptions): void {
   if (!isFrontendSentryEnabled()) return;
   const isNetworkFailure = options.status === 0;
-  const isServerFailure = options.status >= 500;
-  if (!isNetworkFailure && !isServerFailure) return;
+  const isClientFailure = options.status >= 400 && options.status < 500;
+  const isServerFailure = options.status >= 500 && options.status < 600;
+  if (!isNetworkFailure && !isClientFailure && !isServerFailure) return;
 
   const endpointPath = options.path.split('?')[0] || '/';
-  const title = isNetworkFailure ? 'Frontend API network failure' : 'Frontend API server failure';
+  const failureClass = isNetworkFailure ? 'network' : isClientFailure ? '4xx' : '5xx';
+  const fingerprintKind = isNetworkFailure
+    ? 'frontend-network-failure'
+    : isClientFailure
+      ? 'frontend-client-failure'
+      : 'frontend-server-failure';
+  const title = isNetworkFailure
+    ? 'Frontend API network failure'
+    : isClientFailure
+      ? 'Frontend API client failure'
+      : 'Frontend API server failure';
   Sentry.withScope((scope) => {
     scope.setLevel('error');
     scope.setTags({
       service: 'frontend',
       runtime: 'browser',
       api_status: String(options.status),
+      api_status_class: failureClass,
       api_method: options.method,
     });
-    scope.setFingerprint([
-      isNetworkFailure ? 'frontend-network-failure' : 'frontend-server-failure',
-      options.method,
-      endpointPath,
-    ]);
+    scope.setFingerprint([fingerprintKind, options.method, endpointPath, String(options.status)]);
     scope.setContext('api', {
       method: options.method,
       path: endpointPath,
       status: options.status,
+      statusClass: failureClass,
       apiBase: options.apiBase,
       online: typeof navigator === 'undefined' ? undefined : navigator.onLine,
       errorName: options.error instanceof Error ? options.error.name : undefined,

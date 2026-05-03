@@ -46,25 +46,41 @@ describe('Sentry API failure classification', () => {
     });
   });
 
-  it('captures public API 5xx responses but not expected 4xx responses', async () => {
+  it('captures public API 4xx and 5xx responses', async () => {
     fetchSpy
       .mockResolvedValueOnce(jsonResponse({ ok: false }, { ok: false, status: 503 }))
+      .mockResolvedValueOnce(jsonResponse({ ok: false }, { ok: false, status: 400 }))
       .mockResolvedValueOnce(jsonResponse({ ok: false }, { ok: false, status: 409 }));
 
     await api.apiGetHealth();
+    await api.apiGetCampaignConfig();
     await api.apiSubmitKeyword({ keyword: 'X' });
 
-    expect(captureFrontendApiFailure).toHaveBeenCalledTimes(1);
+    expect(captureFrontendApiFailure).toHaveBeenCalledTimes(3);
     expect(captureFrontendApiFailure).toHaveBeenCalledWith({
       method: 'GET',
       path: '/health',
       status: 503,
       apiBase: '/api',
     });
+    expect(captureFrontendApiFailure).toHaveBeenCalledWith({
+      method: 'GET',
+      path: '/campaigns/active',
+      status: 400,
+      apiBase: '/api',
+    });
+    expect(captureFrontendApiFailure).toHaveBeenCalledWith({
+      method: 'POST',
+      path: '/submissions',
+      status: 409,
+      apiBase: '/api',
+    });
   });
 
-  it('captures admin API status 0 and 5xx failures but not 401 responses', async () => {
+  it('captures admin API status 0 plus 4xx and 5xx responses', async () => {
     const adminError = new Error('offline');
+    const invalidSession = vi.fn();
+    api.installAdminSessionInvalidHandler(invalidSession);
     fetchSpy
       .mockRejectedValueOnce(adminError)
       .mockResolvedValueOnce(jsonResponse({ ok: false }, { ok: false, status: 500 }))
@@ -74,7 +90,7 @@ describe('Sentry API failure classification', () => {
     await api.apiAdminGetDashboard();
     await api.apiAdminGetDashboard();
 
-    expect(captureFrontendApiFailure).toHaveBeenCalledTimes(2);
+    expect(captureFrontendApiFailure).toHaveBeenCalledTimes(3);
     expect(captureFrontendApiFailure.mock.calls[0][0]).toMatchObject({
       method: 'GET',
       path: '/portal-api/admins',
@@ -88,5 +104,12 @@ describe('Sentry API failure classification', () => {
       status: 500,
       apiBase: '/api',
     });
+    expect(captureFrontendApiFailure.mock.calls[2][0]).toMatchObject({
+      method: 'GET',
+      path: '/portal-api/dashboard?campaign=APR26',
+      status: 401,
+      apiBase: '/api',
+    });
+    expect(invalidSession).toHaveBeenCalledTimes(1);
   });
 });

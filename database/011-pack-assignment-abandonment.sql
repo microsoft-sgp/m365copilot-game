@@ -30,7 +30,9 @@ IF NOT EXISTS (
       AND parent_object_id = OBJECT_ID('pack_assignments')
 )
 BEGIN
+    EXEC(N'
     ALTER TABLE pack_assignments
         ADD CONSTRAINT CK_pack_assignments_abandoned_at
-            CHECK (status <> 'abandoned' OR abandoned_at IS NOT NULL);
+            CHECK (status <> ''abandoned'' OR abandoned_at IS NOT NULL);
+    ');
 END;

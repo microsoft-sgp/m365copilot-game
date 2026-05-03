@@ -141,7 +141,7 @@ describe('sanitizeForSentry', () => {
 });
 
 describe('captureFrontendApiFailure', () => {
-  it('captures network failures and 5xx responses only', () => {
+  it('captures network failures plus 4xx and 5xx API responses', () => {
     initFrontendSentry(app, configuredEnv());
 
     captureFrontendApiFailure({
@@ -164,16 +164,40 @@ describe('captureFrontendApiFailure', () => {
       apiBase: '/api',
     });
 
-    expect(sentryMock.captureMessage).toHaveBeenCalledTimes(2);
+    expect(sentryMock.captureMessage).toHaveBeenCalledTimes(3);
     expect(sentryMock.captureMessage.mock.calls.map(([message]) => message)).toEqual([
       'Frontend API network failure',
+      'Frontend API client failure',
       'Frontend API server failure',
     ]);
     expect(sentryMock.scope.setFingerprint).toHaveBeenCalledWith([
       'frontend-network-failure',
       'POST',
       '/submissions',
+      '0',
     ]);
+    expect(sentryMock.scope.setFingerprint).toHaveBeenCalledWith([
+      'frontend-client-failure',
+      'POST',
+      '/submissions',
+      '409',
+    ]);
+    expect(sentryMock.scope.setFingerprint).toHaveBeenCalledWith([
+      'frontend-server-failure',
+      'GET',
+      '/leaderboard',
+      '503',
+    ]);
+    expect(sentryMock.scope.setTags).toHaveBeenCalledWith(
+      expect.objectContaining({ api_status: '409', api_status_class: '4xx' }),
+    );
+    expect(sentryMock.scope.setTags).toHaveBeenCalledWith(
+      expect.objectContaining({ api_status: '503', api_status_class: '5xx' }),
+    );
+    expect(sentryMock.scope.setContext).toHaveBeenCalledWith(
+      'api',
+      expect.objectContaining({ path: '/submissions', status: 409, statusClass: '4xx' }),
+    );
   });
 });
 

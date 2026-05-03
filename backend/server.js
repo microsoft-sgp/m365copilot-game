@@ -1,6 +1,10 @@
 // Lightweight Express wrapper that loads Azure Functions handlers
 // for local Docker testing. Not used in production (Azure Functions runtime).
-import { captureBackendException, initBackendSentry } from './dist/lib/sentry.js';
+import {
+  captureBackendException,
+  captureBackendHttpResponse,
+  initBackendSentry,
+} from './dist/lib/sentry.js';
 import express from 'express';
 
 const app = express();
@@ -44,6 +48,11 @@ function adapt(handlerModule) {
       };
 
       const result = await handler(fakeRequest, { log: console.log });
+      await captureBackendHttpResponse(result, {
+        runtime: 'local-express',
+        functionName: `${req.method} ${req.path}`,
+        request: fakeRequest,
+      });
 
       if (result.headers) {
         Object.entries(result.headers).forEach(([k, v]) => res.set(k, v));

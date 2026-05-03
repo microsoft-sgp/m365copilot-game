@@ -103,7 +103,7 @@ async function request<T = unknown>(
 
     const res = await fetch(`${API_BASE}${path}`, opts);
     const data = (await res.json()) as T;
-    if (res.status >= 500) {
+    if (res.status >= 400 && res.status < 600) {
       captureFrontendApiFailure({ method, path, status: res.status, apiBase: API_BASE });
     }
     return { ok: res.ok, status: res.status, data };
@@ -221,7 +221,7 @@ function adminRequest<T = unknown>(
       }
 
       if (response.status === 401) notifyAdminSessionInvalid();
-      if (response.status >= 500) {
+      if (response.status >= 400 && response.status < 600) {
         captureFrontendApiFailure({ method, path, status: response.status, apiBase: API_BASE });
       }
       return response;

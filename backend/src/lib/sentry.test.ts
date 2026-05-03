@@ -9,6 +9,7 @@ const sentryMock = vi.hoisted(() => {
   const scope = {
     setLevel: vi.fn(),
     setTags: vi.fn(),
+    setFingerprint: vi.fn(),
     setContext: vi.fn(),
   };
   const withScope = vi.fn((callback) => callback(scope));
@@ -19,6 +20,7 @@ const sentryMock = vi.hoisted(() => {
 vi.mock('@sentry/node', () => sentryMock);
 
 const {
+  captureBackendHttpResponse,
   captureBackendLog,
   incrementBackendMetric,
   initBackendSentry,
@@ -93,6 +95,94 @@ describe('sanitizeForSentry', () => {
 });
 
 describe('withSentry', () => {
+  it('captures returned 4xx handler responses with stable grouping', async () => {
+    process.env.SENTRY_DSN = 'https://public@example.ingest.sentry.io/1';
+    process.env.SENTRY_FLUSH_TIMEOUT_MS = '1234';
+    const handler = vi.fn(async () => ({
+      status: 409,
+      jsonBody: { ok: false, code: 'PLAYER_RECOVERY_REQUIRED' },
+    }));
+    const wrapped = withSentry(handler, { functionName: 'createSession' });
+    const request = {
+      method: 'POST',
+      url: 'https://api.example.com/api/sessions?email=ada@example.com',
+      params: { id: '1', email: 'ada@example.com' },
+    } as unknown as HttpRequest;
+    const context = { log: vi.fn() } as unknown as InvocationContext;
+
+    const response = await wrapped(request, context);
+
+    expect(response.status).toBe(409);
+    expect(sentryMock.captureMessage).toHaveBeenCalledWith('Backend API returned failure');
+    expect(sentryMock.flush).toHaveBeenCalledWith(1234);
+    expect(sentryMock.scope.setTags).toHaveBeenCalledWith({
+      service: 'backend',
+      runtime: 'azure-functions',
+      function_name: 'createSession',
+      api_status: '409',
+      api_status_class: '4xx',
+      api_method: 'POST',
+    });
+    expect(sentryMock.scope.setFingerprint).toHaveBeenCalledWith([
+      'backend-returned-response',
+      'azure-functions',
+      'createSession',
+      'POST',
+      '/api/sessions',
+      '409',
+    ]);
+    expect(sentryMock.scope.setContext).toHaveBeenCalledWith('request', {
+      method: 'POST',
+      path: '/api/sessions',
+      params: { id: '1', email: '[Filtered]' },
+    });
+    expect(sentryMock.scope.setContext).toHaveBeenCalledWith('response', {
+      status: 409,
+      statusClass: '4xx',
+    });
+    expect(sentryMock.captureException).not.toHaveBeenCalled();
+  });
+
+  it('captures returned 5xx responses through the helper', async () => {
+    process.env.SENTRY_DSN = 'https://public@example.ingest.sentry.io/1';
+    const request = {
+      method: 'GET',
+      url: 'https://api.example.com/api/health',
+    } as unknown as HttpRequest;
+
+    await captureBackendHttpResponse(
+      { status: 503, jsonBody: { ok: false } },
+      { runtime: 'local-express', functionName: 'GET /api/health', request },
+    );
+
+    expect(sentryMock.captureMessage).toHaveBeenCalledWith('Backend API returned failure');
+    expect(sentryMock.scope.setTags).toHaveBeenCalledWith({
+      service: 'backend',
+      runtime: 'local-express',
+      function_name: 'GET /api/health',
+      api_status: '503',
+      api_status_class: '5xx',
+      api_method: 'GET',
+    });
+    expect(sentryMock.scope.setFingerprint).toHaveBeenCalledWith([
+      'backend-returned-response',
+      'local-express',
+      'GET /api/health',
+      'GET',
+      '/api/health',
+      '503',
+    ]);
+  });
+
+  it('does not capture returned failures when Sentry is disabled', async () => {
+    delete process.env.SENTRY_DSN;
+
+    await captureBackendHttpResponse({ status: 404 }, { functionName: 'missingRoute' });
+
+    expect(sentryMock.init).not.toHaveBeenCalled();
+    expect(sentryMock.captureMessage).not.toHaveBeenCalled();
+  });
+
   it('captures, flushes, and rethrows unexpected handler errors', async () => {
     process.env.SENTRY_DSN = 'https://public@example.ingest.sentry.io/1';
     process.env.SENTRY_FLUSH_TIMEOUT_MS = '1234';
@@ -112,6 +202,7 @@ describe('withSentry', () => {
 
     expect(handler).toHaveBeenCalledWith(request, context);
     expect(sentryMock.captureException).toHaveBeenCalledWith(error);
+    expect(sentryMock.captureMessage).not.toHaveBeenCalledWith('Backend API returned failure');
     expect(sentryMock.flush).toHaveBeenCalledWith(1234);
     expect(sentryMock.scope.setTags).toHaveBeenCalledWith({
       service: 'backend',

@@ -19,6 +19,10 @@ type CaptureContext = {
   extra?: Record<string, unknown>;
 };
 
+type CaptureHttpResponseContext = CaptureContext & {
+  response?: Partial<HttpResponseInit> | null;
+};
+
 const APP_NAME = 'm365copilot-game';
 const FILTERED = '[Filtered]';
 const MAX_SANITIZE_DEPTH = 4;
@@ -126,6 +130,33 @@ function requestContext(
   };
 }
 
+function requestPath(request?: Partial<HttpRequest> | null): string | undefined {
+  const url = request?.url;
+  if (!url) return undefined;
+  try {
+    return redactString(new URL(url).pathname || '/');
+  } catch {
+    return redactString(url.split('?')[0] || '/');
+  }
+}
+
+function responseStatusClass(status: number): '4xx' | '5xx' | null {
+  if (status >= 400 && status < 500) return '4xx';
+  if (status >= 500 && status < 600) return '5xx';
+  return null;
+}
+
+function responseRequestContext(
+  request?: Partial<HttpRequest> | null,
+): Record<string, unknown> | undefined {
+  if (!request) return undefined;
+  return {
+    method: request.method,
+    path: requestPath(request),
+    params: sanitizeForSentry(request.params),
+  };
+}
+
 export function initBackendSentry(
   runtime: BackendRuntime = 'azure-functions',
   env: RawEnv = process.env,
@@ -190,6 +221,51 @@ export async function captureBackendException(
   await flushBackendSentry();
 }
 
+export async function captureBackendHttpResponse(
+  response: Partial<HttpResponseInit> | null | undefined,
+  captureContext: CaptureHttpResponseContext = {},
+): Promise<void> {
+  const status = response?.status ?? 200;
+  const statusClass = responseStatusClass(status);
+  if (!statusClass) return;
+
+  const runtime = captureContext.runtime || activeRuntime;
+  if (!initBackendSentry(runtime)) return;
+
+  const method = captureContext.request?.method || 'unknown';
+  const path = requestPath(captureContext.request) || 'unknown';
+  const functionName = captureContext.functionName || 'unknown';
+
+  Sentry.withScope((scope) => {
+    scope.setLevel('error');
+    scope.setTags({
+      service: 'backend',
+      runtime,
+      function_name: functionName,
+      api_status: String(status),
+      api_status_class: statusClass,
+      api_method: method,
+    });
+    scope.setFingerprint([
+      'backend-returned-response',
+      runtime,
+      functionName,
+      method,
+      path,
+      String(status),
+    ]);
+    const request = responseRequestContext(captureContext.request);
+    if (request) scope.setContext('request', request);
+    scope.setContext('response', { status, statusClass });
+    if (captureContext.extra) {
+      scope.setContext('extra', sanitizeForSentry(captureContext.extra) as Record<string, unknown>);
+    }
+    Sentry.captureMessage('Backend API returned failure');
+  });
+
+  await flushBackendSentry();
+}
+
 export function withSentry(
   handler: AzureHttpHandler,
   options: { functionName?: string; runtime?: BackendRuntime } = {},
@@ -197,7 +273,14 @@ export function withSentry(
   return async (request, context) => {
     initBackendSentry(options.runtime || 'azure-functions');
     try {
-      return await handler(request, context);
+      const response = await handler(request, context);
+      await captureBackendHttpResponse(response, {
+        runtime: options.runtime || 'azure-functions',
+        functionName: options.functionName,
+        request,
+        context,
+      });
+      return response;
     } catch (error) {
       await captureBackendException(error, {
         runtime: options.runtime || 'azure-functions',
