@@ -84,19 +84,25 @@ The system SHALL keep package manifests and lockfiles synchronized so clean depe
 
 ### Requirement: Target deployment configuration
 
-The system SHALL document and configure the target Azure runtime dependencies through repeatable infrastructure and deployment settings, AND Terraform state for every environment SHALL be held in an Azure Storage remote backend that uses Azure AD authentication, blob versioning, and soft-delete, never in a workstation file.
+The system SHALL document and configure the target Azure runtime dependencies through repeatable infrastructure and deployment settings, including Sentry application observability settings and the retained Application Insights platform diagnostic boundary, AND Terraform state for every environment SHALL be held in an Azure Storage remote backend that uses Azure AD authentication, blob versioning, and soft-delete, never in a workstation file.
 
 #### Scenario: Runtime settings are declared
 
 - **GIVEN** the Terraform deployment path is used
 - **WHEN** infrastructure is reviewed or planned
-- **THEN** Function App settings, Key Vault references, Azure SQL settings, Redis settings, JWT secrets, CORS origins, and Static Web Apps/API integration settings MUST be declared through repeatable configuration rather than hand-created production values
+- **THEN** Function App settings, Key Vault references, Azure SQL settings, Redis settings, JWT secrets, CORS origins, Sentry backend settings, Application Insights platform diagnostics wiring, and Static Web Apps/API integration settings MUST be declared through repeatable configuration rather than hand-created production values
+
+#### Scenario: Frontend Sentry build settings are documented
+
+- **GIVEN** the frontend is built for a shared environment
+- **WHEN** an operator follows the documented build and deployment steps
+- **THEN** the documentation MUST identify the required Sentry frontend build variables, release value, source map upload inputs, and secret-handling rules without committing Sentry auth tokens or writing them to Terraform state
 
 #### Scenario: Verification commands are documented
 
 - **GIVEN** a contributor or operator prepares a change for release
 - **WHEN** they read the repository setup or deployment documentation
-- **THEN** the documentation MUST identify the required clean install, type-check, lint, format-check, Vitest, and Playwright commands for the target architecture
+- **THEN** the documentation MUST identify the required clean install, type-check, lint, format-check, Vitest, Playwright, Sentry smoke verification, source-map verification, and Application Insights/Sentry boundary checks for the target architecture
 
 #### Scenario: Terraform state lives in a remote backend
 
