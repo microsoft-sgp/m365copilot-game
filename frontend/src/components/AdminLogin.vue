@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { apiAdminRequestOtp, apiAdminVerifyOtp } from '../lib/api.js';
 import { setAdminSessionHint } from '../lib/adminSession.js';
+import { SEND_STATUS, useSlowSendStatus } from '../composables/useSlowSendStatus.js';
 
 const emit = defineEmits(['authenticated', 'back']);
 
@@ -13,45 +14,78 @@ const email = ref('');
 const code = ref('');
 const step = ref('email'); // 'email' | 'otp'
 const error = ref('');
-const loading = ref(false);
+const verifying = ref(false);
+const otpRequest = useSlowSendStatus();
+const otpRequestPending = otpRequest.isPending;
+
+const otpRequestStatusText = computed(() => {
+  if (otpRequest.status.value === SEND_STATUS.sending) return 'Sending...';
+  if (otpRequest.status.value === SEND_STATUS.confirming) return 'Confirming delivery...';
+  if (otpRequest.status.value === SEND_STATUS.sent) return 'Code sent. Check your email.';
+  return '';
+});
+
+const otpRequestButtonText = computed(() =>
+  otpRequestPending.value ? otpRequestStatusText.value : 'Send Code',
+);
 
 async function requestOtp() {
+  if (otpRequestPending.value) return;
   error.value = '';
   const trimmed = email.value.trim().toLowerCase();
   if (!trimmed || !trimmed.includes('@')) {
     error.value = 'Please enter a valid email.';
     return;
   }
-  loading.value = true;
-  const res = await apiAdminRequestOtp(trimmed);
-  loading.value = false;
+  otpRequest.start();
 
-  if (res.ok) {
-    step.value = 'otp';
-  } else if (res.status === 429) {
-    error.value = 'Please wait before requesting another code.';
-  } else {
-    error.value = res.data?.message || 'Failed to send code.';
+  try {
+    const res = await apiAdminRequestOtp(trimmed);
+    if (res.ok) {
+      otpRequest.markSent();
+      step.value = 'otp';
+    } else if (res.status === 429) {
+      otpRequest.markFailed();
+      error.value = 'Please wait before requesting another code.';
+    } else {
+      otpRequest.markFailed();
+      error.value = res.data?.message || 'Failed to send code.';
+    }
+  } catch {
+    otpRequest.markFailed();
+    error.value = 'Failed to send code.';
   }
 }
 
 async function verifyOtp() {
+  if (verifying.value) return;
   error.value = '';
   if (!code.value.trim()) {
     error.value = 'Please enter the 6-digit code.';
     return;
   }
-  loading.value = true;
-  const res = await apiAdminVerifyOtp(email.value.trim().toLowerCase(), code.value.trim());
-  loading.value = false;
+  verifying.value = true;
 
-  if (res.ok) {
-    const adminEmail = email.value.trim().toLowerCase();
-    setAdminSessionHint(adminEmail);
-    emit('authenticated', adminEmail);
-  } else {
-    error.value = res.data?.message || 'Invalid code.';
+  try {
+    const res = await apiAdminVerifyOtp(email.value.trim().toLowerCase(), code.value.trim());
+    if (res.ok) {
+      const adminEmail = email.value.trim().toLowerCase();
+      setAdminSessionHint(adminEmail);
+      emit('authenticated', adminEmail);
+    } else {
+      error.value = res.data?.message || 'Invalid code.';
+    }
+  } catch {
+    error.value = 'Invalid code.';
+  } finally {
+    verifying.value = false;
   }
+}
+
+function backToEmailStep() {
+  step.value = 'email';
+  error.value = '';
+  otpRequest.reset();
 }
 </script>
 
@@ -85,16 +119,21 @@ async function verifyOtp() {
         <div v-if="error" class="mb-3 text-label-md text-error">
           {{ error }}
         </div>
-        <button class="btn btn-primary w-full" :disabled="loading" @click="requestOtp">
-          {{ loading ? 'Sending…' : 'Send Code' }}
+        <button
+          class="btn btn-primary w-full"
+          :disabled="otpRequestPending"
+          :aria-busy="otpRequestPending"
+          aria-live="polite"
+          @click="requestOtp"
+        >
+          {{ otpRequestButtonText }}
         </button>
       </template>
 
       <!-- Step 2: OTP verification -->
       <template v-else>
-        <p class="mb-4 text-sm text-on-surface-variant">
-          Enter the 6-digit code sent to <strong>{{ email }}</strong
-          >.
+        <p class="mb-4 text-sm text-on-surface-variant" role="status" aria-live="polite">
+          Code sent. Enter the 6-digit code sent to <strong>{{ email }}</strong>.
         </p>
         <div class="mb-4">
           <label class="field-label">Verification Code</label>
@@ -110,15 +149,12 @@ async function verifyOtp() {
         <div v-if="error" class="mb-3 text-label-md text-error">
           {{ error }}
         </div>
-        <button class="btn btn-primary w-full" :disabled="loading" @click="verifyOtp">
-          {{ loading ? 'Verifying…' : 'Verify & Login' }}
+        <button class="btn btn-primary w-full" :disabled="verifying" @click="verifyOtp">
+          {{ verifying ? 'Verifying...' : 'Verify & Login' }}
         </button>
         <button
           class="mt-3 w-full text-center text-label-md text-on-surface-variant hover:text-primary"
-          @click="
-            step = 'email';
-            error = '';
-          "
+          @click="backToEmailStep"
         >
           ← Back to email
         </button>

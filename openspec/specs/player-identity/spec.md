@@ -170,7 +170,7 @@ The system SHALL handle a 401 response from any game API endpoint by clearing th
 
 ### Requirement: Recoverable player identity conflict UX
 
-The system SHALL guide players through email-based recovery when the backend reports that their player email is already claimed but the current browser lacks matching ownership proof.
+The system SHALL guide players through email-based recovery when the backend reports that their player email is already claimed but the current browser lacks matching ownership proof. The recovery-code request UI SHALL keep players informed during slow delivery confirmation without showing the code-entry step before the request succeeds.
 
 #### Scenario: Setup detects recoverable identity conflict
 
@@ -182,7 +182,19 @@ The system SHALL guide players through email-based recovery when the backend rep
 
 - **GIVEN** the frontend is showing the player recovery state for an email
 - **WHEN** the player requests a recovery code
-- **THEN** the frontend MUST call `POST /api/player/recovery/request` with the player's email and MUST show the code-entry step when the request succeeds
+- **THEN** the frontend MUST call `POST /api/player/recovery/request` with the player's email, show an initial sending status while the request is pending, and show the code-entry step only when the request succeeds
+
+#### Scenario: Slow recovery request shows delivery confirmation status
+
+- **GIVEN** the player has requested a recovery code and the request has not completed within the configured slow-send threshold
+- **WHEN** the request remains pending
+- **THEN** the frontend MUST keep duplicate recovery-code requests blocked, MUST show a pending status such as "Confirming delivery...", and MUST NOT show the recovery code-entry step yet
+
+#### Scenario: Recovery request failure clears pending status
+
+- **GIVEN** the player has requested a recovery code
+- **WHEN** `POST /api/player/recovery/request` returns a rate-limit, service-failure, or network-failure response
+- **THEN** the frontend MUST clear the pending request status, MUST show the appropriate error message, MUST allow retry when the response is retryable, and MUST NOT show the recovery code-entry step
 
 #### Scenario: Successful recovery resumes board bootstrap
 

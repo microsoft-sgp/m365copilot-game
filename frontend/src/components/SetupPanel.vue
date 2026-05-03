@@ -8,6 +8,7 @@ import {
   apiPlayerRecoveryVerify,
 } from '../lib/api.js';
 import { useBingoGame } from '../composables/useBingoGame.js';
+import { SEND_STATUS, useSlowSendStatus } from '../composables/useSlowSendStatus.js';
 
 const { clearRecoveryRequired, ensurePackAssignment, hydrateFromServer, startBoard, state } =
   useBingoGame();
@@ -18,9 +19,21 @@ const recoveryCode = ref('');
 const codeRequested = ref(false);
 const assigning = ref(false);
 const launching = ref(false);
-const requestingCode = ref(false);
 const verifyingCode = ref(false);
 const recoveryVerifyServiceError = 'Could not verify recovery code. Please try again.';
+const recoveryRequest = useSlowSendStatus();
+const requestingCode = recoveryRequest.isPending;
+
+const recoveryRequestStatusText = computed(() => {
+  if (recoveryRequest.status.value === SEND_STATUS.sending) return 'Sending...';
+  if (recoveryRequest.status.value === SEND_STATUS.confirming) return 'Confirming delivery...';
+  return recoveryStatus.value;
+});
+
+const recoveryRequestButtonText = computed(() => {
+  if (requestingCode.value) return recoveryRequestStatusText.value;
+  return codeRequested.value ? 'Send Again' : 'Send Code';
+});
 
 const assignedPack = computed(
   () => state.assignedPackId || Number(loadString(STORAGE_KEYS.lastPack) || 0),
@@ -97,6 +110,7 @@ async function launch() {
 }
 
 async function requestRecoveryCode() {
+  if (requestingCode.value) return;
   error.value = '';
   recoveryStatus.value = '';
   const email = recoveryEmail.value;
@@ -104,17 +118,20 @@ async function requestRecoveryCode() {
     error.value = 'Email is required for recovery.';
     return;
   }
-  requestingCode.value = true;
+  recoveryRequest.start();
   try {
     const res = await apiPlayerRecoveryRequest(email);
     if (res.ok) {
+      recoveryRequest.markSent();
       codeRequested.value = true;
       recoveryStatus.value = 'Recovery code sent.';
       return;
     }
+    recoveryRequest.markFailed();
     error.value = res.data?.message || 'Could not request a recovery code.';
-  } finally {
-    requestingCode.value = false;
+  } catch {
+    recoveryRequest.markFailed();
+    error.value = 'Could not request a recovery code.';
   }
 }
 
@@ -209,9 +226,11 @@ function cancelRecovery() {
         <button
           class="btn btn-secondary"
           :disabled="requestingCode || verifyingCode"
+          :aria-busy="requestingCode"
+          aria-live="polite"
           @click="requestRecoveryCode"
         >
-          {{ requestingCode ? 'Sending...' : codeRequested ? 'Send Again' : 'Send Code' }}
+          {{ recoveryRequestButtonText }}
         </button>
         <button
           class="btn btn-secondary"
@@ -237,7 +256,12 @@ function cancelRecovery() {
           {{ verifyingCode ? 'Verifying...' : 'Verify Code' }}
         </button>
       </div>
-      <p v-if="recoveryStatus" class="mt-2 text-xs text-on-surface-variant">
+      <p
+        v-if="recoveryStatus"
+        class="mt-2 text-xs text-on-surface-variant"
+        role="status"
+        aria-live="polite"
+      >
         {{ recoveryStatus }}
       </p>
     </div>

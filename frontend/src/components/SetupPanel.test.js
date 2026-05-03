@@ -26,6 +26,25 @@ import {
 } from '../lib/api.js';
 import SetupPanel from './SetupPanel.vue';
 
+function findButton(wrapper, label) {
+  return wrapper.findAll('button').find((b) => b.text().includes(label));
+}
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+function showRecoveryForAda() {
+  localStorage.setItem('copilot_bingo_email', 'ada@example.com');
+  const { state } = useBingoGame();
+  state.recoveryRequired = true;
+  state.recoveryEmail = 'ada@example.com';
+}
+
 beforeEach(() => {
   localStorage.clear();
   const { state } = useBingoGame();
@@ -53,7 +72,10 @@ beforeEach(() => {
   apiPlayerRecoveryVerify.mockResolvedValue({ ok: true, data: { playerToken: 'token' } });
 });
 
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.clearAllMocks();
+});
 
 describe('SetupPanel', () => {
   beforeEach(() => {
@@ -202,10 +224,7 @@ describe('SetupPanel', () => {
   });
 
   it('shows recovery UI and requests a recovery code', async () => {
-    localStorage.setItem('copilot_bingo_email', 'ada@example.com');
-    const { state } = useBingoGame();
-    state.recoveryRequired = true;
-    state.recoveryEmail = 'ada@example.com';
+    showRecoveryForAda();
 
     const w = mount(SetupPanel);
     await flushPromises();
@@ -213,20 +232,88 @@ describe('SetupPanel', () => {
     expect(w.text()).toContain('Player Recovery');
     expect(w.text()).toContain('ada@example.com');
     expect(
-      w
-        .findAll('button')
-        .find((b) => b.text().includes('Launch Board'))
-        .attributes('disabled'),
+      findButton(w, 'Launch Board').attributes('disabled'),
     ).toBeDefined();
 
-    await w
-      .findAll('button')
-      .find((b) => b.text().includes('Send Code'))
-      .trigger('click');
+    await findButton(w, 'Send Code').trigger('click');
     await flushPromises();
 
     expect(apiPlayerRecoveryRequest).toHaveBeenCalledWith('ada@example.com');
     expect(w.text()).toContain('Recovery code sent');
+  });
+
+  it('shows delivery confirmation status while recovery request remains pending', async () => {
+    vi.useFakeTimers();
+    showRecoveryForAda();
+    const pending = deferred();
+    apiPlayerRecoveryRequest.mockReturnValue(pending.promise);
+
+    const w = mount(SetupPanel);
+    await w.vm.$nextTick();
+
+    await findButton(w, 'Send Code').trigger('click');
+    await w.vm.$nextTick();
+
+    expect(w.text()).toContain('Sending...');
+    expect(findButton(w, 'Sending...').attributes('disabled')).toBeDefined();
+    expect(w.find('input[placeholder="000000"]').exists()).toBe(false);
+
+    vi.advanceTimersByTime(3000);
+    await w.vm.$nextTick();
+
+    expect(w.text()).toContain('Confirming delivery...');
+    expect(findButton(w, 'Confirming delivery...').attributes('disabled')).toBeDefined();
+    expect(w.find('input[placeholder="000000"]').exists()).toBe(false);
+
+    pending.resolve({ ok: true, data: { ok: true } });
+    await pending.promise;
+    await w.vm.$nextTick();
+
+    expect(w.text()).toContain('Recovery code sent');
+    expect(w.find('input[placeholder="000000"]').exists()).toBe(true);
+  });
+
+  it('clears delivery confirmation status when recovery request fails', async () => {
+    vi.useFakeTimers();
+    showRecoveryForAda();
+    const pending = deferred();
+    apiPlayerRecoveryRequest.mockReturnValue(pending.promise);
+
+    const w = mount(SetupPanel);
+    await w.vm.$nextTick();
+
+    await findButton(w, 'Send Code').trigger('click');
+    vi.advanceTimersByTime(3000);
+    await w.vm.$nextTick();
+    expect(w.text()).toContain('Confirming delivery...');
+
+    pending.resolve({ ok: false, status: 500, data: { message: 'mail down' } });
+    await pending.promise;
+    await w.vm.$nextTick();
+
+    expect(w.text()).toContain('mail down');
+    expect(w.text()).not.toContain('Confirming delivery...');
+    expect(findButton(w, 'Send Code').attributes('disabled')).toBeUndefined();
+    expect(w.find('input[placeholder="000000"]').exists()).toBe(false);
+  });
+
+  it('clears the slow-send timer when unmounted mid-request', async () => {
+    vi.useFakeTimers();
+    showRecoveryForAda();
+    const pending = deferred();
+    apiPlayerRecoveryRequest.mockReturnValue(pending.promise);
+
+    const w = mount(SetupPanel);
+    await w.vm.$nextTick();
+
+    await findButton(w, 'Send Code').trigger('click');
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+    w.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+
+    pending.resolve({ ok: true, data: { ok: true } });
+    await pending.promise;
   });
 
   it('verifies recovery, retries session bootstrap, and hydrates server board state without admin state', async () => {
