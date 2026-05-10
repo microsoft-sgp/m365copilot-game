@@ -1,0 +1,9 @@
+{
+  "campaignId": "APR26",
+  "ambassadors": [
+    {
+      "displayName": "Example Ambassador",
+      "referralCode": "EXAMPLE-001"
+    }
+  ]
+}

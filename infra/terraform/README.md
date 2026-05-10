@@ -226,6 +226,9 @@ Use the backend migration runner to apply these files against the provisioned da
 8. `database/008-player-organization-attribution.sql`
 9. `database/009-player-owner-token.sql`
 10. `database/010-player-recovery.sql`
+11. `database/011-pack-assignment-abandonment.sql`
+12. `database/012-student-ambassador-referrals.sql`
+13. `database/013-seed-student-ambassador-referrals.sql`
 
 Run the migrations with Microsoft Entra authentication and grant the Function App managed identity database access:
 
@@ -236,6 +239,8 @@ SQL_AUTHENTICATION=azure-active-directory-default \
 SQL_APP_IDENTITY_NAME=$(terraform -chdir=infra/terraform output -raw function_sql_identity_name) \
 node backend/scripts/run-migrations.mjs
 ```
+
+Real Student Ambassador names and referral codes should stay outside source control. To seed the private referral catalog during this step, provide either `STUDENT_AMBASSADOR_REFERRALS_FILE` pointing to an ignored JSON file or `STUDENT_AMBASSADOR_REFERRALS_JSON` containing that JSON payload. The expected shape is shown in [../../database/student-ambassador-referrals.example.json](../../database/student-ambassador-referrals.example.json).
 
 The SQL server is configured for Microsoft Entra-only authentication to satisfy Azure policy. The application connects with the user-assigned managed identity output by Terraform.
 

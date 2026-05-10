@@ -1,5 +1,6 @@
 import sql from 'mssql';
 import { readFileSync } from 'fs';
+import { seedStudentAmbassadorReferrals } from './student-ambassador-referral-seed.mjs';
 
 const SA_PASSWORD = process.env.SA_PASSWORD || 'BingoTest123!';
 const DB_HOST = process.env.DB_HOST || 'db';
@@ -102,6 +103,8 @@ async function run() {
   await runBatch('010-player-recovery.sql');
   await runBatch('011-pack-assignment-abandonment.sql');
   await runBatch('012-student-ambassador-referrals.sql');
+  await runBatch('013-seed-student-ambassador-referrals.sql');
+  await seedStudentAmbassadorReferrals(pool, sql);
 
   await pool.close();
   console.log('Database initialization complete!');

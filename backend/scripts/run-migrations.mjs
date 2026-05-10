@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import sql from 'mssql';
+import { seedStudentAmbassadorReferrals } from '../../scripts/student-ambassador-referral-seed.mjs';
 
 function quoteIdentifier(identifier) {
   return `[${identifier.replace(/]/g, ']]')}]`;
@@ -118,6 +119,8 @@ async function run() {
   await runBatch(pool, '010-player-recovery.sql');
   await runBatch(pool, '011-pack-assignment-abandonment.sql');
   await runBatch(pool, '012-student-ambassador-referrals.sql');
+  await runBatch(pool, '013-seed-student-ambassador-referrals.sql');
+  await seedStudentAmbassadorReferrals(pool, sql);
   await grantAppIdentity(pool);
 
   await pool.close();

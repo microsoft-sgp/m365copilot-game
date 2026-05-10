@@ -213,6 +213,8 @@ Do not point the full-stack suite at shared Azure environments; it creates playe
 
 Never commit local secrets or generated deployment files. The repository ignores `.env*`, `backend/local.settings*.json`, Terraform state and tfvars, Terraform plans, Azure publish profiles, SWA artifacts, local key/certificate material, and test reports. Use placeholder values in public examples and put real production secrets in Azure App Settings or Key Vault.
 
+Student Ambassador rosters can contain private personal data. Keep real ambassador names and referral codes outside git, for example in an ignored `database/private/` JSON file shaped like [database/student-ambassador-referrals.example.json](database/student-ambassador-referrals.example.json). Seed it during migrations with `STUDENT_AMBASSADOR_REFERRALS_FILE=database/private/student-ambassador-referrals.json` or `STUDENT_AMBASSADOR_REFERRALS_JSON='<json-payload>'`.
+
 ## Project layout
 
 | Path                           | Description                                                                           |

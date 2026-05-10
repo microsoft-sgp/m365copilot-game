@@ -3,4 +3,5 @@ WORKDIR /app
 RUN npm init -y && npm install mssql
 COPY database/ ./database/
 COPY scripts/init-db.mjs ./init-db.mjs
+COPY scripts/student-ambassador-referral-seed.mjs ./student-ambassador-referral-seed.mjs
 CMD ["node", "init-db.mjs"]
