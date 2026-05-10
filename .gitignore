@@ -41,6 +41,10 @@ lerna-debug.log*
 **/secrets.json
 **/secrets.*.json
 
+# Private event seed data
+database/private/
+**/student-ambassador-referrals*.private.json
+
 # Credentials, certificates, and publish profiles
 *.publishsettings
 *.PublishSettings
