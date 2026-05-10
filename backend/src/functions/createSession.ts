@@ -2,8 +2,18 @@ import { app, type HttpRequest, type InvocationContext } from '@azure/functions'
 import sql from 'mssql';
 import type { ConnectionPool } from 'mssql';
 import { getPool } from '../lib/db.js';
-import { isPackAssignmentLifecycleEnabled, resolvePackAssignment } from '../lib/packAssignments.js';
+import {
+  getActiveCampaign,
+  isPackAssignmentLifecycleEnabled,
+  resolvePackAssignment,
+} from '../lib/packAssignments.js';
 import { resolveOrganizationForEmail } from '../lib/organizations.js';
+import {
+  createPlayerReferralAttribution,
+  normalizeReferralCode,
+  resolveStudentAmbassadorReferral,
+  type ResolvedReferral,
+} from '../lib/referrals.js';
 import {
   generatePlayerToken,
   getPlayerTokenFromRequest,
@@ -159,6 +169,7 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
   const packId = numberValue(body.packId);
   const email = stringValue(body.email);
   const organizationName = stringValue(body.organization || body.org).trim();
+  const referralCode = normalizeReferralCode(stringValue(body.referralCode));
   const lifecycleEnabled = isPackAssignmentLifecycleEnabled();
 
   if (!sessionId || !playerName || (!lifecycleEnabled && packId == null)) {
@@ -180,6 +191,7 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
 
   const pool = await getPool();
   let orgId: number | null = null;
+  let referral: ResolvedReferral | null = null;
 
   if (email) {
     const resolvedOrganization = await resolveOrganizationForEmail(pool, {
@@ -195,6 +207,20 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
     }
 
     orgId = resolvedOrganization.orgId;
+  }
+
+  if (referralCode) {
+    const campaign = await getActiveCampaign(pool);
+    referral = await resolveStudentAmbassadorReferral(pool, {
+      campaignId: campaign.id,
+      referralCode,
+    });
+    if (!referral) {
+      return {
+        status: 400,
+        jsonBody: { ok: false, message: 'Referral code is not valid for this campaign.' },
+      };
+    }
   }
 
   // Resolve / issue / claim the player session token before touching the row.
@@ -222,6 +248,10 @@ export const handler = async (request: HttpRequest, context: InvocationContext) 
     orgId,
     ownerTokenHashForInsert,
   });
+
+  if (referral) {
+    await createPlayerReferralAttribution(pool, { playerId, referral });
+  }
 
   if (resolvedToken?.kind === 'new') {
     await createPlayerDeviceToken(pool, playerId, resolvedToken.hash);

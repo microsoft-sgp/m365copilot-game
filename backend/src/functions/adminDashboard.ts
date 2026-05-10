@@ -60,7 +60,7 @@ export const handler = async (request: HttpRequest, _context: InvocationContext)
   // Recent sessions
   const sessions = await pool.request().input('campaign', sql.NVarChar(20), campaign).query(`
         SELECT TOP 100
-          gs.id, p.player_name, gs.pack_id, gs.tiles_cleared,
+          gs.id, p.player_name, p.player_name AS nickname, gs.pack_id, gs.tiles_cleared,
           gs.lines_won, gs.keywords_earned, gs.started_at, gs.last_active_at
         FROM game_sessions gs
         JOIN players p ON gs.player_id = p.id
@@ -76,7 +76,7 @@ export const handler = async (request: HttpRequest, _context: InvocationContext)
       useLegacySubmissionSource
         ? `
           SELECT TOP 100
-            s.id, p.player_name, p.email, o.name AS org,
+            s.id, p.player_name, p.player_name AS nickname, p.email, o.name AS org,
             s.keyword, s.created_at
           FROM submissions s
           JOIN players p ON s.player_id = p.id
@@ -86,7 +86,7 @@ export const handler = async (request: HttpRequest, _context: InvocationContext)
         `
         : `
           SELECT TOP 100
-            ps.id, p.player_name, p.email, COALESCE(o.name, 'UNMAPPED') AS org,
+            ps.id, p.player_name, p.player_name AS nickname, p.email, COALESCE(o.name, 'UNMAPPED') AS org,
             ps.keyword, ps.event_type, ps.event_key, ps.created_at
           FROM progression_scores ps
           JOIN players p ON ps.player_id = p.id

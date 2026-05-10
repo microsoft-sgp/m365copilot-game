@@ -38,7 +38,7 @@ describe('GET /admin/export (CSV)', () => {
     const res = await handler(fakeRequest({ headers: { 'x-admin-key': 'secret' } }));
     expect(res.headers['Content-Type']).toBe('text/csv');
     expect(res.headers['Content-Disposition']).toContain('submissions-APR26.csv');
-    expect(res.body).toBe('org,player_name,email,event_type,event_key,keyword,submitted_at');
+    expect(res.body).toBe('org,nickname,email,event_type,event_key,keyword,submitted_at');
   });
 
   it('renders rows in the expected column order', async () => {
@@ -59,7 +59,7 @@ describe('GET /admin/export (CSV)', () => {
 
     const res = await handler(fakeRequest({ headers: { 'x-admin-key': 'secret' } }));
     const lines = res.body.split('\n');
-    expect(lines[0]).toBe('org,player_name,email,event_type,event_key,keyword,submitted_at');
+    expect(lines[0]).toBe('org,nickname,email,event_type,event_key,keyword,submitted_at');
     expect(lines[1]).toBe(
       'Contoso,Ada,ada@contoso.com,line_won,R1,CO-APR26-001-R1-AAAA1111,2025-04-01T00:00:00Z',
     );
@@ -139,6 +139,6 @@ describe('GET /admin/export (CSV)', () => {
     vi.mocked(getPool).mockResolvedValue(pool);
 
     const res = await handler(fakeRequest({ headers: { 'x-admin-key': 'secret' } }));
-    expect(res.body.split('\n')[0]).toBe('org,player_name,email,keyword,submitted_at');
+    expect(res.body.split('\n')[0]).toBe('org,nickname,email,keyword,submitted_at');
   });
 });

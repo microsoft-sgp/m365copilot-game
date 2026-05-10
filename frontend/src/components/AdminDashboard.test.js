@@ -100,6 +100,7 @@ describe('AdminDashboard', () => {
     expect(wrapper.text()).toContain('Top Org: NUS');
     expect(wrapper.text()).toContain('Avg Tasks');
     expect(wrapper.text()).toContain('Recent Sessions');
+    expect(wrapper.text()).toContain('Nickname');
     expect(wrapper.text()).toContain('Ada');
     expect(wrapper.text()).toContain('Tasks');
     expect(wrapper.text()).toContain('Awards');

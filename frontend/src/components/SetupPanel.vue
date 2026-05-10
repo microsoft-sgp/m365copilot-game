@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { TOTAL_PACKS, STORAGE_KEYS } from '../data/constants.js';
-import { loadString, removeKey } from '../lib/storage.js';
+import { loadString, removeKey, saveString } from '../lib/storage.js';
 import {
   apiGetPlayerState,
   apiPlayerRecoveryRequest,
@@ -20,6 +20,7 @@ const codeRequested = ref(false);
 const assigning = ref(false);
 const launching = ref(false);
 const verifyingCode = ref(false);
+const referralCode = ref(loadString(STORAGE_KEYS.referralCode));
 const recoveryVerifyServiceError = 'Could not verify recovery code. Please try again.';
 const recoveryRequest = useSlowSendStatus();
 const requestingCode = recoveryRequest.isPending;
@@ -66,10 +67,11 @@ async function syncAssignment() {
   const email = loadString(STORAGE_KEYS.email);
   const organization = loadString(STORAGE_KEYS.organization);
   if (!name || !email) return;
+  saveReferralCode();
 
   assigning.value = true;
   try {
-    const result = await ensurePackAssignment({ name, email, organization });
+    const result = await ensurePackAssignment({ name, email, organization, referralCode: referralCode.value });
     if (result?.recoveryRequired) {
       error.value = '';
     } else if (!result?.ok && !assignedPack.value) {
@@ -98,9 +100,16 @@ async function launch() {
     error.value = 'Please restart and complete onboarding identity.';
     return;
   }
+  saveReferralCode();
   launching.value = true;
   try {
-    const result = await startBoard({ name, email, organization, packId: num || undefined });
+    const result = await startBoard({
+      name,
+      email,
+      organization,
+      referralCode: referralCode.value,
+      packId: num || undefined,
+    });
     if (!result?.ok) {
       error.value = result?.message || 'Unable to start your board. Please try again.';
     }
@@ -166,6 +175,7 @@ async function verifyRecoveryCode() {
       name,
       email,
       organization,
+      referralCode: referralCode.value,
       packId: Number(assignedPack.value || 0) || undefined,
     });
     if (!launchResult?.ok) {
@@ -187,10 +197,21 @@ function cancelRecovery() {
   clearRecoveryRequired();
   removeKey(STORAGE_KEYS.email);
   removeKey(STORAGE_KEYS.playerName);
+  removeKey(STORAGE_KEYS.referralCode);
   removeKey(STORAGE_KEYS.organization);
   removeKey(STORAGE_KEYS.lastPack);
   removeKey(STORAGE_KEYS.state);
   window.location.reload();
+}
+
+function saveReferralCode() {
+  const code = referralCode.value.trim();
+  referralCode.value = code;
+  if (code) {
+    saveString(STORAGE_KEYS.referralCode, code);
+  } else {
+    removeKey(STORAGE_KEYS.referralCode);
+  }
 }
 </script>
 
@@ -212,6 +233,18 @@ function cancelRecovery() {
       <p class="mt-1 text-label-sm text-on-surface-variant">
         {{ cycleText }}
       </p>
+    </div>
+
+    <div v-if="!state.recoveryRequired" class="mb-4 text-left">
+      <label class="field-label">Referral Code (Optional)</label>
+      <input
+        v-model="referralCode"
+        class="field-input"
+        type="text"
+        placeholder="e.g. REF-1234"
+        maxlength="64"
+        @blur="saveReferralCode"
+      />
     </div>
 
     <div

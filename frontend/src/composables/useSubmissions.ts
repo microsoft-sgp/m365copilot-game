@@ -19,6 +19,8 @@ type ServerLeaderboardRow = {
   org: string;
   score: number;
   contributors: number;
+  topContributors?: Array<{ nickname: string; score: number }>;
+  hiddenContributorCount?: number;
   lastSubmission: string | number | null;
 };
 
@@ -26,6 +28,8 @@ type LeaderboardRow = {
   org: string;
   score: number;
   contributorCount: number;
+  topContributors: Array<{ nickname: string; score: number }>;
+  hiddenContributorCount: number;
   lastTs: string | number | null;
 };
 
@@ -70,13 +74,20 @@ export function useSubmissions() {
         org: r.org,
         score: r.score,
         contributorCount: r.contributors,
+        topContributors: r.topContributors || [],
+        hiddenContributorCount: Number(r.hiddenContributorCount || 0),
         lastTs: r.lastSubmission,
       }));
     }
     // Fallback: local computation from localStorage
     const orgMap: Record<
       string,
-      { org: string; score: number; contributors: Set<string>; lastTs: number }
+      {
+        org: string;
+        score: number;
+        contributors: Map<string, { nickname: string; score: number; lastTs: number }>;
+        lastTs: number;
+      }
     > = {};
     const seen = new Set();
     submissions.value.forEach((s) => {
@@ -87,23 +98,41 @@ export function useSubmissions() {
         orgMap[s.org] = {
           org: s.org,
           score: 0,
-          contributors: new Set(),
+          contributors: new Map(),
           lastTs: 0,
         };
       }
       orgMap[s.org].score++;
-      orgMap[s.org].contributors.add(s.email);
+      const contributor = orgMap[s.org].contributors.get(s.email) || {
+        nickname: s.name,
+        score: 0,
+        lastTs: 0,
+      };
+      contributor.nickname = s.name || contributor.nickname;
+      contributor.score++;
+      contributor.lastTs = Math.max(contributor.lastTs, s.ts);
+      orgMap[s.org].contributors.set(s.email, contributor);
       if (s.ts > orgMap[s.org].lastTs) orgMap[s.org].lastTs = s.ts;
     });
     return Object.values(orgMap)
-      .map(
-        (r): LeaderboardRow => ({
+      .map((r): LeaderboardRow => {
+        const topContributors = Array.from(r.contributors.values())
+          .sort(
+            (a, b) =>
+              b.score - a.score || b.lastTs - a.lastTs || a.nickname.localeCompare(b.nickname),
+          )
+          .slice(0, 5)
+          .map(({ nickname, score }) => ({ nickname, score }));
+
+        return {
           org: r.org,
           score: r.score,
           contributorCount: r.contributors.size,
+          topContributors,
+          hiddenContributorCount: Math.max(0, r.contributors.size - topContributors.length),
           lastTs: r.lastTs,
-        }),
-      )
+        };
+      })
       .sort((a, b) => b.score - a.score || (a.org > b.org ? 1 : -1));
   });
 

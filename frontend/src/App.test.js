@@ -48,7 +48,7 @@ const stubs = {
   },
   EmailGate: {
     template:
-      "<button data-test=\"email-continue\" @click=\"$emit('continue', { email: 'ada@nus.edu.sg', name: 'Ada', organization: 'NUS' })\" />",
+      "<button data-test=\"email-continue\" @click=\"$emit('continue', { email: 'ada@nus.edu.sg', name: 'Ada', referralCode: 'ADA-LEE', organization: 'NUS' })\" />",
     emits: ['continue', 'admin'],
   },
   ToastMessage: { template: '<div />' },
@@ -111,9 +111,11 @@ describe('App routing', () => {
     expect(wrapper.find('[data-test="topbar"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="apptabs"]').exists()).toBe(true);
     expect(localStorage.getItem('copilot_bingo_email')).toBe('ada@nus.edu.sg');
+    expect(localStorage.getItem('copilot_bingo_referral_code')).toBe('ADA-LEE');
     expect(gameMocks.setIdentity).toHaveBeenCalledWith({
       email: 'ada@nus.edu.sg',
       name: 'Ada',
+      referralCode: 'ADA-LEE',
       organization: 'NUS',
     });
   });
@@ -259,6 +261,7 @@ describe('App routing', () => {
         playerName: 'Ada',
         email: 'ada@nus.edu.sg',
         organization: 'NUS',
+        referralCode: 'ADA-LEE',
       }),
     );
   });

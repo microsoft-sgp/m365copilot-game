@@ -117,6 +117,7 @@ async function run() {
   await runBatch(pool, '009-player-owner-token.sql');
   await runBatch(pool, '010-player-recovery.sql');
   await runBatch(pool, '011-pack-assignment-abandonment.sql');
+  await runBatch(pool, '012-student-ambassador-referrals.sql');
   await grantAppIdentity(pool);
 
   await pool.close();

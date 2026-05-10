@@ -6,6 +6,7 @@ const emit = defineEmits(['continue', 'admin']);
 
 const email = ref('');
 const name = ref('');
+const referralCode = ref('');
 const organization = ref('');
 const error = ref('');
 
@@ -15,9 +16,10 @@ function submit() {
   error.value = '';
   const trimmedName = name.value.trim();
   const trimmed = email.value.trim().toLowerCase();
+  const trimmedReferralCode = referralCode.value.trim();
   const trimmedOrganization = organization.value.trim();
   if (!trimmedName) {
-    error.value = 'Please enter how we should address you.';
+    error.value = 'Please enter your nickname.';
     return;
   }
   if (!trimmed) {
@@ -35,6 +37,7 @@ function submit() {
   emit('continue', {
     email: trimmed,
     name: trimmedName,
+    referralCode: trimmedReferralCode,
     organization: requiresOrganization.value ? trimmedOrganization : '',
   });
 }
@@ -45,18 +48,29 @@ function submit() {
     <div class="glass mx-auto w-full max-w-[440px] rounded-[14px] p-8 text-center">
       <h1 class="text-gradient mb-2 text-headline-sm font-black">🎮 Copilot Chat Bingo</h1>
       <p class="mb-6 text-sm text-on-surface-variant">
-        Enter your identity to play. Your progress and score will be tied to verified gameplay so
-        you can resume on any device.
+        Enter your identity to play. Your nickname may appear on the organization leaderboard.
       </p>
 
       <div class="mb-4 text-left">
-        <label class="field-label">How should we address you?</label>
+        <label class="field-label">Nickname</label>
         <input
           v-model="name"
           class="field-input"
           type="text"
           placeholder="e.g. Alex"
           maxlength="40"
+          @keyup.enter="submit"
+        />
+      </div>
+
+      <div class="mb-4 text-left">
+        <label class="field-label">Referral Code (Optional)</label>
+        <input
+          v-model="referralCode"
+          class="field-input"
+          type="text"
+          placeholder="e.g. REF-1234"
+          maxlength="64"
           @keyup.enter="submit"
         />
       </div>

@@ -55,15 +55,51 @@ describe('LeaderboardTable', () => {
 
   it('renders score and contributor count for each row', async () => {
     await seedServerLeaderboard([
-      { org: 'SMU', score: 7, contributors: 4, lastSubmission: 1_700_000_000_000 },
+      {
+        org: 'SMU',
+        score: 7,
+        contributors: 4,
+        topContributors: [{ nickname: 'Ada', score: 4 }],
+        hiddenContributorCount: 3,
+        lastSubmission: 1_700_000_000_000,
+      },
     ]);
     const w = mount(LeaderboardTable);
     await w.vm.$nextTick();
     const headers = w.findAll('th').map((header) => header.text());
-    expect(headers).toEqual(['Rank', 'Organization', 'Score', 'Contributors', 'Last Submission']);
+    expect(headers).toEqual([
+      'Rank',
+      'Organization',
+      'Score',
+      'Contributors',
+      'Top Contributors',
+      'Last Submission',
+    ]);
     const cells = w.findAll('tbody tr')[0].findAll('td');
     expect(cells[2].text()).toBe('7');
     expect(cells[3].text()).toBe('4');
+    expect(cells[4].text()).toBe('Ada, +3');
+  });
+
+  it('renders a compact nickname summary for top contributors', async () => {
+    await seedServerLeaderboard([
+      {
+        org: 'NUS',
+        score: 10,
+        contributors: 6,
+        topContributors: [
+          { nickname: 'Ada', score: 5 },
+          { nickname: 'Kai', score: 3 },
+          { nickname: 'Mei', score: 2 },
+        ],
+        hiddenContributorCount: 3,
+        lastSubmission: 1_700_000_000_000,
+      },
+    ]);
+    const w = mount(LeaderboardTable);
+    await w.vm.$nextTick();
+
+    expect(w.findAll('tbody tr')[0].findAll('td')[4].text()).toBe('Ada, Kai, Mei, +3');
   });
 
   it('makes score-based ranking clear when contributors differ', async () => {

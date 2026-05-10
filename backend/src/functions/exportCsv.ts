@@ -17,7 +17,7 @@ export const handler = async (request: HttpRequest, _context: InvocationContext)
     .query(
       useLegacySubmissionSource
         ? `
-        SELECT o.name AS org, p.player_name, p.email, s.keyword, s.created_at AS submitted_at
+        SELECT o.name AS org, p.player_name, p.player_name AS nickname, p.email, s.keyword, s.created_at AS submitted_at
         FROM submissions s
         JOIN players p ON s.player_id = p.id
         JOIN organizations o ON s.org_id = o.id
@@ -28,6 +28,7 @@ export const handler = async (request: HttpRequest, _context: InvocationContext)
         SELECT
           COALESCE(o.name, 'UNMAPPED') AS org,
           p.player_name,
+          p.player_name AS nickname,
           p.email,
           ps.event_type,
           ps.event_key,
@@ -42,8 +43,8 @@ export const handler = async (request: HttpRequest, _context: InvocationContext)
     );
 
   const header = useLegacySubmissionSource
-    ? 'org,player_name,email,keyword,submitted_at'
-    : 'org,player_name,email,event_type,event_key,keyword,submitted_at';
+    ? 'org,nickname,email,keyword,submitted_at'
+    : 'org,nickname,email,event_type,event_key,keyword,submitted_at';
   const rows = result.recordset.map((r) => {
     const escapeCsv = (v: unknown) => {
       let s = String(v ?? '');
@@ -57,7 +58,7 @@ export const handler = async (request: HttpRequest, _context: InvocationContext)
         ? `"${s.replace(/"/g, '""')}"`
         : s;
     };
-    const base = [escapeCsv(r.org), escapeCsv(r.player_name), escapeCsv(r.email)];
+    const base = [escapeCsv(r.org), escapeCsv(r.nickname ?? r.player_name), escapeCsv(r.email)];
     if (useLegacySubmissionSource) {
       base.push(escapeCsv(r.keyword));
     } else {

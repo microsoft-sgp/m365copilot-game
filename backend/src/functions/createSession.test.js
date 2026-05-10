@@ -3,6 +3,7 @@ import { createMockPool, fakeRequest, sqlError } from '../test-helpers/mockPool.
 
 vi.mock('../lib/db.js', () => ({ getPool: vi.fn() }));
 vi.mock('../lib/packAssignments.js', () => ({
+  getActiveCampaign: vi.fn(),
   isPackAssignmentLifecycleEnabled: vi.fn(),
   resolvePackAssignment: vi.fn(),
 }));
@@ -11,13 +12,19 @@ vi.mock('../lib/organizations.js', () => ({
 }));
 
 import { getPool } from '../lib/db.js';
-import { isPackAssignmentLifecycleEnabled, resolvePackAssignment } from '../lib/packAssignments.js';
+import {
+  getActiveCampaign,
+  isPackAssignmentLifecycleEnabled,
+  resolvePackAssignment,
+} from '../lib/packAssignments.js';
 import { resolveOrganizationForEmail } from '../lib/organizations.js';
 import { handler } from './createSession.js';
 
 describe('POST /sessions (createSession)', () => {
   beforeEach(() => {
     vi.mocked(getPool).mockReset();
+    vi.mocked(getActiveCampaign).mockReset();
+    vi.mocked(getActiveCampaign).mockResolvedValue({ id: 'APR26', totalPacks: 999, totalWeeks: 7 });
     vi.mocked(isPackAssignmentLifecycleEnabled).mockReturnValue(false);
     vi.mocked(resolvePackAssignment).mockReset();
     vi.mocked(resolveOrganizationForEmail).mockReset();
@@ -116,6 +123,81 @@ describe('POST /sessions (createSession)', () => {
       email: 'ada@smu.edu.sg',
       organizationName: '',
     });
+  });
+
+  it('ignores a blank referral code without extra referral lookups', async () => {
+    const { pool, calls } = createMockPool([
+      { recordset: [{ id: 11 }] },
+      { recordset: [{ id: 99 }] },
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      fakeRequest({
+        body: { sessionId: 'sess-abc', playerName: 'Ada', packId: 42, referralCode: '   ' },
+      }),
+    );
+
+    expect(res.jsonBody).toEqual({ ok: true, gameSessionId: 99, packId: 42 });
+    expect(calls).toHaveLength(2);
+    expect(calls[0].query).not.toMatch(/student_ambassadors/);
+  });
+
+  it('stores referral attribution for a valid Student Ambassador code', async () => {
+    const { pool, calls } = createMockPool([
+      { recordset: [{ id: 501, display_name: 'Ambassador Ada', referral_code: 'ADA-LEE' }] },
+      { recordset: [] }, // resolvePlayerToken: no existing player
+      { recordset: [{ id: 11 }] },
+      { recordset: [], rowsAffected: [1] }, // referral attribution MERGE
+      { recordset: [], rowsAffected: [1] }, // device token insert
+      { recordset: [{ id: 99 }] },
+    ]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      fakeRequest({
+        body: {
+          sessionId: 'sess-abc',
+          playerName: 'Ada',
+          packId: 42,
+          email: 'ada@smu.edu.sg',
+          referralCode: ' ada lee ',
+        },
+      }),
+    );
+
+    expect(res.jsonBody).toMatchObject({ ok: true, gameSessionId: 99, packId: 42 });
+    expect(getActiveCampaign).toHaveBeenCalledWith(pool);
+    expect(calls[0].inputs).toEqual({ campaignId: 'APR26', referralCode: 'ADA-LEE' });
+    expect(calls[3].query).toMatch(/MERGE player_referrals/);
+    expect(calls[3].inputs).toEqual({
+      playerId: 11,
+      ambassadorId: 501,
+      campaignId: 'APR26',
+      referralCode: 'ADA-LEE',
+    });
+  });
+
+  it('returns 400 for an unknown or inactive referral code before player upsert', async () => {
+    const { pool, calls } = createMockPool([{ recordset: [] }]);
+    vi.mocked(getPool).mockResolvedValue(pool);
+
+    const res = await handler(
+      fakeRequest({
+        body: {
+          sessionId: 'sess-abc',
+          playerName: 'Ada',
+          packId: 42,
+          email: 'ada@smu.edu.sg',
+          referralCode: 'UNKNOWN',
+        },
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(res.jsonBody.message).toMatch(/referral code/i);
+    expect(calls).toHaveLength(1);
+    expect(calls.some((call) => /MERGE players/.test(call.query || ''))).toBe(false);
   });
 
   it('returns 400 when a public email domain needs an organization', async () => {

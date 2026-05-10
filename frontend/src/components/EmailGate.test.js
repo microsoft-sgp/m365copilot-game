@@ -12,14 +12,14 @@ describe('EmailGate', () => {
   it('shows error for empty email', async () => {
     const wrapper = mount(EmailGate);
     await wrapper.find('button.btn-primary').trigger('click');
-    expect(wrapper.text()).toContain('Please enter how we should address you');
+    expect(wrapper.text()).toContain('Please enter your nickname');
   });
 
   it('shows error when name is missing', async () => {
     const wrapper = mount(EmailGate);
     await wrapper.find('input[type="email"]').setValue('ada@smu.edu.sg');
     await wrapper.find('button.btn-primary').trigger('click');
-    expect(wrapper.text()).toContain('Please enter how we should address you');
+    expect(wrapper.text()).toContain('Please enter your nickname');
   });
 
   it('shows error for invalid email', async () => {
@@ -39,8 +39,20 @@ describe('EmailGate', () => {
     expect(wrapper.emitted('continue')[0][0]).toEqual({
       email: 'alice@nus.edu.sg',
       name: 'Alice',
+      referralCode: '',
       organization: '',
     });
+  });
+
+  it('emits trimmed optional referral code', async () => {
+    const wrapper = mount(EmailGate);
+    const textInputs = wrapper.findAll('input[type="text"]');
+    await textInputs[0].setValue('Alice');
+    await textInputs[1].setValue(' ADA-LEE ');
+    await wrapper.find('input[type="email"]').setValue('alice@nus.edu.sg');
+    await wrapper.find('button.btn-primary').trigger('click');
+
+    expect(wrapper.emitted('continue')[0][0]).toMatchObject({ referralCode: 'ADA-LEE' });
   });
 
   it('does not ask for organization on private company domains', async () => {
@@ -53,6 +65,7 @@ describe('EmailGate', () => {
     expect(wrapper.emitted('continue')[0][0]).toEqual({
       email: 'alex@contoso.com',
       name: 'Alex',
+      referralCode: '',
       organization: '',
     });
   });
@@ -72,12 +85,13 @@ describe('EmailGate', () => {
     const wrapper = mount(EmailGate);
     await wrapper.findAll('input[type="text"]')[0].setValue('Alex');
     await wrapper.find('input[type="email"]').setValue('alex@outlook.com');
-    await wrapper.findAll('input[type="text"]')[1].setValue(' Contoso ');
+    await wrapper.findAll('input[type="text"]')[2].setValue(' Contoso ');
     await wrapper.find('button.btn-primary').trigger('click');
 
     expect(wrapper.emitted('continue')[0][0]).toEqual({
       email: 'alex@outlook.com',
       name: 'Alex',
+      referralCode: '',
       organization: 'Contoso',
     });
   });

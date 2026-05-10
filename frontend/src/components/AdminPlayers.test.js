@@ -69,7 +69,7 @@ describe('AdminPlayers', () => {
 
   it('searches players and opens a detail view', async () => {
     const wrapper = mount(AdminPlayers);
-    await wrapper.find('input[placeholder="Search by email or name"]').setValue('ada');
+    await wrapper.find('input[placeholder="Search by email or nickname"]').setValue('ada');
     await wrapper
       .findAll('button')
       .find((button) => button.text() === 'Search')
@@ -89,7 +89,7 @@ describe('AdminPlayers', () => {
 
   it('revokes a submission after confirmation and refreshes details', async () => {
     const wrapper = mount(AdminPlayers);
-    await wrapper.find('input[placeholder="Search by email or name"]').setValue('ada');
+    await wrapper.find('input[placeholder="Search by email or nickname"]').setValue('ada');
     await wrapper
       .findAll('button')
       .find((button) => button.text() === 'Search')
@@ -111,7 +111,7 @@ describe('AdminPlayers', () => {
 
   it('deletes a selected player after confirmation and re-runs the current search', async () => {
     const wrapper = mount(AdminPlayers);
-    await wrapper.find('input[placeholder="Search by email or name"]').setValue('ada');
+    await wrapper.find('input[placeholder="Search by email or nickname"]').setValue('ada');
     await wrapper
       .findAll('button')
       .find((button) => button.text() === 'Search')

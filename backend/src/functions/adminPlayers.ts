@@ -16,7 +16,7 @@ async function searchPlayers(request: HttpRequest, _context: InvocationContext) 
   const pool = await getPool();
 
   const result = await pool.request().input('q', sql.NVarChar(320), `%${escapedQ}%`).query(`
-      SELECT TOP 50 p.id, p.player_name, p.email, p.created_at,
+      SELECT TOP 50 p.id, p.player_name, p.player_name AS nickname, p.email, p.created_at,
         (SELECT COUNT(*) FROM game_sessions gs WHERE gs.player_id = p.id) AS session_count,
         (SELECT COUNT(*) FROM submissions s WHERE s.player_id = p.id) AS submission_count
       FROM players p
@@ -41,7 +41,9 @@ async function getPlayerDetail(request: HttpRequest, _context: InvocationContext
   const player = await pool
     .request()
     .input('id', sql.Int, id)
-    .query('SELECT id, session_id, player_name, email, created_at FROM players WHERE id = @id;');
+    .query(
+      'SELECT id, session_id, player_name, player_name AS nickname, email, created_at FROM players WHERE id = @id;',
+    );
 
   if (player.recordset.length === 0) {
     return { status: 404, jsonBody: { ok: false, message: 'Player not found' } };

@@ -16,6 +16,15 @@ function rankClass(i) {
 function isPlayerOrg(org) {
   return props.playerOrg && org.toLowerCase() === props.playerOrg.toLowerCase();
 }
+
+function contributorSummary(row) {
+  const names = (row.topContributors || [])
+    .map((contributor) => contributor.nickname)
+    .filter(Boolean);
+  const hiddenCount = Number(row.hiddenContributorCount || 0);
+  if (hiddenCount > 0) names.push(`+${hiddenCount}`);
+  return names.length ? names.join(', ') : '-';
+}
 </script>
 
 <template>
@@ -48,6 +57,11 @@ function isPlayerOrg(org) {
               Contributors
             </th>
             <th
+              class="border-b border-themed px-3 py-2 text-left text-label-md font-semibold uppercase tracking-[0.5px] text-tertiary"
+            >
+              Top Contributors
+            </th>
+            <th
               class="hidden border-b border-themed px-3 py-2 text-left text-label-md font-semibold uppercase tracking-[0.5px] text-tertiary sm:table-cell"
             >
               Last Submission
@@ -73,6 +87,9 @@ function isPlayerOrg(org) {
             </td>
             <td class="border-b border-outline-variant px-3 py-2.5 text-body-md text-on-surface">
               {{ r.contributorCount }}
+            </td>
+            <td class="max-w-[18rem] border-b border-outline-variant px-3 py-2.5 text-body-sm text-on-surface">
+              {{ contributorSummary(r) }}
             </td>
             <td
               class="hidden border-b border-outline-variant px-3 py-2.5 text-body-md text-on-surface-variant sm:table-cell"

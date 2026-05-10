@@ -94,6 +94,7 @@ type StartBoardArgs = {
   packId?: number | string;
   email?: string;
   organization?: string;
+  referralCode?: string;
 };
 
 type AssignmentResult = {
@@ -321,6 +322,16 @@ export function useBingoGame() {
     return assignedPackId;
   }
 
+  function addReferralCode(payload: Record<string, unknown>, referralCode?: string) {
+    const code = (referralCode ?? loadString(STORAGE_KEYS.referralCode)).trim();
+    if (code) payload.referralCode = code;
+  }
+
+  function messageFromResponse(res: ApiResponse<unknown>, fallback: string): string {
+    const message = (res.data as { message?: unknown } | null)?.message;
+    return typeof message === 'string' && message.trim() ? message : fallback;
+  }
+
   async function ensurePackAssignment(args: StartBoardArgs = {}): Promise<AssignmentResult> {
     const canonicalName = applyIdentity(args);
     if (state.recoveryRequired && (!state.recoveryEmail || state.recoveryEmail === state.email)) {
@@ -336,12 +347,19 @@ export function useBingoGame() {
         email: state.email,
       };
       if (state.organization) sessionPayload.organization = state.organization;
+      addReferralCode(sessionPayload, args.referralCode);
 
       const res = (await apiCreateSession(sessionPayload)) as ApiResponse<CreateSessionPayload>;
       if (handleCreateSessionRecovery(res, state.email)) return recoveryResult();
       if (res.ok && res.data) {
         const assignedPackId = applySessionPayload(res.data);
         if (assignedPackId > 0) return { ok: true, packId: assignedPackId };
+      }
+      if (res.status && res.status >= 400) {
+        return {
+          ok: false,
+          message: messageFromResponse(res, 'Unable to resolve your assigned pack. Please try again.'),
+        };
       }
     } catch {
       // API unavailable — launch can retry assignment when the player taps the button.
@@ -350,7 +368,7 @@ export function useBingoGame() {
     return { ok: false, message: 'Unable to resolve your assigned pack. Please try again.' };
   }
 
-  async function startBoard({ name, packId, email, organization }: StartBoardArgs = {}) {
+  async function startBoard({ name, packId, email, organization, referralCode }: StartBoardArgs = {}) {
     const canonicalName = applyIdentity({ name, email, organization });
 
     if (state.recoveryRequired && (!state.recoveryEmail || state.recoveryEmail === state.email)) {
@@ -372,6 +390,7 @@ export function useBingoGame() {
         email: state.email,
       };
       if (state.organization) sessionPayload.organization = state.organization;
+      addReferralCode(sessionPayload, referralCode);
       if (packId) sessionPayload.packId = Number(packId);
 
       const res = (await apiCreateSession(sessionPayload)) as ApiResponse<CreateSessionPayload>;
@@ -386,6 +405,17 @@ export function useBingoGame() {
         if (res.data.gameSessionId) {
           resolvedGameSessionId = res.data.gameSessionId;
         }
+      }
+      if (!res.ok && res.status && res.status >= 400) {
+        return {
+          ok: false,
+          message: messageFromResponse(
+            res,
+            packId
+              ? 'Unable to start your board. Please try again.'
+              : 'Unable to resolve your assigned pack. Please try again.',
+          ),
+        };
       }
     } catch {
       // API unavailable — continue with local fallback state.

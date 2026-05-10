@@ -44,6 +44,28 @@ The system SHALL expose `GET /api/portal-api/export` to download campaign scorin
 - **WHEN** the admin sends `GET /api/portal-api/export?campaign=APR26`
 - **THEN** the system MUST return the same progression-consistent CSV file (backward compatible)
 
+### Requirement: Admin score surfaces use nickname terminology
+
+The system SHALL present player identity fields as nicknames in admin dashboard tables and exports while preserving backend compatibility with existing `player_name` data.
+
+#### Scenario: Recent sessions table labels player identity as nickname
+
+- **GIVEN** the admin dashboard returns recent session rows containing player identity data
+- **WHEN** the Recent Sessions table renders
+- **THEN** the player identity column MUST be labeled and understood as nickname rather than name
+
+#### Scenario: Recent score events table labels player identity as nickname
+
+- **GIVEN** the admin dashboard returns recent score event rows containing player identity data
+- **WHEN** the Recent Score Events table renders
+- **THEN** the player identity column MUST be labeled and understood as nickname rather than name
+
+#### Scenario: CSV export uses nickname header
+
+- **GIVEN** an admin downloads campaign scoring data
+- **WHEN** the CSV is generated
+- **THEN** the player identity header MUST be `nickname` while values MAY continue to come from the existing `players.player_name` backing column
+
 ### Requirement: Dashboard parity with player leaderboard
 
 The system SHALL ensure admin score totals for a campaign match the same scoring source used by `GET /api/leaderboard`.

@@ -40,6 +40,7 @@ const activeTab = ref('game');
 const playerEmail = ref(loadString(STORAGE_KEYS.email));
 const playerName = ref(loadString(STORAGE_KEYS.playerName));
 const playerOrganization = ref(loadString(STORAGE_KEYS.organization));
+const playerReferralCode = ref(loadString(STORAGE_KEYS.referralCode));
 const view = ref('game'); // 'game' | 'admin-login' | 'admin'
 const adminSessionMessage = ref('');
 const identityReady = computed(() => {
@@ -68,13 +69,16 @@ onMounted(() => {
   installPlayerAuthRefresher(async () => {
     const email = playerEmail.value || loadString(STORAGE_KEYS.email);
     const name = playerName.value || loadString(STORAGE_KEYS.playerName);
+    const referralCode = playerReferralCode.value || loadString(STORAGE_KEYS.referralCode);
     if (!email || !name) return false;
-    const res = await apiCreateSession({
+    const payload = {
       sessionId: getStoredSessionId(),
       playerName: name,
       email,
       organization: playerOrganization.value || loadString(STORAGE_KEYS.organization) || undefined,
-    });
+    };
+    if (referralCode) payload.referralCode = referralCode;
+    const res = await apiCreateSession(payload);
     if (isPlayerRecoveryRequiredResponse(res)) {
       setRecoveryRequired(email, 'Recover this player identity to continue.');
       return false;
@@ -136,8 +140,14 @@ async function onEmailContinue(identity) {
   playerEmail.value = identity.email;
   playerName.value = identity.name;
   playerOrganization.value = identity.organization || '';
+  playerReferralCode.value = identity.referralCode || '';
   saveString(STORAGE_KEYS.email, identity.email);
   saveString(STORAGE_KEYS.playerName, identity.name);
+  if (identity.referralCode) {
+    saveString(STORAGE_KEYS.referralCode, identity.referralCode);
+  } else {
+    removeKey(STORAGE_KEYS.referralCode);
+  }
   if (identity.organization) {
     saveString(STORAGE_KEYS.organization, identity.organization);
   } else {

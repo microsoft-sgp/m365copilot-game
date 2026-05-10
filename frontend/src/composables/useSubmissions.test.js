@@ -204,12 +204,30 @@ describe('useSubmissions.leaderboard', () => {
     apiGetLeaderboard.mockResolvedValue({
       ok: true,
       data: {
-        leaderboard: [{ org: 'SMU', score: 3, contributors: 2, lastSubmission: 't' }],
+        leaderboard: [
+          {
+            org: 'SMU',
+            score: 3,
+            contributors: 2,
+            topContributors: [{ nickname: 'Ada', score: 2 }],
+            hiddenContributorCount: 1,
+            lastSubmission: 't',
+          },
+        ],
       },
     });
     const { leaderboard, refreshLeaderboard } = useSubmissions();
     await refreshLeaderboard();
-    expect(leaderboard.value).toEqual([{ org: 'SMU', score: 3, contributorCount: 2, lastTs: 't' }]);
+    expect(leaderboard.value).toEqual([
+      {
+        org: 'SMU',
+        score: 3,
+        contributorCount: 2,
+        topContributors: [{ nickname: 'Ada', score: 2 }],
+        hiddenContributorCount: 1,
+        lastTs: 't',
+      },
+    ]);
   });
 
   it('computes a local leaderboard when the server is empty', async () => {
@@ -218,6 +236,7 @@ describe('useSubmissions.leaderboard', () => {
     await submit({ ...goodInput, kw: 'CO-APR26-042-R1-ABCD1234' });
     await submit({
       ...goodInput,
+      name: 'Grace',
       email: 'grace@smu.edu.sg',
       kw: 'CO-APR26-042-R2-ABCD5678',
     });
@@ -226,6 +245,11 @@ describe('useSubmissions.leaderboard', () => {
         org: 'SMU',
         score: 2,
         contributorCount: 2,
+        topContributors: [
+          { nickname: 'Ada', score: 1 },
+          { nickname: 'Grace', score: 1 },
+        ],
+        hiddenContributorCount: 0,
         lastTs: expect.any(Number),
       },
     ]);

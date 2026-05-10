@@ -92,7 +92,7 @@ function sessionProgressWidth(value, total) {
           <table class="w-full border-collapse text-label-md">
             <thead>
               <tr>
-                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Player</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Nickname</th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Pack</th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Tasks</th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Awards</th>
@@ -104,7 +104,7 @@ function sessionProgressWidth(value, total) {
             <tbody>
               <tr v-for="s in dashboard.sessions" :key="s.id" class="hover:bg-primary/8">
                 <td class="border-b border-outline-variant px-2 py-1.5">
-                  {{ s.player_name }}
+                  {{ s.nickname || s.player_name }}
                 </td>
                 <td class="border-b border-outline-variant px-2 py-1.5">
                   {{ s.pack_id }}
@@ -170,7 +170,7 @@ function sessionProgressWidth(value, total) {
           <table class="w-full border-collapse text-label-md">
             <thead>
               <tr>
-                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Player</th>
+                <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Nickname</th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Org</th>
                 <th class="border-b border-themed px-2 py-1.5 text-left text-primary">
                   Achievement
@@ -184,7 +184,7 @@ function sessionProgressWidth(value, total) {
             <tbody>
               <tr v-for="s in dashboard.submissions" :key="s.id" class="hover:bg-primary/8">
                 <td class="border-b border-outline-variant px-2 py-1.5">
-                  {{ s.player_name }}
+                  {{ s.nickname || s.player_name }}
                 </td>
                 <td class="border-b border-outline-variant px-2 py-1.5">
                   {{ s.org }}

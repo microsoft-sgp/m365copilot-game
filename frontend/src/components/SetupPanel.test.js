@@ -186,6 +186,69 @@ describe('SetupPanel', () => {
     });
   });
 
+  it('includes stored referral code during assignment bootstrap', async () => {
+    localStorage.setItem('copilot_bingo_email', 'ada@example.com');
+    localStorage.setItem('copilot_bingo_referral_code', 'ADA-LEE');
+    const { state } = useBingoGame();
+    state.assignedPackId = 0;
+    localStorage.removeItem('copilot_bingo_last_pack');
+    apiCreateSession.mockResolvedValue({
+      ok: true,
+      data: {
+        gameSessionId: 123,
+        packId: 88,
+        activeAssignment: {
+          assignmentId: 9,
+          packId: 88,
+          cycleNumber: 1,
+          rotated: false,
+          completedPackId: null,
+        },
+      },
+    });
+
+    mount(SetupPanel);
+    await flushPromises();
+
+    expect(apiCreateSession).toHaveBeenCalledWith({
+      sessionId: 'test-session',
+      playerName: 'Ada',
+      email: 'ada@example.com',
+      referralCode: 'ADA-LEE',
+    });
+  });
+
+  it('surfaces invalid referral copy and lets the player clear it before launch', async () => {
+    localStorage.setItem('copilot_bingo_email', 'ada@example.com');
+    localStorage.setItem('copilot_bingo_referral_code', 'BAD-CODE');
+    apiCreateSession.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      data: { ok: false, message: 'Referral code is not valid for this campaign.' },
+    });
+    const w = mount(SetupPanel);
+
+    await findButton(w, 'Launch Board').trigger('click');
+    await flushPromises();
+
+    expect(w.text()).toContain('Referral code is not valid for this campaign.');
+    expect(useBingoGame().state.boardActive).toBe(false);
+
+    await w.find('input[type="text"]').setValue('');
+    apiCreateSession.mockResolvedValueOnce({ ok: true, data: { gameSessionId: 123, packId: 42 } });
+    await findButton(w, 'Launch Board').trigger('click');
+    await flushPromises();
+
+    expect(localStorage.getItem('copilot_bingo_referral_code')).toBeNull();
+    expect(apiCreateSession).toHaveBeenLastCalledWith({
+      sessionId: 'test-session',
+      playerName: 'Ada',
+      email: 'ada@example.com',
+      packId: 42,
+    });
+    expect(useBingoGame().state.boardActive).toBe(true);
+  });
+
   it('does not render #000 while assignment is pending', () => {
     const { state } = useBingoGame();
     state.assignedPackId = 0;

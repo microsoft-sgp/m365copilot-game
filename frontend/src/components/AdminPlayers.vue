@@ -60,7 +60,7 @@ async function revokeSubmission(subId) {
       <input
         v-model="query"
         class="field-input max-w-[300px]"
-        placeholder="Search by email or name"
+        placeholder="Search by email or nickname"
         @keyup.enter="search"
       />
       <button class="btn btn-primary btn-sm" :disabled="loading" @click="search">Search</button>
@@ -72,7 +72,7 @@ async function revokeSubmission(subId) {
         <table class="w-full border-collapse text-label-md">
           <thead>
             <tr>
-              <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Name</th>
+              <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Nickname</th>
               <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Email</th>
               <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Sessions</th>
               <th class="border-b border-themed px-2 py-1.5 text-left text-primary">Submissions</th>
@@ -86,7 +86,7 @@ async function revokeSubmission(subId) {
               @click="selectPlayer(p)"
             >
               <td class="border-b border-outline-variant px-2 py-1.5">
-                {{ p.player_name }}
+                {{ p.nickname || p.player_name }}
               </td>
               <td class="border-b border-outline-variant px-2 py-1.5">
                 {{ p.email }}
@@ -107,7 +107,7 @@ async function revokeSubmission(subId) {
     <div v-if="playerDetail" class="glass rounded-xl p-5">
       <div class="mb-3 flex items-center justify-between">
         <div>
-          <strong class="text-lg text-on-surface">{{ playerDetail.player.player_name }}</strong>
+          <strong class="text-lg text-on-surface">{{ playerDetail.player.nickname || playerDetail.player.player_name }}</strong>
           <div class="text-label-md text-on-surface-variant">
             {{ playerDetail.player.email }}
           </div>
