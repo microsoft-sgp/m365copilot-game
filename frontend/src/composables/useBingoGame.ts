@@ -129,6 +129,29 @@ function freshState(): GameState {
   };
 }
 
+function getOpenChallengeWeek(challengeStartAt: number): number {
+  const startedAt = Number(challengeStartAt);
+  const safeStartedAt = Number.isFinite(startedAt) ? startedAt : Date.now();
+  const elapsed = Math.max(0, Date.now() - safeStartedAt);
+  return Math.min(Math.floor(elapsed / MS_PER_WEEK) + 1, TOTAL_WEEKS);
+}
+
+function normalizeChallengeProfile(profile?: ChallengeProfile | null): ChallengeProfile | null {
+  if (!profile) return null;
+  if (!Number.isFinite(Number(profile.challengeStartAt))) {
+    profile.challengeStartAt = Date.now();
+  }
+  const submittedWeeks = Array.isArray(profile.weeklySubmissions)
+    ? profile.weeklySubmissions
+        .map((week) => Number(week))
+        .filter((week) => Number.isInteger(week) && week >= 1 && week <= TOTAL_WEEKS)
+    : [];
+  profile.weeklySubmissions = [...new Set(submittedWeeks)];
+  profile.weeksCompleted = Math.min(profile.weeklySubmissions.length, TOTAL_WEEKS);
+  profile.currentWeek = getOpenChallengeWeek(profile.challengeStartAt);
+  return profile;
+}
+
 const state = reactive<GameState>(freshState());
 
 function persist() {
@@ -168,6 +191,7 @@ function load() {
   const saved = loadJson<Partial<GameState> | null>(STORAGE_KEYS.state, null);
   if (saved && saved.sessionId) {
     Object.assign(state, freshState(), saved);
+    normalizeChallengeProfile(state.challengeProfile);
     // Rehydrate tile verify functions if a board was active.
     if (state.boardActive && state.packId) {
       state.tiles = getPack(state.packId);
@@ -301,6 +325,7 @@ export function useBingoGame() {
     if (resetChallengeProfile || !state.challengeProfile) {
       state.challengeProfile = freshChallengeProfile();
     }
+    normalizeChallengeProfile(state.challengeProfile);
 
     saveString(STORAGE_KEYS.playerName, canonicalName);
     saveString(STORAGE_KEYS.lastPack, String(targetPackId));
@@ -591,24 +616,20 @@ export function useBingoGame() {
   }
 
   function tryWeeklyClear(): { keyword: string; week: number } | null {
-    const cp = state.challengeProfile;
+    const cp = normalizeChallengeProfile(state.challengeProfile);
     if (!cp) return null;
-    if ((cp.weeklySubmissions || []).includes(cp.currentWeek)) return null;
     const awardedWeek = cp.currentWeek;
-    const wkw = mintWeeklyKeyword(cp.currentWeek, state.packId, state.sessionId);
+    if ((cp.weeklySubmissions || []).includes(awardedWeek)) return null;
+    const wkw = mintWeeklyKeyword(awardedWeek, state.packId, state.sessionId);
     if (state.keywords.find((k) => k.code === wkw)) return null;
     state.keywords.push({
       code: wkw,
       packId: state.packId,
-      lineId: `W${cp.currentWeek}`,
+      lineId: `W${awardedWeek}`,
       ts: Date.now(),
     });
-    cp.weeklySubmissions = cp.weeklySubmissions || [];
-    cp.weeklySubmissions.push(cp.currentWeek);
+    cp.weeklySubmissions = [...new Set([...(cp.weeklySubmissions || []), awardedWeek])];
     cp.weeksCompleted = Math.min(cp.weeklySubmissions.length, TOTAL_WEEKS);
-    const elapsed = Date.now() - cp.challengeStartAt;
-    const maxWeek = Math.min(Math.floor(elapsed / MS_PER_WEEK) + 1, TOTAL_WEEKS);
-    cp.currentWeek = Math.min(cp.currentWeek + 1, maxWeek, TOTAL_WEEKS);
     return { keyword: wkw, week: awardedWeek };
   }
 
@@ -637,6 +658,7 @@ export function useBingoGame() {
       state.keywords = session.boardState.keywords || [];
       state.challengeProfile = session.boardState.challengeProfile || state.challengeProfile;
     }
+    normalizeChallengeProfile(state.challengeProfile);
 
     if (state.packId) {
       state.tiles = getPack(state.packId);

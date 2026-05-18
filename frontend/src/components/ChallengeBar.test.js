@@ -63,4 +63,21 @@ describe('ChallengeBar', () => {
     expect(w.text()).toContain('1 week left');
     expect(w.text()).not.toContain('1 weeks left');
   });
+
+  it('marks submitted weeks without backfilling skipped earlier weeks', async () => {
+    const { state } = useBingoGame();
+    state.challengeProfile = {
+      challengeStartAt: Date.now(),
+      currentWeek: 2,
+      weeksCompleted: 1,
+      weeklySubmissions: [2],
+    };
+    const w = mount(ChallengeBar);
+    await w.vm.$nextTick();
+    const dots = w.findAll('.wdot');
+    expect(dots[0].classes('done')).toBe(false);
+    expect(dots[1].classes('done')).toBe(true);
+    expect(dots[1].classes('current')).toBe(false);
+    expect(w.text()).toContain('Completed: 1/7');
+  });
 });

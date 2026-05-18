@@ -42,7 +42,7 @@ import {
 } from '../lib/api.js';
 import { useBingoGame } from './useBingoGame.js';
 import { LINES } from '../data/lines.js';
-import { MS_PER_WEEK } from '../data/constants.js';
+import { MS_PER_WEEK, TOTAL_WEEKS } from '../data/constants.js';
 
 function resetState() {
   const { state } = useBingoGame();
@@ -167,13 +167,32 @@ describe('useBingoGame.startBoard', () => {
   });
 
   it('preserves an existing challenge profile across new boards', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
     const { startBoard, state } = useBingoGame();
     startBoard({ name: 'Ada', packId: 1 });
-    state.challengeProfile.currentWeek = 3;
+    state.challengeProfile.challengeStartAt = 0;
+    state.challengeProfile.weeklySubmissions = [1, 2];
     state.challengeProfile.weeksCompleted = 2;
+    vi.setSystemTime(MS_PER_WEEK * 2 + 1000);
     startBoard({ name: 'Ada', packId: 2 });
     expect(state.challengeProfile.currentWeek).toBe(3);
     expect(state.challengeProfile.weeksCompleted).toBe(2);
+  });
+
+  it('opens week 2 after elapsed time even when week 1 is incomplete', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const { startBoard, state } = useBingoGame();
+    startBoard({ name: 'Ada', packId: 1 });
+    expect(state.challengeProfile.currentWeek).toBe(1);
+
+    vi.setSystemTime(MS_PER_WEEK + 1000);
+    startBoard({ name: 'Ada', packId: 1 });
+
+    expect(state.challengeProfile.currentWeek).toBe(2);
+    expect(state.challengeProfile.weeksCompleted).toBe(0);
+    expect(state.challengeProfile.weeklySubmissions).toEqual([]);
   });
 
   it('persists player name and last pack to localStorage', () => {
@@ -508,6 +527,37 @@ describe('useBingoGame.verifyTile', () => {
     expect(state.challengeProfile.currentWeek).toBe(2);
     expect(state.challengeProfile.weeksCompleted).toBe(1);
   });
+
+  it('awards the current timed week without backfilling earlier missed weeks', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const { startBoard, verifyTile, state } = useBingoGame();
+    startBoard({ name: 'Ada', packId: 1 });
+
+    vi.setSystemTime(MS_PER_WEEK + 1000);
+    let last;
+    for (const i of [0, 1, 2]) last = verifyTile(i, 'PASS');
+
+    expect(last.weeklyKw).toMatch(/^CO-APR26-W2-001-/);
+    expect(state.challengeProfile.currentWeek).toBe(2);
+    expect(state.challengeProfile.weeklySubmissions).toEqual([2]);
+    expect(state.challengeProfile.weeksCompleted).toBe(1);
+    expect(state.keywords.filter((k) => /^W/.test(k.lineId)).map((k) => k.lineId)).toEqual([
+      'W2',
+    ]);
+  });
+
+  it('caps normalized currentWeek at the total week count', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const { startBoard, state } = useBingoGame();
+    startBoard({ name: 'Ada', packId: 1 });
+
+    vi.setSystemTime(MS_PER_WEEK * TOTAL_WEEKS + 1000);
+    startBoard({ name: 'Ada', packId: 1 });
+
+    expect(state.challengeProfile.currentWeek).toBe(TOTAL_WEEKS);
+  });
 });
 
 describe('useBingoGame computed counters', () => {
@@ -602,6 +652,8 @@ describe('useBingoGame.hydrateFromServer session restoration', () => {
   });
 
   it('restores cleared/wonLines/keywords/challengeProfile from board state', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MS_PER_WEEK + 1000);
     const { hydrateFromServer, state } = useBingoGame();
     hydrateFromServer({
       playerName: 'Ada',
@@ -630,6 +682,36 @@ describe('useBingoGame.hydrateFromServer session restoration', () => {
     expect(state.challengeProfile.currentWeek).toBe(2);
     expect(state.boardActive).toBe(true);
     expect(state.tiles).toHaveLength(9);
+  });
+
+  it('normalizes stale hydrated currentWeek before the board renders', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MS_PER_WEEK + 1000);
+    const { hydrateFromServer, state } = useBingoGame();
+    hydrateFromServer({
+      playerName: 'Ada',
+      activeAssignment: { assignmentId: 1, packId: 7, cycleNumber: 1 },
+      activeSession: {
+        gameSessionId: 555,
+        packId: 7,
+        boardState: {
+          cleared: new Array(9).fill(false),
+          wonLines: [],
+          keywords: [],
+          challengeProfile: {
+            currentWeek: 1,
+            weeksCompleted: 0,
+            weeklySubmissions: [],
+            challengeStartAt: 0,
+          },
+        },
+      },
+    });
+
+    expect(state.challengeProfile.currentWeek).toBe(2);
+    expect(state.challengeProfile.weeksCompleted).toBe(0);
+    expect(state.challengeProfile.weeklySubmissions).toEqual([]);
+    expect(state.boardActive).toBe(true);
   });
 
   it('does not activate board when packId is missing on session', () => {
