@@ -75,7 +75,7 @@ The frontend SHALL treat New Board as a server-authoritative pack reroll. When t
 
 ### Requirement: Board progression and verification parity
 
-The system SHALL preserve board progression rules, including task prompt display, proof submission, verification feedback, tile clearing, line completion detection, keyword minting, and weekly challenge progression. Weekly challenge availability SHALL be time-driven from the board's `challengeStartAt`: Week 1 is open at board start, Week 2 opens after seven elapsed days, and later weeks open after each additional seven-day interval, capped by the configured total week count. Weekly challenge availability MUST NOT require earlier weekly clears to be completed. For heading-based proof rules, the system SHALL accept required headings when they appear either as Markdown heading lines or as standalone plain section-label lines matching the required heading text.
+The system SHALL preserve board progression rules, including task prompt display, proof submission, verification feedback, tile clearing, line completion detection, keyword minting, and weekly challenge progression. Weekly challenge availability SHALL be time-driven from the board's `challengeStartAt`: Week 1 is open at board start, Week 2 opens after seven elapsed days, and later weeks open after each additional seven-day interval, capped by the configured total week count. When a board is restored from server state and its stored challenge profile is missing or lacks a valid `challengeStartAt`, the frontend SHALL use the active session's `startedAt` value as the challenge start time before calculating the open week. Weekly challenge availability MUST NOT require earlier weekly clears to be completed. For heading-based proof rules, the system SHALL accept required headings when they appear either as Markdown heading lines or as standalone plain section-label lines matching the required heading text.
 
 #### Scenario: Proof passes verification for a tile
 
@@ -118,6 +118,24 @@ The system SHALL preserve board progression rules, including task prompt display
 - **GIVEN** a saved or server-hydrated challenge profile has `currentWeek` set to 1 and `challengeStartAt` more than seven days in the past
 - **WHEN** the frontend restores that board state
 - **THEN** the frontend MUST normalize the challenge profile so the current week reflects elapsed time before rendering weekly progress
+
+#### Scenario: Server restore recovers missing challenge profile start
+
+- **GIVEN** the server returns an active session whose `startedAt` is more than seven days in the past and whose `boardState` has no challenge profile
+- **WHEN** the frontend hydrates that server state
+- **THEN** the frontend MUST create a challenge profile using `startedAt` as `challengeStartAt` and display Week 2 as the current open week while leaving weekly submissions empty
+
+#### Scenario: Server restore repairs invalid challenge profile start
+
+- **GIVEN** the server returns an active session whose `startedAt` is more than seven days in the past and whose challenge profile has an invalid or missing `challengeStartAt`
+- **WHEN** the frontend hydrates that server state
+- **THEN** the frontend MUST normalize the challenge profile using `startedAt` as `challengeStartAt` before rendering weekly progress
+
+#### Scenario: Server session start takes precedence over fresh local start during restore
+
+- **GIVEN** the frontend has a newly-created local challenge profile and the server returns an older active session without a usable challenge profile start
+- **WHEN** the frontend hydrates the server state
+- **THEN** the frontend MUST calculate the open week from the server session's `startedAt` instead of the fresh local challenge start time
 
 #### Scenario: Weekly award uses current timed week
 

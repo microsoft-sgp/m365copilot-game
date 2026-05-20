@@ -86,6 +86,7 @@ type ServerPlayerState = {
     gameSessionId?: number;
     packId?: number;
     boardState?: BoardStatePayload | null;
+    startedAt?: number | string | Date | null;
   } | null;
 };
 
@@ -136,20 +137,51 @@ function getOpenChallengeWeek(challengeStartAt: number): number {
   return Math.min(Math.floor(elapsed / MS_PER_WEEK) + 1, TOTAL_WEEKS);
 }
 
-function normalizeChallengeProfile(profile?: ChallengeProfile | null): ChallengeProfile | null {
-  if (!profile) return null;
-  if (!Number.isFinite(Number(profile.challengeStartAt))) {
-    profile.challengeStartAt = Date.now();
+function parseTimestamp(value: unknown): number | null {
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isFinite(time) ? time : null;
   }
-  const submittedWeeks = Array.isArray(profile.weeklySubmissions)
-    ? profile.weeklySubmissions
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const numeric = Number(trimmed);
+  if (Number.isFinite(numeric)) return numeric;
+  const parsedDate = Date.parse(trimmed);
+  return Number.isFinite(parsedDate) ? parsedDate : null;
+}
+
+function normalizeChallengeProfile(
+  profile?: ChallengeProfile | null,
+  fallbackStartAt?: unknown,
+): ChallengeProfile | null {
+  const parsedFallbackStartAt = parseTimestamp(fallbackStartAt);
+  const profileStartAt = parseTimestamp(profile?.challengeStartAt);
+  const challengeStartAt = profileStartAt ?? parsedFallbackStartAt ?? null;
+  if (!profile && challengeStartAt === null) return null;
+
+  const normalizedProfile =
+    profile ??
+    ({
+      challengeStartAt: challengeStartAt ?? Date.now(),
+      currentWeek: 1,
+      weeksCompleted: 0,
+      weeklySubmissions: [],
+    } as ChallengeProfile);
+
+  normalizedProfile.challengeStartAt = challengeStartAt ?? Date.now();
+  const submittedWeeks = Array.isArray(normalizedProfile.weeklySubmissions)
+    ? normalizedProfile.weeklySubmissions
         .map((week) => Number(week))
         .filter((week) => Number.isInteger(week) && week >= 1 && week <= TOTAL_WEEKS)
     : [];
-  profile.weeklySubmissions = [...new Set(submittedWeeks)];
-  profile.weeksCompleted = Math.min(profile.weeklySubmissions.length, TOTAL_WEEKS);
-  profile.currentWeek = getOpenChallengeWeek(profile.challengeStartAt);
-  return profile;
+  normalizedProfile.weeklySubmissions = [...new Set(submittedWeeks)];
+  normalizedProfile.weeksCompleted = Math.min(normalizedProfile.weeklySubmissions.length, TOTAL_WEEKS);
+  normalizedProfile.currentWeek = getOpenChallengeWeek(normalizedProfile.challengeStartAt);
+  return normalizedProfile;
 }
 
 const state = reactive<GameState>(freshState());
@@ -651,14 +683,19 @@ export function useBingoGame() {
     state.gameSessionId = session.gameSessionId ?? null;
     state.packId = session.packId ?? 0;
     state.assignedPackId = session.packId || state.assignedPackId;
+    const sessionStartedAt = parseTimestamp(session.startedAt);
+    let profileForHydration = state.challengeProfile;
 
     if (session.boardState) {
       state.cleared = session.boardState.cleared || [];
       state.wonLines = session.boardState.wonLines || [];
       state.keywords = session.boardState.keywords || [];
-      state.challengeProfile = session.boardState.challengeProfile || state.challengeProfile;
+      const serverProfile = session.boardState.challengeProfile;
+      if (serverProfile || sessionStartedAt !== null) {
+        profileForHydration = serverProfile ?? null;
+      }
     }
-    normalizeChallengeProfile(state.challengeProfile);
+    state.challengeProfile = normalizeChallengeProfile(profileForHydration, sessionStartedAt);
 
     if (state.packId) {
       state.tiles = getPack(state.packId);

@@ -714,6 +714,92 @@ describe('useBingoGame.hydrateFromServer session restoration', () => {
     expect(state.boardActive).toBe(true);
   });
 
+  it('hydrates missing challengeProfile from active session startedAt', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MS_PER_WEEK + 1000);
+    const { hydrateFromServer, state } = useBingoGame();
+    hydrateFromServer({
+      playerName: 'Ada',
+      activeAssignment: { assignmentId: 1, packId: 7, cycleNumber: 1 },
+      activeSession: {
+        gameSessionId: 555,
+        packId: 7,
+        startedAt: 0,
+        boardState: {
+          cleared: new Array(9).fill(false),
+          wonLines: [],
+          keywords: [],
+        },
+      },
+    });
+
+    expect(state.challengeProfile.challengeStartAt).toBe(0);
+    expect(state.challengeProfile.currentWeek).toBe(2);
+    expect(state.challengeProfile.weeksCompleted).toBe(0);
+    expect(state.challengeProfile.weeklySubmissions).toEqual([]);
+    expect(state.keywords.filter((k) => /^W/.test(k.lineId))).toEqual([]);
+    expect(state.boardActive).toBe(true);
+  });
+
+  it('repairs invalid hydrated challengeStartAt from active session startedAt', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MS_PER_WEEK + 1000);
+    const { hydrateFromServer, state } = useBingoGame();
+    hydrateFromServer({
+      playerName: 'Ada',
+      activeAssignment: { assignmentId: 1, packId: 7, cycleNumber: 1 },
+      activeSession: {
+        gameSessionId: 555,
+        packId: 7,
+        startedAt: '1970-01-01T00:00:00.000Z',
+        boardState: {
+          cleared: new Array(9).fill(false),
+          wonLines: [],
+          keywords: [],
+          challengeProfile: {
+            currentWeek: 1,
+            weeksCompleted: 0,
+            weeklySubmissions: [],
+            challengeStartAt: 'not-a-date',
+          },
+        },
+      },
+    });
+
+    expect(state.challengeProfile.challengeStartAt).toBe(0);
+    expect(state.challengeProfile.currentWeek).toBe(2);
+    expect(state.challengeProfile.weeksCompleted).toBe(0);
+    expect(state.challengeProfile.weeklySubmissions).toEqual([]);
+  });
+
+  it('prefers older server startedAt over a fresh local challenge profile', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MS_PER_WEEK + 1000);
+    const { hydrateFromServer, startBoard, state } = useBingoGame();
+    await startBoard({ name: 'Ada', packId: 7 });
+    expect(state.challengeProfile.currentWeek).toBe(1);
+
+    hydrateFromServer({
+      playerName: 'Ada',
+      activeAssignment: { assignmentId: 1, packId: 7, cycleNumber: 1 },
+      activeSession: {
+        gameSessionId: 555,
+        packId: 7,
+        startedAt: 0,
+        boardState: {
+          cleared: new Array(9).fill(false),
+          wonLines: [],
+          keywords: [],
+        },
+      },
+    });
+
+    expect(state.challengeProfile.challengeStartAt).toBe(0);
+    expect(state.challengeProfile.currentWeek).toBe(2);
+    expect(state.challengeProfile.weeksCompleted).toBe(0);
+    expect(state.challengeProfile.weeklySubmissions).toEqual([]);
+  });
+
   it('does not activate board when packId is missing on session', () => {
     const { hydrateFromServer, state } = useBingoGame();
     hydrateFromServer({
